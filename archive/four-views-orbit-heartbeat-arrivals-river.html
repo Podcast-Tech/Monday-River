@@ -1,0 +1,1078 @@
+<title>Poddster Orbit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one radar fills the screen; you are the centre. Distance from centre = how soon an episode needs you (inside the red core = late).
+   Sectors = pipeline stages, clockwise from the top. Right rail = briefing when nothing is picked, episode controls when something is.
+   Dark-only by design: a radar reads against night. */
+:root{
+  color-scheme:dark;
+  --space:#06070A; --rail:#0C0D11; --card:#111218; --hover:#171922; --line:rgb(255 255 255 / .07); --line-2:rgb(255 255 255 / .12);
+  --ink:#F3F4F7; --ink-2:#CDD0D8; --muted:#8C90A0; --faint:#5E6273;
+  --brand:#FF003C; --late:#FF3B5C; --today:#F4B23C; --ok:#3DD68C;
+  --st-queue:#8C90A0; --st-assigned:#C9CCD6; --st-process:#F4C43C; --st-review:#5BA8FF; --st-corr:#FF8A3D; --st-client:#3DD68C; --st-other:#A68CFF; --st-done:#8B80F9;
+  --f:"Geist",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--space);color:var(--ink);font:400 13.5px/1.45 var(--f);-webkit-font-smoothing:antialiased;overflow:hidden}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:0;padding:0}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:6px}
+kbd{font:500 11px var(--mono);color:var(--muted);border:1px solid var(--line-2);border-radius:5px;padding:0 5px}
+.tnum{font-variant-numeric:tabular-nums}
+
+.app{display:grid;grid-template-columns:minmax(0,1fr) 380px;height:100%}
+.stage-area{position:relative;min-width:0;min-height:0;display:grid;grid-template-rows:auto minmax(0,1fr)}
+.hud{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;padding:16px 22px 0;position:relative;z-index:2}
+.brand{display:flex;align-items:center;gap:10px;margin-right:auto}
+.brand b{font-size:15px;font-weight:600;letter-spacing:-.01em;display:block;line-height:1.15}
+.brand span{font-size:12px;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:baseline;gap:6px;border:1px solid var(--line-2);border-radius:999px;padding:4px 11px;font-size:12.5px;color:var(--muted);background:rgb(255 255 255 / .02)}
+.chip b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+.chip.late{border-color:rgb(255 59 92 / .45);background:rgb(255 59 92 / .08)} .chip.late b{color:var(--late)}
+.chip.today b{color:var(--today)}
+.find{display:flex;align-items:center;gap:8px;border:1px solid var(--line-2);border-radius:999px;padding:5px 12px;width:220px;color:var(--muted);background:rgb(255 255 255 / .02)}
+.find input{border:0;outline:0;background:transparent;width:100%;min-width:0}
+.find input::placeholder{color:var(--faint)}
+.sync{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted)}
+.sync i{width:7px;height:7px;border-radius:50%;background:var(--faint)}
+.sync i.on{background:var(--ok);box-shadow:0 0 8px var(--ok)} .sync i.stale{background:var(--today)} .sync i.off{background:var(--late)}
+.sync button{border:1px solid var(--line-2);border-radius:999px;padding:3px 10px;color:var(--ink-2);font-weight:500}
+.sync button:hover{background:var(--hover)}
+
+.radar-wrap{position:relative;min-height:0;display:grid;place-items:center;padding:8px 16px 16px}
+svg.radar{width:100%;height:100%;max-width:100%;max-height:100%;aspect-ratio:1260/1140;display:block;overflow:visible}
+.ring{fill:none;stroke:var(--line);stroke-width:1}
+.ring.major{stroke:var(--line-2)}
+.ring-l{fill:var(--faint);font:500 13px var(--mono);letter-spacing:.02em}
+.spoke{stroke:var(--line);stroke-width:1}
+.sec-l{font:600 15px var(--f);letter-spacing:.01em}
+.sec-n{font:500 13px var(--mono);fill:var(--muted)}
+.core{fill:url(#coreG)}
+.core-edge{fill:none;stroke:rgb(255 59 92 / .5);stroke-width:1.5;stroke-dasharray:3 5}
+.core-n{fill:var(--ink);font:600 54px var(--f);letter-spacing:-.03em}
+.core-l{fill:var(--muted);font:500 15px var(--f)}
+.sweep{transform-origin:500px 500px;pointer-events:none}
+@media (prefers-reduced-motion:no-preference){.sweep{animation:spin 9s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+  .dot.late .halo{animation:pulse 2.4s ease-out infinite}@keyframes pulse{0%{r:var(--r0);opacity:.55}100%{r:var(--r1);opacity:0}}}
+@media (prefers-reduced-motion:reduce){.sweep{display:none}}
+.dot{cursor:pointer;outline:none}
+.dot .body{stroke:var(--space);stroke-width:2;transition:r .15s}
+.dot .halo{fill:none;stroke-width:2}
+.dot .ring-sel{fill:none;stroke:var(--ink);stroke-width:2;opacity:0}
+.dot:hover .ring-sel,.dot:focus-visible .ring-sel{opacity:.6}
+.dot.sel .ring-sel{opacity:1}
+.dot.dim{opacity:.14}
+.lbl{font:500 14px var(--f);fill:var(--ink-2);paint-order:stroke;stroke:var(--space);stroke-width:5px;stroke-linejoin:round;pointer-events:none}
+.lbl.late{fill:#FFC2CC}
+.tip{position:absolute;pointer-events:none;z-index:5;background:var(--card);border:1px solid var(--line-2);border-radius:10px;padding:8px 10px;font-size:12.5px;max-width:280px;box-shadow:0 12px 30px -10px #000}
+.tip b{display:block;font-weight:500}
+.tip span{color:var(--muted)}
+.legend{position:absolute;left:22px;bottom:18px;display:grid;gap:4px;font-size:12px;color:var(--muted);max-width:260px;pointer-events:none}
+.legend b{color:var(--ink-2);font-weight:500}
+
+/* rail */
+.rail{background:var(--rail);border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.rail-h{display:flex;align-items:center;gap:8px;padding:16px 18px;border-bottom:1px solid var(--line);min-height:58px}
+.rail-h h2{margin:0;font-size:14px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ib{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;color:var(--muted);flex:none}
+.ib:hover{background:var(--hover);color:var(--ink)}
+.rail-b{overflow-y:auto;padding:18px;display:grid;gap:22px;align-content:start;flex:1}
+.greet{font-size:20px;font-weight:600;letter-spacing:-.02em;line-height:1.25;margin:0;text-wrap:balance}
+.greet + p{margin:6px 0 0;color:var(--muted)}
+.bl{display:grid;gap:2px}
+.bl-h{font-size:12px;color:var(--muted);font-weight:500;margin:0 0 6px}
+.bi{display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 10px;margin:0 -10px;border-radius:8px;text-align:left;width:calc(100% + 20px)}
+.bi:hover{background:var(--hover)}
+.bi i{width:8px;height:8px;border-radius:50%;background:var(--c)}
+.bi span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bi small{font-size:12px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+.bi small.late{color:var(--late)} .bi small.today{color:var(--today)}
+.say{border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:grid;gap:6px;font-size:12.5px;color:var(--muted)}
+.say b{color:var(--ink-2);font-weight:500}
+
+.d-title{margin:0;font-size:19px;font-weight:600;letter-spacing:-.015em;line-height:1.3;text-wrap:balance}
+.badge{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:500;border-radius:999px;padding:3px 10px;border:1px solid color-mix(in srgb,var(--c) 45%,transparent);background:color-mix(in srgb,var(--c) 12%,transparent)}
+.badge i{width:7px;height:7px;border-radius:50%;background:var(--c)}
+.props{display:grid;grid-template-columns:88px minmax(0,1fr);gap:7px 10px;font-size:13px;margin:0}
+.props dt{color:var(--muted)} .props dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.props .late{color:var(--late)} .props .today{color:var(--today)}
+.moves{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.mv{display:flex;align-items:center;gap:7px;border:1px solid var(--line-2);border-radius:9px;padding:8px 9px;font-size:12.5px;font-weight:500;text-align:left;min-height:38px}
+.mv i{width:7px;height:7px;border-radius:50%;background:var(--c);flex:none}
+.mv:hover:not([disabled]){background:color-mix(in srgb,var(--c) 14%,transparent);border-color:color-mix(in srgb,var(--c) 50%,transparent)}
+.mv[disabled]{opacity:.35;cursor:default}
+.links{display:flex;flex-wrap:wrap;gap:6px}
+.lk{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line-2);border-radius:8px;padding:6px 10px;font-size:12.5px;font-weight:500;color:var(--ink-2);text-decoration:none}
+.lk:hover{background:var(--hover);color:var(--ink)}
+.composer{border:1px solid var(--line-2);border-radius:12px;display:grid;background:rgb(255 255 255 / .02)}
+.composer:focus-within{border-color:rgb(255 255 255 / .25)}
+.composer textarea{border:0;outline:0;background:transparent;resize:vertical;min-height:84px;padding:10px 12px;line-height:1.5}
+.composer textarea::placeholder{color:var(--faint)}
+.c-bar{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:8px 8px 8px 12px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+.c-bar label{display:inline-flex;gap:5px;align-items:center}
+.c-bar input{accent-color:var(--brand)}
+.post{margin-left:auto;background:var(--brand);color:#fff;border-radius:8px;padding:6px 12px;font-weight:500;font-size:12.5px}
+.post:hover{background:#E00035}
+.post[disabled]{opacity:.5}
+.banner{border:1px solid rgb(255 59 92 / .4);background:rgb(255 59 92 / .08);border-radius:12px;padding:12px 14px;display:grid;gap:2px}
+.banner span{color:var(--muted)}
+
+.toast{position:fixed;z-index:40;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);transform:translateX(-50%);display:flex;align-items:center;gap:12px;background:var(--ink);color:var(--space);padding:9px 10px 9px 14px;border-radius:10px;font-size:13px;max-width:calc(100% - 32px)}
+.toast button{color:var(--space);font-weight:600;padding:2px 8px;border-radius:6px;background:rgb(0 0 0 / .1)}
+.toast.bad{background:var(--late);color:#fff}
+
+@media (max-width:980px){
+  body{overflow:auto}
+  .app{grid-template-columns:minmax(0,1fr);height:auto}
+  .stage-area{grid-template-rows:auto auto}
+  .radar-wrap{height:min(100vw,640px)}
+  .rail{border-left:0;border-top:1px solid var(--line)}
+  .legend{position:static;padding:0 22px 12px}
+  .find{width:auto;flex:1 1 160px}
+}
+
+/* ---- view switcher + panes ---- */
+.views{display:flex;gap:2px;padding:3px;border:1px solid var(--line-2);border-radius:999px;background:rgb(255 255 255 / .02)}
+.views button{padding:5px 13px;border-radius:999px;font-size:13px;font-weight:500;color:var(--muted)}
+.views button:hover{color:var(--ink)}
+.views button[aria-selected="true"]{background:var(--ink);color:var(--space)}
+.pane{min-height:0;overflow-y:auto;padding:14px 22px 40px;display:grid;gap:12px;align-content:start}
+.v-head{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:flex-end;justify-content:space-between}
+.v-head h2{margin:0;font-size:22px;font-weight:600;letter-spacing:-.02em}
+.v-head p{margin:4px 0 0;color:var(--muted);max-width:62ch}
+.v-stats{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.chip.good b{color:var(--ok)}
+.btn-s{border:1px solid var(--line-2);border-radius:999px;padding:4px 12px;font-size:12.5px;font-weight:500;color:var(--ink-2)}
+.btn-s:hover{background:var(--hover)}
+.v-empty{display:grid;gap:6px;justify-items:start;padding:40px 4px;color:var(--muted)}
+.v-empty b{color:var(--ink);font-weight:600;font-size:15px}
+.v-note{margin:6px 0 0;font-size:12px;color:var(--muted);max-width:80ch}
+.skel{display:block;height:10px;border-radius:5px;background:var(--hover);width:60%}
+.skel-row{pointer-events:none}
+.late{color:var(--late)} .today{color:var(--today)}
+
+/* ---- heartbeat ---- */
+.hb-axis,.hb-row{display:grid;grid-template-columns:200px minmax(0,1fr) 150px;gap:16px;align-items:center}
+.hb-ticks{position:relative;height:16px;font:500 11px var(--mono);color:var(--faint)}
+.hb-ticks span{position:absolute;transform:translateX(-50%)}
+.hb-ticks span:first-child{transform:none} .hb-ticks span:last-child{transform:translateX(-100%)}
+.hb-row{width:100%;text-align:left;padding:10px 12px;margin:0 -12px;border-radius:12px;border:1px solid transparent}
+.hb-row:hover{background:var(--hover)}
+.hb-row.sel{background:var(--hover);border-color:var(--line-2)}
+.hb-name{min-width:0;display:grid}
+.hb-name b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hb-name small{color:var(--muted);font-size:12px}
+.ecg{width:100%;height:56px;display:block;overflow:visible}
+.ecg-base{stroke:var(--line);stroke-width:1}
+.ecg-line{fill:none;stroke:var(--st-client);stroke-width:1.8;stroke-linejoin:round;vector-effect:non-scaling-stroke;filter:drop-shadow(0 0 4px rgb(61 214 140 / .5))}
+.ecg-line.amber{stroke:var(--today);filter:drop-shadow(0 0 4px rgb(244 178 60 / .5))}
+.ecg-flat{stroke:var(--late);stroke-width:2.2;vector-effect:non-scaling-stroke;filter:drop-shadow(0 0 5px rgb(255 59 92 / .6))}
+.ecg-peak{fill:var(--ink)}
+.ecg-skel{display:block;height:2px;background:var(--line-2)}
+@media (prefers-reduced-motion:no-preference){.ecg-line{stroke-dasharray:1;stroke-dashoffset:1;animation:draw 1.4s ease-out forwards}@keyframes draw{to{stroke-dashoffset:0}}}
+.hb-st{display:grid;text-align:right}
+.hb-st b{font-weight:600;font-variant-numeric:tabular-nums}
+.hb-st small{color:var(--muted);font-size:12px}
+@media (max-width:760px){.hb-axis{display:none}.hb-row{grid-template-columns:minmax(0,1fr) 110px}.hb-row .ecg{grid-column:1 / -1;grid-row:2}}
+.ev{display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:10px;align-items:center;padding:5px 0;font-size:13px}
+.ev i{width:8px;height:8px;border-radius:50%;background:var(--st-assigned)}
+.ev i.in{background:var(--st-client)} .ev i.fio{background:var(--st-other)}
+.ev small{color:var(--muted)}
+.tpls{display:flex;flex-wrap:wrap;gap:6px}
+.tpls button{border:1px solid var(--line-2);border-radius:999px;padding:5px 11px;font-size:12.5px;color:var(--muted)}
+.tpls button.on{border-color:var(--brand);color:var(--ink);background:rgb(255 0 60 / .1)}
+.fld{display:grid;gap:4px;font-size:12px;color:var(--muted)}
+.fld input{border:1px solid var(--line-2);border-radius:9px;background:rgb(255 255 255 / .02);padding:8px 10px;color:var(--ink);outline:0;font-size:13.5px}
+.fld input:focus{border-color:rgb(255 255 255 / .25)}
+.banner.ok{border-color:rgb(61 214 140 / .4);background:rgb(61 214 140 / .08)}
+.banner{gap:6px}
+
+/* ---- arrivals ---- */
+.board{background:#0A0B0F;border:1px solid var(--line-2);border-radius:16px;padding:8px;display:grid;gap:3px;box-shadow:inset 0 1px 0 rgb(255 255 255 / .04),0 24px 50px -30px #000}
+.fl-head,.fl-row{display:grid;grid-template-columns:auto auto minmax(0,1fr) auto 128px;gap:10px;align-items:center}
+.fl-head{padding:6px 10px;font:500 11px var(--mono);color:var(--faint)}
+.fl-sec{display:flex;gap:8px;align-items:baseline;padding:12px 10px 4px;font-size:12px;font-weight:600;color:var(--muted)}
+.fl-sec span{font:500 11px var(--mono);color:var(--faint)}
+.fl-row{width:100%;text-align:left;padding:6px 10px;border-radius:10px}
+.fl-row:hover{background:var(--hover)}
+.fl-row.sel{background:var(--hover);box-shadow:inset 0 0 0 1px var(--line-2)}
+.fl{display:flex;gap:2px;min-width:0;overflow:hidden;align-items:center}
+.fl i{font:500 13px/1 var(--mono);font-style:normal;width:1.15em;height:1.7em;display:grid;place-items:center;flex:none;color:#F2E6C9;background:linear-gradient(#1A1C23 49%,#0E0F14 51%);border-radius:3px;box-shadow:inset 0 -1px 0 rgb(0 0 0 / .6),0 1px 0 rgb(255 255 255 / .04)}
+.fl.t i{color:var(--today)}
+.tag{font:600 10px var(--mono);font-style:normal;color:var(--space);background:var(--st-other);border-radius:4px;padding:2px 5px;margin-left:6px;flex:none}
+.fl-st{justify-self:end;font:600 11px var(--mono);letter-spacing:.04em;text-transform:uppercase;padding:4px 9px;border-radius:6px;white-space:nowrap;border:1px solid currentColor}
+.fl-st.landed{color:var(--today);background:rgb(244 178 60 / .1)}
+.fl-st.onair{color:#fff;background:var(--brand);border-color:var(--brand)}
+.fl-st.sched{color:var(--muted)}
+.fl-st.donei{color:var(--ok)}
+.fl-st.newc{color:var(--st-other);background:rgb(166 140 255 / .1)}
+@media (prefers-reduced-motion:no-preference){.fl i{animation:flip .5s cubic-bezier(.3,1.5,.5,1) both;animation-delay:var(--d)}@keyframes flip{from{transform:rotateX(90deg);opacity:.2}}}
+@media (max-width:900px){.fl-head{display:none}.fl-row{grid-template-columns:auto minmax(0,1fr) auto}.fl.d,.fl.s{display:none}.fl i{width:1.05em}}
+.intake{display:grid;gap:10px;border:1px solid var(--line-2);border-radius:12px;padding:14px}
+.intake ol{margin:0;padding-left:18px;display:grid;gap:5px;font-size:13px;color:var(--ink-2)}
+
+/* ---- river ---- */
+.river-wrap{border:1px solid var(--line);border-radius:18px;background:radial-gradient(900px 300px at 50% 55%,rgb(91 168 255 / .06),transparent 70%);padding:8px 4px;overflow-x:auto}
+svg.river{display:block;width:100%;min-width:720px;height:auto}
+.rv-gate{stroke:rgb(255 255 255 / .06);stroke-dasharray:2 4}
+.rv-l{font:600 15px var(--f)}
+.rv-n{font:600 22px var(--f);fill:var(--ink)}
+.rv-late{font:500 13px var(--mono);fill:var(--late)}
+.rv-bn{font:500 13px var(--f);fill:var(--today)}
+.fish{cursor:pointer;outline:none}
+.fish:focus-visible circle{stroke:var(--brand);stroke-width:3}
+@media (prefers-reduced-motion:no-preference){.fish{animation:swim var(--dur) ease-in-out infinite alternate;animation-delay:var(--del)}@keyframes swim{from{transform:translateX(-6px)}to{transform:translateX(6px)}}}
+
+</style>
+
+<div class="app">
+  <section class="stage-area" aria-label="Episode radar">
+    <header class="hud">
+      <div class="brand">
+        <svg viewBox="0 0 40 40" width="30" height="30" aria-hidden="true"><rect width="40" height="40" rx="10" fill="#FF003C"/><rect x="12" y="8" width="16" height="18" rx="8" fill="none" stroke="#fff" stroke-width="3.6"/><path d="M13.8 22v11" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/></svg>
+        <div><b>Orbit</b><span>Poddster producer desk</span></div>
+      </div>
+      <nav class="views" id="views" role="tablist" aria-label="Views"></nav>
+      <div class="chips" id="chips"></div>
+      <label class="find"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" type="search" placeholder="Highlight a client or editor" aria-label="Highlight episodes"><kbd>/</kbd></label>
+      <div class="sync"><i id="sync-dot"></i><span id="sync-t">Connecting</span><button type="button" id="refresh">Sync</button></div>
+    </header>
+    <div class="radar-wrap" id="wrap"><div id="pane-orbit" style="display:contents"></div>
+      <svg class="radar" id="radar" viewBox="-130 -70 1260 1140" role="group" aria-label="Episodes arranged by stage and urgency"></svg>
+      <div class="tip" id="tip" hidden></div>
+    </div>
+    <div class="pane" id="pane-heart" hidden></div>
+    <div class="pane" id="pane-arr" hidden></div>
+    <div class="pane" id="pane-river" hidden></div>
+    <div class="legend" id="legend"><span><b>Closer to you</b> means it needs you sooner. Inside the red core is late.</span><span>In Client Review, closer means the client has been quiet longer.</span></div>
+  </section>
+  <aside class="rail" aria-label="Briefing and episode details">
+    <div class="rail-h" id="rail-h"><h2>Briefing</h2></div>
+    <div class="rail-b" id="rail-b"></div>
+  </aside>
+</div>
+<div class="toast" id="toast" hidden role="status"></div>
+
+<script>
+const SERVER = "monday.com";
+const BOARD = 2472462203;
+const BOARD_URL = "https://poddsterstudios-team.monday.com/boards/" + BOARD;
+const COLS = ["status","person","date","date4","date_mkx87nb3","dup__of_1st_cut_deadline","status_1","board_relation_mkxb8cpz","link_mm22fna1","link_mkxbtnjf","link_mkxbm8as","numeric_mm1y5e6b"];
+const INPUT = { boardId: BOARD, includeColumns: true, includeGroup: false, columnIds: COLS, limit: 500,
+  filters: [{ columnId: "people", compareValue: ["assigned_to_me"], operator: "any_of" }] };
+const CLOSED = new Set(["Done","Cancelled","No Client Response","Paid"]);
+const SECTORS = [
+  ["Queue","--st-queue"],["Assigned","--st-assigned"],["In Process","--st-process"],["In Review","--st-review"],["Corrections","--st-corr"],["Client Review","--st-client"]
+];
+const SEC_COLOR = Object.fromEntries(SECTORS);
+const MOVE_TO = ["Assigned","In Process","In Review","Corrections","Client Review","Done"];
+const IN_EDIT = new Set(["Queue","Assigned","In Process","In Review","Corrections"]);
+const CORPORATE = /dmitrii|suvo|enbd/i;
+const EDITOR_IDS = { igor:"43400381", stipe:"61381904", georges:"36795459", stefan:"38981225", akssat:"88817643",
+  glody:"60723690", shrijit:"101677796", motasem:"107518052", mahmoud:"107176166", bashar:"103717656", ajin:"71556126" };
+
+let mcp = null;
+const S = { items: [], q: "", storedAt: null, error: null, loading: true, sel: null, busy: false, draft: "", corr: true, mention: true };
+
+/* ---------- parsing & dates ---------- */
+const str = v => typeof v === "string" ? v : "";
+const isoDate = v => /^\d{4}-\d{2}-\d{2}$/.test(str(v)) ? v : null;
+const lastUrl = v => { const m = str(v).match(/https?:\/\/[^\s]+/g); return m ? m[m.length - 1] : null; };
+const clientName = v => Array.isArray(v) && v[0] && v[0].name ? v[0].name.replace(/^(AG|BL)\s*-\s*/i, "").trim() : "";
+function norm(raw) {
+  const c = raw.column_values || {};
+  return { id: String(raw.id), name: raw.name || "Untitled", url: raw.url || BOARD_URL, updated: raw.updated_at,
+    stage: str(c.status) || "No status", editor: str(c.person), available: isoDate(c.date), draft: isoDate(c.date4),
+    v1: isoDate(c.date_mkx87nb3), final: isoDate(c.dup__of_1st_cut_deadline), invoice: str(c.status_1),
+    client: clientName(c.board_relation_mkxb8cpz), upload: lastUrl(c.link_mm22fna1), share: lastUrl(c.link_mkxbtnjf),
+    dropbox: lastUrl(c.link_mkxbm8as), units: parseFloat(str(c.numeric_mm1y5e6b)) || 0, created: raw.created_at,
+    clientId: Array.isArray(c.board_relation_mkxb8cpz) && c.board_relation_mkxb8cpz[0] && c.board_relation_mkxb8cpz[0].id ? String(c.board_relation_mkxb8cpz[0].id) : null };
+}
+const isoOf = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+const todayISO = () => isoOf(new Date());
+const dayNum = iso => Math.round(Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)) / 864e5);
+const T = () => dayNum(todayISO());
+const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const short = iso => iso ? (+iso.slice(8, 10)) + " " + MON[+iso.slice(5, 7) - 1] : "Not set";
+function nextDue(it) {
+  if (!IN_EDIT.has(it.stage)) return null;
+  if (it.stage === "Corrections") return [it.v1, it.final].filter(Boolean).sort().pop() || it.draft;
+  return it.draft;
+}
+const daysTo = it => { const d = nextDue(it); return d ? dayNum(d) - T() : null; };
+function rel(iso) {
+  if (!iso) return { cls: "", txt: "No deadline" };
+  const d = dayNum(iso) - T();
+  if (d < 0) return { cls: "late", txt: (-d) + (d === -1 ? " day late" : " days late") };
+  if (d === 0) return { cls: "today", txt: "Due today" };
+  if (d === 1) return { cls: "", txt: "Tomorrow" };
+  return { cls: "", txt: "In " + d + " days" };
+}
+function ageDays(it) {
+  const last = [it.draft, it.v1, it.final].filter(Boolean).sort().pop() || (it.updated || "").slice(0, 10);
+  return last ? T() - dayNum(last) : 0;
+}
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const $ = id => document.getElementById(id);
+const firstName = n => ((n || "").split(", ")[0] || "").split(" ")[0];
+const label = it => it.client || it.name.split(/\s[-:]\s/)[0];
+const colorOf = stage => "var(" + (SEC_COLOR[stage] || "--st-other") + ")";
+
+/* ---------- derived ---------- */
+const active = () => S.items.filter(i => !CLOSED.has(i.stage));
+const onRadar = () => active().filter(i => IN_EDIT.has(i.stage) || (i.stage === "Client Review" && !CORPORATE.test(i.name)));
+const late = () => active().filter(i => { const d = daysTo(i); return d !== null && d < 0; });
+const dueToday = () => active().filter(i => daysTo(i) === 0);
+const week = () => active().filter(i => { const d = daysTo(i); return d !== null && d > 0 && d <= 7; });
+const quiet = () => active().filter(i => i.stage === "Client Review" && !CORPORATE.test(i.name) && ageDays(i) > 7);
+const matches = i => !S.q || (i.name + " " + i.client + " " + i.editor).toLowerCase().includes(S.q.toLowerCase());
+const urgency = i => { const d = daysTo(i); if (d !== null) return d; if (i.stage === "Client Review") return 5 - ageDays(i) / 2; return 30; };
+
+/* ---------- geometry ---------- */
+const C = 500, CORE = 105, TODAY = 140, OUTER = 440, EDGE = 468;
+function radiusOf(it) {
+  if (it.stage === "Client Review") { const w = Math.min(ageDays(it), 28); return OUTER - (w / 28) * (OUTER - TODAY - 10); }
+  const d = daysTo(it);
+  if (d === null) return EDGE;
+  if (d < 0) return CORE - 18 - Math.min(-d, 30) / 30 * (CORE - 48);
+  if (d === 0) return TODAY;
+  if (d > 21) return EDGE;
+  return TODAY + Math.log(1 + d) / Math.log(22) * (OUTER - TODAY);
+}
+const ringFor = d => TODAY + Math.log(1 + d) / Math.log(22) * (OUTER - TODAY);
+const pt = (deg, r) => { const a = (deg - 90) * Math.PI / 180; return [C + r * Math.cos(a), C + r * Math.sin(a)]; };
+function arcPath(a0, a1, r) { const [x0, y0] = pt(a0, r), [x1, y1] = pt(a1, r); return `M${x0.toFixed(1)} ${y0.toFixed(1)} A${r} ${r} 0 ${a1 - a0 > 180 ? 1 : 0} 1 ${x1.toFixed(1)} ${y1.toFixed(1)}`; }
+
+function layout() {
+  const items = onRadar();
+  const secs = SECTORS.map(([name]) => ({ name, items: items.filter(i => i.stage === name) }));
+  const weights = secs.map(s => Math.max(s.items.length, 3));
+  const total = weights.reduce((a, b) => a + b, 0);
+  let a = 0;
+  secs.forEach((s, k) => { s.a0 = a; s.a1 = a + weights[k] / total * 360; a = s.a1; });
+  const pos = [];
+  secs.forEach(s => {
+    const sorted = s.items.slice().sort((x, y) => radiusOf(x) - radiusOf(y));
+    const n = sorted.length, pad = Math.min(6, (s.a1 - s.a0) * .08);
+    sorted.forEach((it, k) => {
+      const t = n === 1 ? .5 : k / (n - 1);
+      const zig = (k % 3) - 1;
+      const ang = s.a0 + pad + t * (s.a1 - s.a0 - 2 * pad);
+      const r = Math.max(32, radiusOf(it) + zig * 7);
+      const [x, y] = pt(ang, r);
+      pos.push({ it, x, y, ang, r });
+    });
+  });
+  return { secs, pos };
+}
+
+/* ---------- render radar ---------- */
+function renderRadar() {
+  const svg = $("radar");
+  const { secs, pos } = layout();
+  const rings = [[1, "Tomorrow"], [3, "3 days"], [7, "1 week"], [14, "2 weeks"]];
+  let h = `<defs>
+    <radialGradient id="coreG"><stop offset="0" stop-color="#FF003C" stop-opacity=".38"/><stop offset=".7" stop-color="#FF003C" stop-opacity=".1"/><stop offset="1" stop-color="#FF003C" stop-opacity="0"/></radialGradient>
+    <linearGradient id="sweepG" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0"/><stop offset="1" stop-color="#FFFFFF" stop-opacity=".07"/></linearGradient>
+    <radialGradient id="bgG"><stop offset="0" stop-color="#151826"/><stop offset="1" stop-color="#06070A" stop-opacity="0"/></radialGradient></defs>
+    <circle cx="500" cy="500" r="${EDGE + 18}" fill="url(#bgG)"/>`;
+  rings.forEach(([d, l]) => { const r = ringFor(d); h += `<circle class="ring" cx="500" cy="500" r="${r.toFixed(1)}"/><text class="ring-l" x="${(C + 6).toFixed(0)}" y="${(C - r - 6).toFixed(1)}">${l}</text>`; });
+  h += `<circle class="ring major" cx="500" cy="500" r="${OUTER}"/><circle class="ring" cx="500" cy="500" r="${EDGE}" stroke-dasharray="2 6"/>
+    <text class="ring-l" x="${C + 6}" y="${C - EDGE - 6}">Later or no deadline</text>
+    <circle class="ring major" cx="500" cy="500" r="${TODAY}" stroke="rgb(244 178 60 / .45)"/><text class="ring-l" x="${C + 6}" y="${C - TODAY - 6}" style="fill:var(--today)">Today</text>`;
+  secs.forEach(s => {
+    const [x, y] = pt(s.a0, 70), [x2, y2] = pt(s.a0, EDGE + 6);
+    h += `<line class="spoke" x1="${x.toFixed(1)}" y1="${y.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"/>`;
+    const mid = (s.a0 + s.a1) / 2, [lx, ly] = pt(mid, EDGE + 30);
+    const anchor = Math.abs(lx - C) < 40 ? "middle" : lx > C ? "start" : "end";
+    h += `<text class="sec-l" x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="${anchor}" dominant-baseline="middle" fill="${colorOf(s.name)}">${esc(s.name)} <tspan class="sec-n">${s.items.length}</tspan></text>`;
+  });
+  h += `<g class="sweep"><path d="M500 500 L${pt(0, EDGE).map(v => v.toFixed(1)).join(" ")} A${EDGE} ${EDGE} 0 0 1 ${pt(38, EDGE).map(v => v.toFixed(1)).join(" ")} Z" fill="url(#sweepG)" transform="rotate(-38 500 500)"/><line x1="500" y1="500" x2="${pt(0, EDGE)[0]}" y2="${pt(0, EDGE)[1]}" stroke="rgb(255 255 255 / .18)" stroke-width="1"/></g>`;
+  h += `<circle class="core" cx="500" cy="500" r="${CORE}"/><circle class="core-edge" cx="500" cy="500" r="${CORE}"/>`;
+  const L = late().length;
+  h += `<text class="core-n" x="500" y="${L ? 512 : 512}" text-anchor="middle">${S.items.length ? L : "–"}</text><text class="core-l" x="500" y="540" text-anchor="middle">${L === 1 ? "late" : "late"}</text>`;
+  // dots: draw far first so near (urgent) sits on top
+  const labelled = new Set(pos.slice().sort((a, b) => urgency(a.it) - urgency(b.it)).filter(p => urgency(p.it) <= 0).slice(0, 10).map(p => p.it.id));
+  pos.sort((a, b) => b.r - a.r).forEach(p => {
+    const it = p.it, d = daysTo(it), isLate = d !== null && d < 0, isSel = S.sel === it.id;
+    const size = 7 + Math.min(it.units || 1, 3) * 2.5;
+    const dim = S.q && !matches(it);
+    h += `<g class="dot ${isLate ? "late" : ""} ${isSel ? "sel" : ""} ${dim ? "dim" : ""}" data-id="${esc(it.id)}" tabindex="0" role="button" aria-label="${esc(it.name)}, ${esc(it.stage)}, ${esc(it.stage === "Client Review" ? ageDays(it) + " days with client" : rel(nextDue(it)).txt)}">
+      ${isLate ? `<circle class="halo" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${size}" style="--r0:${size}px;--r1:${size + 14}px" stroke="var(--late)"/>` : ""}
+      <circle class="ring-sel" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${size + 6}"/>
+      <circle class="body" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${size}" fill="${isLate ? "var(--late)" : colorOf(it.stage)}"/></g>`;
+    if ((labelled.has(it.id) || isSel || (S.q && !dim)) && !dim) {
+      const right = p.x >= C;
+      h += `<text class="lbl ${isLate ? "late" : ""}" x="${(p.x + (right ? size + 8 : -size - 8)).toFixed(1)}" y="${(p.y + 5).toFixed(1)}" text-anchor="${right ? "start" : "end"}">${esc(label(it))}</text>`;
+    }
+  });
+  svg.innerHTML = h;
+}
+
+/* ---------- HUD + rail ---------- */
+function renderChips() {
+  const r = S.items.length > 0;
+  $("chips").innerHTML = `<span class="chip late"><b>${r ? late().length : "–"}</b>late</span><span class="chip today"><b>${r ? dueToday().length : "–"}</b>due today</span><span class="chip"><b>${r ? week().length : "–"}</b>this week</span><span class="chip"><b>${r ? quiet().length : "–"}</b>clients quiet 7d+</span>`;
+}
+function renderSync() {
+  const dot = $("sync-dot"), t = $("sync-t"); dot.className = "";
+  if (S.loading && !S.items.length) { t.textContent = "Syncing"; return; }
+  if (S.error && !S.items.length) { dot.className = "off"; t.textContent = "Not connected"; return; }
+  if (!S.storedAt) { t.textContent = ""; return; }
+  const stale = Date.now() - S.storedAt > 5 * 60000;
+  dot.className = stale ? "stale" : "on";
+  t.textContent = (stale ? "Stale, " : "") + "synced " + new Date(S.storedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+function bItem(it) {
+  const isCR = it.stage === "Client Review";
+  const r = isCR ? { cls: ageDays(it) > 7 ? "late" : "", txt: ageDays(it) + "d quiet" } : rel(nextDue(it));
+  return `<button class="bi" type="button" data-id="${esc(it.id)}" style="--c:${colorOf(it.stage)}"><i></i><span>${esc(it.name)}</span><small class="${r.cls}">${esc(r.txt)}</small></button>`;
+}
+function renderRail() {
+  const it = S.items.find(i => i.id === S.sel);
+  if (it) return renderDetail(it);
+  if (S.view === "heart") return renderHeartRail();
+  if (S.view === "arr") return renderArrRail();
+  $("rail-h").innerHTML = `<h2>${S.view === "river" ? "River" : "Briefing"}</h2>`;
+  const b = $("rail-b");
+  if (S.error && !S.items.length) { b.innerHTML = banner(S.error); return; }
+  if (!S.items.length) { b.innerHTML = `<p class="greet">Reading your board…</p>`; return; }
+  const h = new Date().getHours(), hi = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+  const L = late(), Td = dueToday();
+  const line = L.length ? `${L.length} ${L.length === 1 ? "episode is" : "episodes are"} inside the core. Pull the closest one out first.` : Td.length ? "Nothing late. Clear today's ring and you're ahead." : "Nothing late, nothing due today. Good time to chase clients.";
+  const urgent = onRadar().filter(matches).sort((a, b) => urgency(a) - urgency(b)).slice(0, 8);
+  const qs = quiet().filter(matches).sort((a, b) => ageDays(b) - ageDays(a)).slice(0, 4);
+  const top = urgent[0];
+  b.innerHTML = `${S.error ? banner(S.error) : ""}
+    <div><p class="greet">${hi}, Abdullah.</p><p>${esc(line)}</p></div>
+    <div class="bl"><p class="bl-h">Closest to you</p>${urgent.map(bItem).join("") || `<span style="color:var(--muted)">Nothing on the radar.</span>`}</div>
+    ${qs.length ? `<div class="bl"><p class="bl-h">Clients gone quiet</p>${qs.map(bItem).join("")}</div>` : ""}
+    <div class="say"><span>Hands-free: say it to Claude, and Orbit updates within a minute.</span><b>“What's late?”</b>${top ? `<b>“Move ${esc(label(top))} to In Process”</b>` : ""}${qs[0] ? `<b>“Draft a nudge to ${esc(label(qs[0]))}”</b>` : ""}</div>`;
+}
+function renderDetail(it) {
+  $("rail-h").innerHTML = `<button class="ib" type="button" data-act="close" aria-label="Back to briefing" title="Back (Esc)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><h2>${esc(it.client || "Episode")}</h2>
+    <a class="ib" href="${esc(it.url)}" target="_blank" rel="noopener" aria-label="Open in Monday" title="Open in Monday"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>`;
+  const r = it.stage === "Client Review" ? { cls: ageDays(it) > 7 ? "late" : "", txt: ageDays(it) + " days with the client" } : rel(nextDue(it));
+  const canMention = !!EDITOR_IDS[firstName(it.editor).toLowerCase()];
+  const lk = (u, l) => u ? `<a class="lk" href="${esc(u)}" target="_blank" rel="noopener">${l}</a>` : "";
+  $("rail-b").innerHTML = `
+    <div style="display:grid;gap:10px"><span class="badge" style="--c:${colorOf(it.stage)};justify-self:start"><i></i>${esc(it.stage)}</span><h3 class="d-title">${esc(it.name)}</h3></div>
+    <dl class="props"><dt>Needs you</dt><dd class="${r.cls}">${esc(r.txt)}</dd><dt>Editor</dt><dd>${esc(it.editor || "No editor yet")}</dd>
+      <dt>Draft</dt><dd class="tnum">${short(it.draft)}</dd><dt>V1</dt><dd class="tnum">${short(it.v1)}</dd><dt>Final</dt><dd class="tnum">${short(it.final)}</dd>
+      <dt>Invoice</dt><dd>${esc(it.invoice || "Not set")}</dd>${it.units ? `<dt>Units</dt><dd class="tnum">${it.units}</dd>` : ""}</dl>
+    <div style="display:grid;gap:8px"><p class="bl-h">Move to</p><div class="moves">${MOVE_TO.map(s => `<button class="mv" type="button" data-stage="${esc(s)}" style="--c:${s === "Done" ? "var(--st-done)" : colorOf(s)}" ${s === it.stage || S.busy ? "disabled" : ""}><i></i>${esc(s)}</button>`).join("")}</div></div>
+    ${it.upload || it.share || it.dropbox ? `<div style="display:grid;gap:8px"><p class="bl-h">Files</p><div class="links">${lk(it.upload, "Frame.io upload")}${lk(it.share, "Frame.io review")}${lk(it.dropbox, "Dropbox raws")}</div></div>` : ""}
+    <div style="display:grid;gap:8px"><p class="bl-h">Note to editor</p>
+      <div class="composer"><textarea id="note" placeholder="C#1 Cut start: “…” 12:04, Cut end: “…” 12:31" aria-label="Note to editor">${esc(S.draft)}</textarea>
+        <div class="c-bar"><label><input type="checkbox" id="corr" ${S.corr ? "checked" : ""}> Set to Corrections</label>
+          <label><input type="checkbox" id="mention" ${canMention && S.mention ? "checked" : ""} ${canMention ? "" : "disabled"}> Mention ${esc(firstName(it.editor) || "editor")}</label>
+          <button class="post" type="button" data-act="post" ${S.busy ? "disabled" : ""}>${S.busy ? "Posting" : "Post note"}</button></div></div></div>`;
+}
+function banner(err) { const m = errorCopy(err); return `<div class="banner"><b>${esc(m.title)}</b><span>${esc(m.body)}</span></div>`; }
+function errorCopy(err) {
+  switch (err && err.code) {
+    case "no_mcp": return { title: "Open this in Claude", body: "Orbit reads your board through the monday.com connector, which only works inside claude.ai or the Claude app." };
+    case "needs_reauth": return { title: "Reconnect monday.com", body: "Your Monday connection expired. Reconnect it in claude.ai Settings, Connectors, then sync." };
+    case "server_not_connected": return { title: "Add the monday.com connector", body: "Add monday.com in claude.ai Settings, Connectors, then reload." };
+    case "selection_required": return { title: "Choose a Monday account", body: "You have more than one monday.com connector. Pick one when Claude asks, then reload." };
+    case "not_in_manifest": case "not_granted": return { title: "Monday is switched off for this page", body: "Allow monday.com for this page when Claude asks, then reload." };
+    case "blocked_by_policy": case "approval_required": return { title: "Blocked by your organisation", body: "Your workspace policy doesn't allow this Monday action from here." };
+    case "server_unavailable": case "rate_limited": return { title: "Monday isn't answering", body: "Showing the last data loaded. Sync again in a moment." };
+    case "tool_error": return { title: "Monday refused the request", body: err.message || "Try again, or open the episode in Monday." };
+    default: return { title: "Couldn't reach Monday", body: (err && err.message) || "Sync to try again." };
+  }
+}
+/* ================= shared: views, clients, recent items ================= */
+const ME_ID = 49670201;
+const GMAIL = "Gmail", GCAL = "Google Calendar";
+const CLIENTS_BOARD = 18330033684;
+const VIEWS = [["orbit","Orbit"],["heart","Heartbeat"],["arr","Arrivals"],["river","River"]];
+S.view = "orbit";
+try { const v = localStorage.getItem("orbit-view"); if (VIEWS.some(x => x[0] === v)) S.view = v; } catch (e) {}
+if (VIEWS.some(x => x[0] === (location.hash || "").slice(1))) S.view = location.hash.slice(1);
+S.clients = null; S.clientsErr = null;
+S.recent = null; S.recentErr = null;
+S.heart = null; S.heartErr = null; S.heartLoading = false; S.selClient = null; S.nudge = null;
+S.bookings = null; S.bookErr = null; S.bookLoading = false; S.selBook = null; S.intake = null;
+
+const bare = n => String(n || "").replace(/^(AG|BL)\s*-\s*/i, "").trim();
+const lc = s => String(s || "").toLowerCase().trim();
+const surname = n => { const p = bare(n).split(/\s+/); return p.length > 1 ? lc(p[p.length - 1]) : lc(p[0]); };
+function errText(err, server) {
+  const sv = server || "the connector";
+  switch (err && err.code) {
+    case "needs_reauth": return `Reconnect ${sv} in claude.ai Settings, Connectors, then sync.`;
+    case "server_not_connected": return `Add the ${sv} connector in claude.ai Settings, Connectors, then reload.`;
+    case "not_in_manifest": case "not_granted": return `${sv} is switched off for this page. Allow it when Claude asks, then reload.`;
+    case "selection_required": return `Pick which ${sv} account to use when Claude asks, then reload.`;
+    case "blocked_by_policy": case "approval_required": return `Your organisation's policy blocks this ${sv} action here.`;
+    case "server_unavailable": return `${sv} isn't answering. Try again in a moment.`;
+    case "tool_error": return (err.message || `${sv} refused the request.`);
+    default: return (err && err.message) || `Couldn't reach ${sv}.`;
+  }
+}
+
+async function loadClients(force) {
+  if (!mcp || (S.clients && !force)) return S.clients;
+  try {
+    const r = await mcp.callTool(SERVER, "get_board_items_page", { boardId: CLIENTS_BOARD, includeColumns: true, includeGroup: false, limit: 500,
+      columnIds: ["person","text_mkxbach4","text_mkxb379a","link_mkxbdpzk"] }, { cache: { staleTime: 300000 } });
+    const items = (r.payload && r.payload.items) || [];
+    const map = {};
+    items.forEach(x => { const c = x.column_values || {}; const nm = x.name || "";
+      map[String(x.id)] = { id: String(x.id), name: nm, bare: bare(nm), lane: /^AG\s*-/i.test(nm) ? "AG" : /^BL\s*-/i.test(nm) ? "BL" : "none",
+        producer: str(c.person), email: lc(str(c.text_mkxbach4)), first: str(c.text_mkxb379a), fio: lastUrl(c.link_mkxbdpzk) }; });
+    S.clients = map; S.clientsErr = null;
+  } catch (e) { S.clientsErr = e; }
+  return S.clients;
+}
+async function loadRecent(force) {
+  if (!mcp || (S.recent && !force)) return S.recent;
+  try {
+    const r = await mcp.callTool(SERVER, "get_board_items_page", { boardId: BOARD, includeColumns: true, includeGroup: false, limit: 300,
+      columnIds: ["status","people"], orderBy: [{ columnId: "__creation_log__", direction: "desc" }] }, { cache: force ? { refresh: true, staleTime: 0 } : { staleTime: 60000 } });
+    S.recent = ((r.payload && r.payload.items) || []).map(x => ({ id: String(x.id), name: x.name || "", lname: lc(x.name), url: x.url || BOARD_URL,
+      producer: str((x.column_values || {}).people), stage: str((x.column_values || {}).status) }));
+    S.recentErr = null;
+  } catch (e) { S.recentErr = e; }
+  return S.recent;
+}
+
+function renderViewTabs() {
+  $("views").innerHTML = VIEWS.map(([id, name], k) => `<button type="button" role="tab" data-v="${id}" aria-selected="${S.view === id}" title="${name} (${k + 1})">${name}</button>`).join("");
+  ["orbit","heart","arr","river"].forEach(v => { const el = $("pane-" + v); if (el) el.hidden = S.view !== v; });
+  $("legend").hidden = S.view !== "orbit";
+}
+function setView(v) {
+  if (S.view === v) return;
+  S.view = v; S.sel = null; S.selClient = null; S.selBook = null; S.nudge = null; S.intake = null;
+  try { localStorage.setItem("orbit-view", v); } catch (e) {}
+  render();
+  if (v === "heart") loadHeart();
+  if (v === "arr") loadBookings();
+}
+
+/* ================= HEARTBEAT ================= */
+const WINDOW = 35;
+const FROM_US = /@poddster\.com$/i;
+function heartClients() {
+  const groups = new Map();
+  active().filter(i => i.stage === "Client Review" && !CORPORATE.test(i.name)).forEach(i => {
+    const key = i.clientId || ("n:" + lc(i.client || label(i)));
+    if (!groups.has(key)) groups.set(key, { key, clientId: i.clientId, name: i.client || label(i), items: [] });
+    groups.get(key).items.push(i);
+  });
+  return [...groups.values()];
+}
+async function loadHeart(force) {
+  if (!mcp || S.heartLoading || (S.heart && !force)) return;
+  S.heartLoading = true; renderHeart();
+  try {
+    await loadClients();
+    const list = heartClients();
+    list.forEach(g => { const c = g.clientId && S.clients ? S.clients[g.clientId] : null; g.email = c ? c.email : ""; g.first = c ? (c.first || bare(c.name).split(" ")[0]) : g.name.split(" ")[0]; });
+    const emails = [...new Set(list.map(g => g.email).filter(e => /@/.test(e)))].slice(0, 30);
+    const threads = new Map();
+    const take = res => ((res && res.payload && res.payload.threads) || []).forEach(t => threads.set(t.id, t));
+    if (emails.length) {
+      const [a, b] = await Promise.all([
+        mcp.callTool(GMAIL, "search_threads", { query: `newer_than:${WINDOW}d {${emails.map(e => "from:" + e).join(" ")}}`, pageSize: 50, view: "THREAD_VIEW_MINIMAL" }, { cache: { staleTime: 120000 } }),
+        mcp.callTool(GMAIL, "search_threads", { query: `in:sent newer_than:${WINDOW}d {${emails.map(e => "to:" + e).join(" ")}}`, pageSize: 50, view: "THREAD_VIEW_MINIMAL" }, { cache: { staleTime: 120000 } })
+      ]);
+      take(a); take(b);
+    }
+    let fio = null;
+    try { fio = await mcp.callTool(GMAIL, "search_threads", { query: `newer_than:${WINDOW}d from:frame.io`, pageSize: 50, view: "THREAD_VIEW_MINIMAL" }, { cache: { staleTime: 120000 } }); } catch (e) {}
+    const partial = [...threads.values()].filter(t => (t.messageCount || 0) > (t.messages || []).length).slice(0, 12);
+    await Promise.all(partial.map(async t => {
+      try { const r = await mcp.callTool(GMAIL, "get_thread", { threadId: t.id, messageFormat: "MINIMAL" }, { cache: { staleTime: 120000 } });
+        const full = r.payload || {}; if (full.messages && full.messages.length > (t.messages || []).length) t.messages = full.messages; } catch (e) {}
+    }));
+    const byEmail = {};
+    list.forEach(g => { g.events = []; if (g.email) byEmail[g.email] = g; });
+    threads.forEach(t => (t.messages || []).forEach(m => {
+      const from = lc((m.sender || "").replace(/^.*</, "").replace(/>.*$/, ""));
+      const to = (m.toRecipients || []).concat(m.ccRecipients || []).map(x => lc(String(x).replace(/^.*</, "").replace(/>.*$/, "")));
+      const when = m.date ? Date.parse(m.date) : NaN; if (isNaN(when)) return;
+      const ev = { t: when, threadId: t.id, msgId: m.id, subject: m.subject || "", url: t.viewUrl || m.viewUrl };
+      if (byEmail[from]) byEmail[from].events.push(Object.assign({ kind: "in" }, ev));
+      else if (FROM_US.test(from)) to.forEach(x => { if (byEmail[x]) byEmail[x].events.push(Object.assign({ kind: "out" }, ev)); });
+    }));
+    let fioCount = 0;
+    ((fio && fio.payload && fio.payload.threads) || []).forEach(t => (t.messages || []).forEach(m => {
+      const text = lc((m.subject || "") + " " + (m.snippet || "")); const when = Date.parse(m.date || "");
+      list.forEach(g => { const nm = lc(g.name); if (nm.length > 3 && text.includes(nm) && !isNaN(when)) { g.events.push({ kind: "fio", t: when, threadId: t.id, msgId: m.id, subject: m.subject || "", url: t.viewUrl }); fioCount++; } });
+    }));
+    const now = Date.now();
+    list.forEach(g => {
+      const seen = new Set(); g.events = g.events.filter(e => { const k = e.kind + e.msgId; if (seen.has(k)) return false; seen.add(k); return true; }).sort((x, y) => x.t - y.t);
+      const lastIn = Math.max(0, ...g.events.filter(e => e.kind !== "out").map(e => e.t));
+      const lastOut = Math.max(0, ...g.events.filter(e => e.kind === "out").map(e => e.t));
+      const latest = g.events.slice().reverse().find(e => e.kind !== "fio");
+      g.reply = latest || null;
+      if (lastIn && lastIn >= lastOut) { g.state = "theirs"; g.days = Math.floor((now - lastIn) / 864e5); }
+      else if (lastOut) { g.state = "waiting"; g.days = Math.floor((now - lastOut) / 864e5); }
+      else { g.state = "nomail"; g.days = Math.max(...g.items.map(ageDays)); }
+    });
+    list.sort((a, b) => (b.state === "theirs") - (a.state === "theirs") || b.days - a.days);
+    S.heart = { list, at: now, fioCount, noEmail: list.filter(g => !g.email).length };
+    S.heartErr = null;
+  } catch (e) { S.heartErr = e; }
+  S.heartLoading = false; renderHeart(); renderRail();
+}
+function ecgPath(events, W, H, quietFrom) {
+  const now = Date.now(), t0 = now - WINDOW * 864e5, mid = H * .58;
+  const X = t => Math.max(2, Math.min(W - 2, (t - t0) / (now - t0) * W));
+  let d = `M0 ${mid}`, x = 0;
+  events.forEach(e => {
+    const ex = X(e.t); if (ex < x + 4) return;
+    if (e.kind === "in") d += ` L${(ex - 6).toFixed(1)} ${mid} L${(ex - 3).toFixed(1)} ${mid + 5} L${ex.toFixed(1)} ${(H * .06).toFixed(1)} L${(ex + 3).toFixed(1)} ${(H * .92).toFixed(1)} L${(ex + 6).toFixed(1)} ${mid}`;
+    else if (e.kind === "fio") d += ` L${(ex - 4).toFixed(1)} ${mid} L${ex.toFixed(1)} ${(H * .26).toFixed(1)} L${(ex + 4).toFixed(1)} ${mid}`;
+    else d += ` L${(ex - 4).toFixed(1)} ${mid} L${(ex - 2).toFixed(1)} ${mid - 6} L${(ex + 2).toFixed(1)} ${mid + 6} L${(ex + 4).toFixed(1)} ${mid}`;
+    x = ex + 6;
+  });
+  d += ` L${W} ${mid}`;
+  const qx = quietFrom ? X(quietFrom) : null;
+  return { d, qx, mid };
+}
+function renderHeart() {
+  const el = $("pane-heart"); if (!el || S.view !== "heart") return;
+  const W = 720, H = 56;
+  if (!mcp) { el.innerHTML = `<div class="v-empty"><b>Open this in Claude</b><span>Heartbeat needs the Gmail and monday.com connectors.</span></div>`; return; }
+  if (S.heartErr && !S.heart) { el.innerHTML = `<div class="v-empty"><b>Couldn't read your client emails</b><span>${esc(errText(S.heartErr, S.heartErr.server || "Gmail"))}</span><button class="btn-s" type="button" data-act="heart-retry">Try again</button></div>`; return; }
+  if (!S.heart) { el.innerHTML = `<div class="v-head"><div><h2>Client heartbeat</h2><p>Reading the last ${WINDOW} days of email with your Client Review clients…</p></div></div>` + Array.from({ length: 6 }, () => `<div class="hb-row skel-row"><span class="skel"></span><span class="ecg-skel"></span><span></span></div>`).join(""); return; }
+  const list = S.heart.list.filter(g => !S.q || lc(g.name + " " + g.items.map(i => i.name).join(" ")).includes(lc(S.q)));
+  const flat = S.heart.list.filter(g => g.state !== "theirs" && g.days >= 7).length, yours = S.heart.list.filter(g => g.state === "theirs").length;
+  const ticks = [35, 28, 21, 14, 7, 0].map(d => `<span style="left:${((WINDOW - d) / WINDOW * 100).toFixed(1)}%">${d ? d + "d" : "now"}</span>`).join("");
+  el.innerHTML = `<div class="v-head"><div><h2>Client heartbeat</h2><p>Each line is ${WINDOW} days of email with a client in Client Review. Tall spikes are their replies, small blips are your emails. A long flat red line means they've gone quiet.</p></div>
+      <div class="v-stats"><span class="chip late"><b>${flat}</b>flat 7d+</span><span class="chip today"><b>${yours}</b>replied, your move</span><button class="btn-s" type="button" data-act="heart-retry">${S.heartLoading ? "Reading…" : "Refresh"}</button></div></div>
+    <div class="hb-axis"><span></span><div class="hb-ticks">${ticks}</div><span></span></div>
+    ${list.length ? list.map(g => {
+      const quietFrom = g.state === "theirs" ? null : (g.events.length ? g.events[g.events.length - 1].t : Date.now() - g.days * 864e5);
+      const p = ecgPath(g.events, W, H, quietFrom);
+      const red = g.state !== "theirs" && g.days >= 7, amber = g.state === "theirs";
+      const status = g.state === "theirs" ? `<b class="today">Replied ${g.days ? g.days + "d ago" : "today"}</b><small>Your move</small>`
+        : g.state === "waiting" ? `<b class="${red ? "late" : ""}">${g.days}d quiet</b><small>since your last email</small>`
+        : `<b class="${g.days >= 7 ? "late" : ""}">${g.days}d</b><small>${g.email ? "no email found" : "no email on file"}</small>`;
+      const fl = quietFrom != null ? Math.max(0, (quietFrom - (Date.now() - WINDOW * 864e5)) / (WINDOW * 864e5) * W) : W;
+      return `<button class="hb-row ${S.selClient === g.key ? "sel" : ""}" type="button" data-client="${esc(g.key)}">
+        <span class="hb-name"><b>${esc(g.name)}</b><small>${g.items.length} in review${g.events.length ? ", " + g.events.length + " emails" : ""}</small></span>
+        <svg class="ecg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
+          <line x1="0" x2="${W}" y1="${p.mid}" y2="${p.mid}" class="ecg-base"/>
+          <path d="${p.d}" class="ecg-line ${amber ? "amber" : ""}" pathLength="1"/>
+          ${red ? `<line x1="${fl.toFixed(1)}" x2="${W}" y1="${p.mid}" y2="${p.mid}" class="ecg-flat"/>` : ""}
+          ${g.events.filter(e => e.kind === "in").slice(-1).map(e => { const x = Math.max(2, Math.min(W - 2, (e.t - (Date.now() - WINDOW * 864e5)) / (WINDOW * 864e5) * W)); return `<circle cx="${x.toFixed(1)}" cy="${(H * .06).toFixed(1)}" r="3" class="ecg-peak"/>`; }).join("")}
+        </svg>
+        <span class="hb-st">${status}</span></button>`;
+    }).join("") : `<div class="v-empty"><b>${S.q ? "No client matches." : "No clients in Client Review."}</b></div>`}
+    <p class="v-note">${S.heart.fioCount ? "Frame.io comment notifications are included as violet spikes. " : "No Frame.io comment emails found, so only email replies show. Turning on Frame.io email notifications adds comment spikes. "}${S.heart.noEmail ? S.heart.noEmail + " client(s) have no email on PP Clients Only, so their line uses Monday dates only. " : ""}Very long threads may hide their newest replies.</p>`;
+}
+const NUDGES = {
+  gentle: { name: "Follow Up #1 (gentle check-in)", body: f => `Hello ${f},\n\nHope all is well.\n\nDid you have a chance to review the materials? Let me know if you have any feedback, or if we're good to finalise.\n\nBest,\nAbdullah` },
+  tc: { name: "Follow Up #2 (T&C confirmation)", body: f => `Hello ${f},\n\nHope all is well.\n\nDid you have a chance to review the updated episode and highlights?\n\nWhile we're happy to be flexible, we do need your feedback on the materials as soon as possible to finalize any edits. Timely feedback will help us stay on track with your project and manage requests from our other clients effectively.\n\nPlease note that, in accordance with our terms and conditions, this episode and highlights will be considered confirmed if we did not receive any response from you within this week.\n\nBest,\nAbdullah` }
+};
+function openNudge(g) {
+  const tpl = g.days >= 7 ? "tc" : "gentle";
+  S.nudge = { key: g.key, tpl, to: g.email, subject: g.reply && g.reply.subject ? (/^re:/i.test(g.reply.subject) ? g.reply.subject : "Re: " + g.reply.subject) : (g.items[0] ? g.items[0].name : g.name), body: NUDGES[tpl].body(g.first || "there"), busy: false, done: null };
+}
+function renderHeartRail() {
+  const g = S.heart && S.heart.list.find(x => x.key === S.selClient);
+  if (!g) {
+    $("rail-h").innerHTML = `<h2>Heartbeat</h2>`;
+    const L = S.heart ? S.heart.list : [];
+    const top = L.filter(x => x.state !== "theirs").sort((a, b) => b.days - a.days).slice(0, 5), mine = L.filter(x => x.state === "theirs");
+    $("rail-b").innerHTML = !S.heart ? `<p class="greet">Reading your inbox…</p>` : `
+      <div><p class="greet">${mine.length ? mine.length + (mine.length === 1 ? " client is" : " clients are") + " waiting on you." : "No client is waiting on you."}</p><p>${top.length ? "Start with the longest flat line." : "Every client has been in touch recently."}</p></div>
+      ${mine.length ? `<div class="bl"><p class="bl-h">They replied, your move</p>${mine.map(hbItem).join("")}</div>` : ""}
+      ${top.length ? `<div class="bl"><p class="bl-h">Longest silence</p>${top.map(hbItem).join("")}</div>` : ""}
+      <div class="say"><span>Hands-free: say it to Claude.</span><b>“Who's gone quiet?”</b>${top[0] ? `<b>“Draft a nudge to ${esc(top[0].name)}”</b>` : ""}</div>`;
+    return;
+  }
+  $("rail-h").innerHTML = `<button class="ib" type="button" data-act="back" aria-label="Back" title="Back (Esc)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><h2>${esc(g.name)}</h2>${g.reply && g.reply.url ? `<a class="ib" href="${esc(g.reply.url)}" target="_blank" rel="noopener" aria-label="Open thread in Gmail" title="Open thread in Gmail"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>` : ""}`;
+  const n = S.nudge && S.nudge.key === g.key ? S.nudge : null;
+  const recent = g.events.slice(-6).reverse().map(e => `<div class="ev"><i class="${e.kind}"></i><span>${e.kind === "in" ? "They replied" : e.kind === "fio" ? "Frame.io comment" : "You emailed"}</span><small>${new Date(e.t).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</small></div>`).join("");
+  $("rail-b").innerHTML = `
+    <div style="display:grid;gap:6px"><span class="badge" style="--c:${g.state === "theirs" ? "var(--today)" : g.days >= 7 ? "var(--late)" : "var(--st-client)"};justify-self:start"><i></i>${g.state === "theirs" ? "Replied, your move" : g.days + " days quiet"}</span></div>
+    <div class="bl"><p class="bl-h">In Client Review</p>${g.items.map(bItem).join("")}</div>
+    ${recent ? `<div class="bl"><p class="bl-h">Recent email</p>${recent}</div>` : ""}
+    ${g.state === "theirs" ? `<p class="v-note" style="margin:0">They wrote last. Read their reply in Gmail before nudging.</p>` : ""}
+    ${!g.email ? `<p class="v-note" style="margin:0">No email for this client on PP Clients Only, so a draft can't be addressed. Add it there first.</p>` :
+      !n ? `<button class="post" type="button" data-act="nudge" style="justify-self:start;margin:0">Draft a nudge</button>` : n.done ? `<div class="banner ok"><b>Draft created in Gmail</b><span>Nothing was sent. Review and send it from Gmail.</span>${n.done.url ? `<a class="lk" href="${esc(n.done.url)}" target="_blank" rel="noopener" style="justify-self:start">Open draft</a>` : ""}</div>` : `
+      <div style="display:grid;gap:10px"><p class="bl-h" style="margin:0">Nudge draft</p>
+        <div class="tpls">${Object.entries(NUDGES).map(([k, v]) => `<button type="button" class="${n.tpl === k ? "on" : ""}" data-tpl="${k}">${esc(v.name)}</button>`).join("")}</div>
+        <dl class="props"><dt>To</dt><dd>${esc(n.to)}</dd><dt>CC</dt><dd>production@poddster.com</dd><dt>Thread</dt><dd>${g.reply ? "Replies in your latest thread with them" : "New thread"}</dd></dl>
+        <label class="fld"><span>Subject</span><input id="n-subj" value="${esc(n.subject)}"></label>
+        <div class="composer"><textarea id="n-body" rows="10" aria-label="Email body">${esc(n.body)}</textarea>
+          <div class="c-bar"><span>Creates a Gmail draft only. Nothing is sent.</span><button class="post" type="button" data-act="mkdraft" ${n.busy ? "disabled" : ""}>${n.busy ? "Creating…" : "Create draft"}</button></div></div></div>`}`;
+}
+const hbItem = g => `<button class="bi" type="button" data-client="${esc(g.key)}" style="--c:${g.state === "theirs" ? "var(--today)" : g.days >= 7 ? "var(--late)" : "var(--st-client)"}"><i></i><span>${esc(g.name)}</span><small class="${g.state !== "theirs" && g.days >= 7 ? "late" : g.state === "theirs" ? "today" : ""}">${g.state === "theirs" ? "your move" : g.days + "d quiet"}</small></button>`;
+async function createNudge() {
+  const n = S.nudge, g = S.heart && S.heart.list.find(x => x.key === n.key); if (!n || !g || n.busy || !mcp) return;
+  n.subject = $("n-subj") ? $("n-subj").value : n.subject; n.body = $("n-body") ? $("n-body").value : n.body;
+  if (!n.body.trim()) { toast("The email is empty.", { bad: true }); return; }
+  n.busy = true; renderRail();
+  try {
+    const input = { to: [n.to], cc: ["production@poddster.com"], subject: n.subject, body: n.body };
+    if (g.reply && g.reply.msgId) input.replyToMessageId = g.reply.msgId;
+    const r = await mcp.callTool(GMAIL, "create_draft", input, { cache: false });
+    const p = r.payload || {}; n.done = { url: p.viewUrl || (p.draft && p.draft.viewUrl) || null };
+    toast("Draft created in Gmail. Nothing was sent.");
+  } catch (e) { toast(e && (e.code === "server_unavailable" || e.code === "upstream_error") ? "Gmail didn't confirm. Check your drafts before trying again." : errText(e, "Gmail"), { bad: true }); }
+  n.busy = false; renderRail();
+}
+
+/* ================= ARRIVALS ================= */
+function parseDesc(desc) {
+  const out = {}; let key = null;
+  String(desc || "").replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "").split(/\n/).forEach(line => {
+    const m = line.match(/^\s*([A-Za-z][A-Za-z ?/&]+?):\s*(.*)$/);
+    if (m && m[1].length < 40) { key = m[1].trim().toLowerCase(); out[key] = m[2].trim(); }
+    else if (key && line.trim()) out[key] = (out[key] ? out[key] + ", " : "") + line.trim();
+  });
+  return out;
+}
+const ddmmyy = iso => iso.slice(8, 10) + "." + iso.slice(5, 7) + "." + iso.slice(2, 4);
+function addBiz(iso, n) { const d = new Date(iso + "T12:00:00"); while (n > 0) { d.setDate(d.getDate() + 1); if (d.getDay() !== 0 && d.getDay() !== 6) n--; } return isoOf(d); }
+function addDays(iso, n) { const d = new Date(iso + "T12:00:00"); d.setDate(d.getDate() + n); return isoOf(d); }
+function dubaiISO(dt) { try { return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dubai", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(dt)); } catch (e) { return isoOf(new Date(dt)); } }
+function dubaiTime(dt) { try { return new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Dubai", hour: "2-digit", minute: "2-digit" }).format(new Date(dt)); } catch (e) { return ""; } }
+function toBooking(ev) {
+  const sum = ev.summary || "", desc = parseDesc(ev.description);
+  let name = sum.split("|")[0].replace(/\(NC\)/i, "").trim();
+  if (/@/.test(name) && desc.customer && !/@/.test(desc.customer)) name = desc.customer;
+  const start = ev.start && (ev.start.dateTime || ev.start.date), end = ev.end && (ev.end.dateTime || ev.end.date);
+  const abu = /abu dhabi/i.test(sum) || /abudhabi@/i.test((ev.organizer && ev.organizer.email) || "");
+  const studio = abu ? "Abu Dhabi" : ((ev.organizer && ev.organizer.displayName) || "").replace(/^Al Barsha\s*/i, "Al Barsha ") || "Dubai";
+  return { id: ev.id, name, nc: /\(NC\)/i.test(sum), abu, studio, start, end, date: start ? dubaiISO(start) : null, time: start ? dubaiTime(start) : "",
+    email: lc(desc["client email"] || ""), order: desc["order id"] || "", customer: desc.customer || "", seats: desc.seats || "", setup: desc.setup || "",
+    services: desc.services || "", addons: desc["additional services"] || "", notes: desc["any special requests or note?"] || desc["any special requests or note"] || "",
+    guests: desc.guests || "", transfer: desc["file transfer"] || "", link: ev.htmlLink || "" };
+}
+async function loadBookings(force) {
+  if (!mcp || S.bookLoading || (S.bookings && !force)) return;
+  S.bookLoading = true; renderArr();
+  try {
+    const now = new Date(), from = new Date(now.getTime() - 7 * 864e5), to = new Date(now.getTime() + 14 * 864e5);
+    const opts = force ? { cache: { refresh: true, staleTime: 0 } } : { cache: { staleTime: 120000 } };
+    const cals = ["production@poddster.com", "studio@poddster.com"];
+    const res = await Promise.all(cals.map(c => mcp.callTool(GCAL, "list_events", { calendarId: c, fullText: "Booking", startTime: from.toISOString(), endTime: to.toISOString(), orderBy: "startTime", pageSize: 200, timeZone: "Asia/Dubai" }, opts).then(r => ({ ok: r }), e => ({ err: e }))));
+    if (res.every(r => r.err)) throw res[0].err;
+    await Promise.all([loadClients(), loadRecent(force)]);
+    const seen = new Set(), list = [];
+    res.forEach(r => ((r.ok && r.ok.payload && r.ok.payload.events) || []).forEach(ev => {
+      if (!/poddster.*booking/i.test(ev.summary || "") || ev.status === "cancelled") return;
+      const b = toBooking(ev); const k = lc(b.name) + "|" + b.start; if (seen.has(ev.id) || seen.has(k)) return; seen.add(ev.id); seen.add(k); list.push(b);
+    }));
+    const clients = Object.values(S.clients || {});
+    list.forEach(b => {
+      const c = (b.email && clients.find(x => x.email && x.email === b.email)) || clients.find(x => lc(x.bare) === lc(b.name)) || null;
+      b.client = c; b.lane = b.nc || !c ? "new" : c.lane === "AG" ? "AG" : c.lane === "BL" ? "BL" : "new";
+      const dmy = b.date ? ddmmyy(b.date) : "", dmyy = b.date ? b.date.slice(8, 10) + "." + b.date.slice(5, 7) + "." + b.date.slice(0, 4) : "";
+      const key1 = lc(c ? c.bare : b.name), key2 = surname(c ? c.bare : b.name);
+      b.episode = (S.recent || []).find(it => (it.lname.includes(key1) || (key2.length > 2 && it.lname.includes(key2))) && (it.lname.includes(dmy) || it.lname.includes(dmyy))) || null;
+      const st = Date.parse(b.start), en = Date.parse(b.end || b.start);
+      b.phase = b.episode ? "done" : Date.now() < st ? "scheduled" : Date.now() <= en ? "onair" : "landed";
+    });
+    list.sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+    S.bookings = list; S.bookErr = res.find(r => r.err) ? res.find(r => r.err).err : null; S.bookPartial = res.some(r => r.err);
+  } catch (e) { S.bookErr = e; }
+  S.bookLoading = false; renderArr(); renderRail();
+}
+const PHASE = { landed: ["Landed", "landed"], onair: ["On air", "onair"], scheduled: ["Scheduled", "sched"], done: ["Intake done", "donei"] };
+function flap(text, n) { const s = String(text || "").toUpperCase().slice(0, n).padEnd(n, " "); return [...s].map((ch, k) => `<i style="--d:${(k * 18) % 400}ms">${ch === " " ? "&nbsp;" : esc(ch)}</i>`).join(""); }
+function renderArr() {
+  const el = $("pane-arr"); if (!el || S.view !== "arr") return;
+  if (!mcp) { el.innerHTML = `<div class="v-empty"><b>Open this in Claude</b><span>Arrivals needs the Google Calendar and monday.com connectors.</span></div>`; return; }
+  if (S.bookErr && !S.bookings) { el.innerHTML = `<div class="v-empty"><b>Couldn't read the studio calendars</b><span>${esc(errText(S.bookErr, S.bookErr.server || "Google Calendar"))}</span><button class="btn-s" type="button" data-act="arr-retry">Try again</button></div>`; return; }
+  if (!S.bookings) { el.innerHTML = `<div class="v-head"><div><h2>Arrivals</h2><p>Reading the production and DMC Studio 1 calendars…</p></div></div><div class="board">${Array.from({ length: 6 }, () => `<div class="fl-row skel-row"><span class="skel"></span></div>`).join("")}</div>`; return; }
+  const list = S.bookings.filter(b => !S.q || lc(b.name + " " + b.email + " " + b.studio).includes(lc(S.q)));
+  const needs = list.filter(b => b.phase === "landed" && b.lane === "AG"), picks = list.filter(b => b.phase === "landed" && b.lane === "new");
+  const T0 = todayISO();
+  const sect = (title, rows) => rows.length ? `<div class="fl-sec">${esc(title)}<span>${rows.length}</span></div>` + rows.map(b => {
+    const [ph, cls] = b.lane === "new" && b.phase === "landed" ? ["Pick producer", "newc"] : b.lane === "BL" && b.phase === "landed" ? ["Laura's lane", "sched"] : PHASE[b.phase];
+    const day = b.date === T0 ? "TODAY" : new Date(b.date + "T12:00").toLocaleDateString("en-GB", { weekday: "short", day: "2-digit" }).replace(",", "");
+    return `<button class="fl-row ${S.selBook === b.id ? "sel" : ""}" type="button" data-book="${esc(b.id)}">
+      <span class="fl t">${flap(b.time, 5)}</span><span class="fl d">${flap(day, 6)}</span>
+      <span class="fl n">${flap(b.name, 22)}${b.nc ? `<em class="tag">NC</em>` : ""}</span>
+      <span class="fl s">${flap(b.studio, 12)}</span>
+      <span class="fl-st ${cls}">${esc(ph)}</span></button>`;
+  }).join("") : "";
+  const past = list.filter(b => b.phase === "landed" || b.phase === "onair"), upcoming = list.filter(b => b.phase === "scheduled"), done = list.filter(b => b.phase === "done");
+  el.innerHTML = `<div class="v-head"><div><h2>Arrivals</h2><p>Studio bookings from the last 7 days and next 14, from the production and DMC Studio 1 calendars. When a session lands, run intake from here.</p></div>
+      <div class="v-stats"><span class="chip ${needs.length ? "late" : ""}"><b>${needs.length}</b>need intake</span><span class="chip today"><b>${picks.length}</b>need a producer</span><span class="chip"><b>${upcoming.length}</b>scheduled</span><button class="btn-s" type="button" data-act="arr-retry">${S.bookLoading ? "Reading…" : "Refresh"}</button></div></div>
+    <div class="board" role="list">
+      <div class="fl-head"><span>Time</span><span>Day</span><span>Client</span><span>Studio</span><span>Status</span></div>
+      ${sect("Landed and on air", past)}${sect("Scheduled", upcoming)}${sect("Intake done", done)}
+      ${!list.length ? `<div class="v-empty"><b>${S.q ? "No booking matches." : "No bookings in this window."}</b></div>` : ""}
+    </div>
+    <p class="v-note">${S.bookPartial ? "One calendar couldn't be read, so this board may be missing bookings. " : ""}Intake done means an episode with this client and session date already exists on the Episode board. Times are Dubai time.</p>`;
+}
+function renderArrRail() {
+  const b = S.bookings && S.bookings.find(x => x.id === S.selBook);
+  if (!b) {
+    $("rail-h").innerHTML = `<h2>Arrivals</h2>`;
+    const L = S.bookings || [], needs = L.filter(x => x.phase === "landed" && x.lane === "AG"), picks = L.filter(x => x.phase === "landed" && x.lane === "new"), today = L.filter(x => x.date === todayISO() && x.phase !== "done");
+    $("rail-b").innerHTML = !S.bookings ? `<p class="greet">Checking the studio calendars…</p>` : `
+      <div><p class="greet">${needs.length ? needs.length + (needs.length === 1 ? " session has" : " sessions have") + " landed without intake." : "Every landed session is in Monday."}</p><p>${today.length ? today.length + " more on the calendar today." : "Nothing else today."}</p></div>
+      ${needs.length ? `<div class="bl"><p class="bl-h">Run intake</p>${needs.map(bkItem).join("")}</div>` : ""}
+      ${picks.length ? `<div class="bl"><p class="bl-h">New clients, pick a producer</p>${picks.map(bkItem).join("")}</div>` : ""}
+      <div class="say"><span>Hands-free: say it to Claude for the full routine, including Dropbox and studio notes.</span><b>“Run intake”</b></div>`;
+    return;
+  }
+  $("rail-h").innerHTML = `<button class="ib" type="button" data-act="back" aria-label="Back" title="Back (Esc)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><h2>${esc(b.name)}</h2>${b.link ? `<a class="ib" href="${esc(b.link)}" target="_blank" rel="noopener" aria-label="Open in Google Calendar" title="Open in Google Calendar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>` : ""}`;
+  const avail = addDays(b.date, 1), draft = addBiz(avail, 2), epName = `${b.client ? b.client.bare : b.name} - Session ${ddmmyy(b.date)}`;
+  const row = (k, v) => v ? `<dt>${k}</dt><dd>${esc(v)}</dd>` : "";
+  const it = S.intake && S.intake.id === b.id ? S.intake : null;
+  let act = "";
+  if (b.episode) act = `<div class="banner ok"><b>Intake done</b><span>${esc(b.episode.name)}${b.episode.producer ? ", producer " + esc(b.episode.producer) : ""}.</span><a class="lk" href="${esc(b.episode.url)}" target="_blank" rel="noopener" style="justify-self:start">Open in Monday</a></div>`;
+  else if (b.phase === "scheduled") act = `<p class="v-note" style="margin:0">Intake opens once the session has finished.</p>`;
+  else if (b.lane === "BL") act = `<p class="v-note" style="margin:0">This is Laura's client, so intake runs in her lane.</p>`;
+  else if (b.lane === "new") act = `<div class="banner"><b>${b.nc ? "New client (NC)" : "Not on PP Clients Only"}</b><span>A producer has to be picked on PP Clients Only before the episode is created. Ask Claude to “run intake” and it will create the client record and flag it for you.</span><a class="lk" href="https://poddsterstudios-team.monday.com/boards/${CLIENTS_BOARD}" target="_blank" rel="noopener" style="justify-self:start">Open PP Clients Only</a></div>`;
+  else if (it && it.done) act = `<div class="banner ok"><b>Intake done</b><span>${esc(it.done)}</span>${it.url ? `<a class="lk" href="${esc(it.url)}" target="_blank" rel="noopener" style="justify-self:start">Open in Monday</a>` : ""}</div>`;
+  else act = `<div class="intake"><p class="bl-h" style="margin:0">Run intake</p>
+      <ol><li>Create <b>${esc(epName)}</b> in Queue</li><li>Link it to ${esc(b.client.name)}, producer you</li><li>Available ${short(avail)}, Draft ${short(draft)}</li><li>Post the booking details as an update</li><li>${b.client.fio ? "Request the Frame.io session folder" : "<span class='late'>Skip Frame.io: this client has no Frame.io project yet</span>"}</li></ol>
+      <p class="v-note" style="margin:0">Dropbox link, studio operator notes and the calendar guest stay with you or Claude.</p>
+      <button class="post" type="button" data-act="intake" ${it && it.busy ? "disabled" : ""} style="justify-self:start;margin:0">${it && it.busy ? esc(it.step || "Working…") : "Run intake"}</button></div>`;
+  $("rail-b").innerHTML = `
+    <div style="display:flex;flex-wrap:wrap;gap:8px"><span class="badge" style="--c:${b.lane === "AG" ? "var(--brand)" : b.lane === "BL" ? "var(--st-review)" : "var(--st-other)"}"><i></i>${b.lane === "AG" ? "Your client" : b.lane === "BL" ? "Laura's client" : "New client"}</span><span class="badge" style="--c:var(--st-assigned)"><i></i>${esc(b.studio)}</span></div>
+    <dl class="props">${row("When", new Date(b.date + "T12:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" }) + ", " + b.time)}${row("Order", b.order)}${row("Email", b.email)}${row("Seats", b.seats)}${row("Setup", b.setup)}${row("Services", b.services)}${row("Add-ons", b.addons)}${row("Requests", b.notes)}${row("Guests", b.guests)}${row("Files", b.transfer)}</dl>
+    ${act}`;
+}
+const bkItem = b => `<button class="bi" type="button" data-book="${esc(b.id)}" style="--c:${b.lane === "new" ? "var(--st-other)" : "var(--brand)"}"><i></i><span>${esc(b.name)}</span><small>${esc(new Date(b.date + "T12:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" }))}</small></button>`;
+async function runIntake() {
+  const b = S.bookings && S.bookings.find(x => x.id === S.selBook); if (!b || !b.client || !mcp) return;
+  if (S.intake && S.intake.busy) return;
+  S.intake = { id: b.id, busy: true, step: "Creating episode…" }; renderRail();
+  const avail = addDays(b.date, 1), draft = addBiz(avail, 2), name = `${b.client.bare} - Session ${ddmmyy(b.date)}`;
+  const step = s => { S.intake.step = s; renderRail(); };
+  let itemId = null;
+  try {
+    const cv = { board_relation_mkxb8cpz: { item_ids: [Number(b.client.id)] }, people: { personsAndTeams: [{ id: ME_ID, kind: "person" }] }, date: { date: avail }, date4: { date: draft } };
+    const r = await mcp.callTool(SERVER, "create_item", { boardId: BOARD, name, groupId: "topics", columnValues: JSON.stringify(cv) }, { cache: false });
+    const p = r.payload; const txt = typeof p === "string" ? p : JSON.stringify(p || r.content || "");
+    itemId = (p && (p.id || p.item_id || p.itemId || (p.item && p.item.id) || (p.create_item && p.create_item.id))) || (txt.match(/"id"\s*:\s*"?(\d{8,})/) || [])[1] || null;
+    if (!itemId) {
+      step("Finding the new episode…");
+      const f = await mcp.callTool(SERVER, "get_board_items_page", { boardId: BOARD, searchTerm: name, limit: 5, includeColumns: false }, { cache: false });
+      const hit = ((f.payload && f.payload.items) || []).find(x => lc(x.name) === lc(name)); itemId = hit && hit.id;
+    }
+    if (!itemId) throw { code: "tool_error", message: "The episode was created but its ID couldn't be read back. Check Monday before running intake again." };
+    step("Posting booking details…");
+    const li = (k, v) => v ? `<b>${esc(k)}:</b> ${esc(v)}<br>` : "";
+    const body = `<b>Session booking</b><br>${li("Order ID", b.order)}${li("Customer", b.customer || b.name)}${li("Client email", b.email)}${li("Date", new Date(b.date + "T12:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" }) + ", " + b.time + " Dubai")}${li("Studio", b.studio)}${li("Seats", b.seats)}${li("Setup", b.setup)}${li("Services", b.services)}${li("Add-ons", b.addons)}${li("Special requests", b.notes)}${li("Guests", b.guests)}${li("File transfer", b.transfer)}<br>Dropbox session folder: to be added`;
+    await mcp.callTool(SERVER, "create_update", { itemId: Number(itemId), body }, { cache: false });
+    let fio = "Frame.io skipped: the client has no Frame.io project yet.";
+    if (b.client.fio) {
+      step("Requesting Frame.io folder…");
+      await mcp.callTool(SERVER, "change_item_column_values", { boardId: BOARD, itemId: Number(itemId), columnValues: JSON.stringify({ dropdown_mkxb29zm: {} }) }, { cache: false });
+      await mcp.callTool(SERVER, "change_item_column_values", { boardId: BOARD, itemId: Number(itemId), columnValues: JSON.stringify({ dropdown_mkxb29zm: { labels: ["Create Frame.IO Folder"] } }) }, { cache: false });
+      fio = "Frame.io folder requested; the link can take about 90 seconds to appear.";
+    }
+    S.intake = { id: b.id, busy: false, done: `${name} created in Queue. ${fio} Still to do: Dropbox link and studio notes.`, url: `${BOARD_URL}/pulses/${itemId}` };
+    toast("Intake done for " + b.client.bare);
+    mcp.invalidate(SERVER, "get_board_items_page").catch(() => {});
+  } catch (e) {
+    S.intake = { id: b.id, busy: false };
+    toast(itemId ? "Episode created, but a later step failed. " + errText(e, "monday.com") : (e && (e.code === "server_unavailable" || e.code === "upstream_error")) ? "Monday didn't confirm. Check the board before running intake again." : errText(e, "monday.com"), { bad: true });
+  }
+  renderRail();
+}
+
+/* ================= RIVER ================= */
+const FLOW = ["Queue","Assigned","In Process","In Review","Corrections","Client Review","Done"];
+function seeded(id, k) { let h = 2166136261; const s = id + ":" + k; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return ((h >>> 0) % 10000) / 10000; }
+function renderRiver() {
+  const el = $("pane-river"); if (!el || S.view !== "river") return;
+  if (!S.items.length) { el.innerHTML = `<div class="v-empty"><b>${S.error ? "Couldn't read your board" : "Reading your board…"}</b></div>`; return; }
+  const now = Date.now(), wk = 7 * 864e5;
+  const doneRecent = S.items.filter(i => i.stage === "Done" && i.updated && now - Date.parse(i.updated) < wk);
+  const donePrev = S.items.filter(i => i.stage === "Done" && i.updated && now - Date.parse(i.updated) >= wk && now - Date.parse(i.updated) < 2 * wk).length;
+  const inflow = S.items.filter(i => i.created && now - Date.parse(i.created) < wk).length;
+  const groups = FLOW.map(st => st === "Done" ? doneRecent : active().filter(i => i.stage === st));
+  const W = 1200, H = 440, mid = 230, padX = 70, maxN = Math.max(4, ...groups.map(g => g.length));
+  const xs = FLOW.map((_, k) => padX + k * (W - 2 * padX) / (FLOW.length - 1));
+  const half = groups.map(g => 16 + (g.length / maxN) * 150);
+  const curve = (pts, top) => { let d = ""; pts.forEach((p, k) => { if (!k) { d += `${top ? "M" : "L"}${p[0]} ${p[1]}`; return; } const q = pts[k - 1], cx = (q[0] + p[0]) / 2; d += ` C${cx} ${q[1]} ${cx} ${p[1]} ${p[0]} ${p[1]}`; }); return d; };
+  const topPts = xs.map((x, k) => [x, mid - half[k]]), botPts = xs.map((x, k) => [x, mid + half[k]]).reverse();
+  const ends = `M${0} ${mid - 10} L${xs[0]} ${mid - half[0]}`;
+  const band = curve([[0, mid - 12], ...topPts, [W, mid - half[half.length - 1] * .7]], true) + " " + curve([[W, mid + half[half.length - 1] * .7], ...botPts, [0, mid + 12]], false) + " Z";
+  const wide = groups.slice(0, 6).reduce((m, g, k) => g.length > groups[m].length ? k : m, 0);
+  let dots = "";
+  groups.forEach((g, k) => {
+    const x0 = k ? (xs[k - 1] + xs[k]) / 2 : xs[0] - 40, x1 = k < FLOW.length - 1 ? (xs[k] + xs[k + 1]) / 2 : xs[k] + 40;
+    g.filter(matches).forEach(it => {
+      const fx = x0 + 10 + seeded(it.id, 1) * (x1 - x0 - 20), fy = mid + (seeded(it.id, 2) * 2 - 1) * (half[k] - 12) * .9;
+      const d = daysTo(it), late = d !== null && d < 0, sel = S.sel === it.id;
+      const c = it.stage === "Done" ? "var(--st-done)" : late ? "var(--late)" : colorOf(it.stage);
+      dots += `<g class="fish ${sel ? "sel" : ""}" data-id="${esc(it.id)}" tabindex="0" role="button" aria-label="${esc(it.name)}, ${esc(it.stage)}" style="--dur:${(6 + seeded(it.id, 3) * 6).toFixed(1)}s;--del:-${(seeded(it.id, 4) * 6).toFixed(1)}s">
+        <circle cx="${fx.toFixed(1)}" cy="${fy.toFixed(1)}" r="${(5 + Math.min(it.units || 1, 3) * 1.6).toFixed(1)}" fill="${c}"/>${sel ? `<circle cx="${fx.toFixed(1)}" cy="${fy.toFixed(1)}" r="13" fill="none" stroke="var(--ink)" stroke-width="2"/>` : ""}</g>`;
+    });
+  });
+  const labels = FLOW.map((st, k) => {
+    const g = groups[k], late = st === "Client Review" ? g.filter(i => ageDays(i) > 7).length : g.filter(i => { const d = daysTo(i); return d !== null && d < 0; }).length;
+    return `<text class="rv-l" x="${xs[k]}" y="${mid - half[k] - 34}" text-anchor="middle" fill="${st === "Done" ? "var(--st-done)" : colorOf(st)}">${esc(st === "Done" ? "Done this week" : st)}</text>
+      <text class="rv-n" x="${xs[k]}" y="${mid - half[k] - 12}" text-anchor="middle">${g.length}</text>
+      ${late ? `<text class="rv-late" x="${xs[k]}" y="${mid + half[k] + 24}" text-anchor="middle">${late} ${st === "Client Review" ? "quiet 7d+" : "late"}</text>` : ""}`;
+  }).join("");
+  const net = doneRecent.length - inflow;
+  el.innerHTML = `<div class="v-head"><div><h2>The river</h2><p>Your episodes flowing from Queue to Done. The river swells where work piles up.</p></div>
+      <div class="v-stats"><span class="chip"><b>${inflow}</b>flowed in this week</span><span class="chip ${doneRecent.length >= donePrev ? "good" : ""}"><b>${doneRecent.length}</b>done this week</span><span class="chip"><b>${donePrev}</b>done last week</span></div></div>
+    <div class="river-wrap"><svg class="river" viewBox="0 0 ${W} ${H}" role="group" aria-label="Episodes by stage">
+      <defs><linearGradient id="rvG" x1="0" x2="1"><stop offset="0" stop-color="#5BA8FF" stop-opacity=".10"/><stop offset=".55" stop-color="#5BA8FF" stop-opacity=".22"/><stop offset="1" stop-color="#8B80F9" stop-opacity=".22"/></linearGradient></defs>
+      <path d="${band}" fill="url(#rvG)" stroke="rgb(91 168 255 / .35)" stroke-width="1.2"/>
+      ${xs.map((x, k) => `<line x1="${x}" x2="${x}" y1="${mid - half[k]}" y2="${mid + half[k]}" class="rv-gate"/>`).join("")}
+      ${groups[wide].length > 2 ? `<path d="M${xs[wide]} ${mid + half[wide] + 36} l0 18" stroke="var(--today)" stroke-width="1.5"/><text class="rv-bn" x="${xs[wide]}" y="${mid + half[wide] + 72}" text-anchor="middle">Widest point: ${esc(FLOW[wide])}</text>` : ""}
+      ${labels}${dots}</svg></div>
+    <p class="v-note">${net >= 0 ? `More flowed out than in this week, so the river is draining (${doneRecent.length} done, ${inflow} new).` : `More flowed in than out this week, so the river is rising (${inflow} new, ${doneRecent.length} done).`} Click any dot to work on it. "Done this week" uses each episode's last update in Monday, so bulk edits can inflate it.</p>`;
+}
+
+function render() { renderViewTabs(); renderChips(); renderSync(); $("wrap").hidden = S.view !== "orbit"; if (S.view === "orbit") renderRadar(); renderHeart(); renderArr(); renderRiver(); renderRail(); }
+
+/* ---------- actions ---------- */
+let tt;
+function toast(text, o = {}) {
+  const t = $("toast"); t.className = "toast" + (o.bad ? " bad" : "");
+  t.innerHTML = `<span>${esc(text)}</span>${o.undo ? `<button type="button" id="undo">Undo</button>` : ""}`;
+  t.hidden = false; clearTimeout(tt); tt = setTimeout(() => t.hidden = true, o.undo ? 6000 : 3500);
+  if (o.undo) $("undo").onclick = () => { t.hidden = true; o.undo(); };
+}
+function writeErr(e) {
+  if (e && (e.code === "server_unavailable" || e.code === "upstream_error")) return "Monday didn't confirm the change. Sync to check before trying again.";
+  const m = errorCopy(e); return m.title + ". " + m.body;
+}
+async function setStage(it, lbl, isUndo) {
+  if (!mcp || S.busy || !it || it.stage === lbl) return;
+  const prev = it.stage; S.busy = true; it.stage = lbl; render();
+  try {
+    await mcp.callTool(SERVER, "change_item_column_values", { boardId: BOARD, itemId: Number(it.id), columnValues: JSON.stringify({ status: { label: lbl } }) }, { cache: false });
+    toast(isUndo ? "Restored to " + lbl : lbl === "Done" ? "Done. One less in orbit." : "Moved to " + lbl, isUndo ? {} : { undo: () => setStage(it, prev, true) });
+    if (lbl === "Done") S.sel = null;
+    mcp.invalidate(SERVER, "get_board_items_page").catch(() => {});
+  } catch (e) { it.stage = prev; toast(writeErr(e), { bad: true }); }
+  finally { S.busy = false; render(); }
+}
+async function postNote() {
+  const it = S.items.find(i => i.id === S.sel); const text = (S.draft || "").trim();
+  if (!it || !mcp || S.busy) return;
+  if (!text) { toast("Write the note first.", { bad: true }); return; }
+  S.busy = true; renderRail();
+  try {
+    const input = { itemId: Number(it.id), body: esc(text).replace(/\n/g, "<br>") };
+    const mid = S.mention ? EDITOR_IDS[firstName(it.editor).toLowerCase()] : null;
+    if (mid) input.mentionsList = JSON.stringify([{ id: mid, type: "User" }]);
+    await mcp.callTool(SERVER, "create_update", input, { cache: false });
+    let moved = false;
+    if (S.corr && it.stage !== "Corrections") {
+      await mcp.callTool(SERVER, "change_item_column_values", { boardId: BOARD, itemId: Number(it.id), columnValues: JSON.stringify({ status: { label: "Corrections" } }) }, { cache: false });
+      it.stage = "Corrections"; moved = true;
+    }
+    S.draft = ""; toast(moved ? "Note posted, moved to Corrections" : "Note posted");
+    mcp.invalidate(SERVER, "get_board_items_page").catch(() => {});
+  } catch (e) { toast(writeErr(e), { bad: true }); }
+  finally { S.busy = false; render(); }
+}
+function select(id) { if (S.sel !== id) { S.draft = ""; S.corr = true; S.mention = true; } S.sel = id; $("tip").hidden = true; render(); }
+function deselect() { if (S.sel) S.sel = null; else { S.selClient = null; S.selBook = null; S.nudge = null; S.intake = null; } render(); }
+function sync() { if (!mcp) return; S.loading = true; $("sync-t").textContent = "Syncing"; mcp.invalidate(SERVER, "get_board_items_page").catch(() => {}); if (S.view === "heart") loadHeart(true); if (S.view === "arr") loadBookings(true); }
+
+/* ---------- events ---------- */
+const radar = $("radar"), tip = $("tip"), wrap = $("wrap");
+radar.addEventListener("click", e => { const g = e.target.closest(".dot"); if (g) select(g.dataset.id); else if (S.sel) deselect(); });
+radar.addEventListener("keydown", e => { const g = e.target.closest(".dot"); if (g && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); select(g.dataset.id); } });
+function showTip(g, ev) {
+  const it = S.items.find(i => i.id === g.dataset.id); if (!it) return;
+  const r = it.stage === "Client Review" ? ageDays(it) + " days with the client" : rel(nextDue(it)).txt;
+  tip.innerHTML = `<b>${esc(it.name)}</b><span>${esc(it.stage)}, ${esc(r)}${it.editor ? ", " + esc(it.editor) : ""}</span>`;
+  const wr = wrap.getBoundingClientRect(); let x, y;
+  if (ev && ev.clientX) { x = ev.clientX - wr.left + 14; y = ev.clientY - wr.top + 14; }
+  else { const br = g.getBoundingClientRect(); x = br.right - wr.left + 8; y = br.top - wr.top; }
+  tip.hidden = false;
+  tip.style.left = Math.min(x, wr.width - tip.offsetWidth - 8) + "px"; tip.style.top = Math.min(y, wr.height - tip.offsetHeight - 8) + "px";
+}
+radar.addEventListener("pointermove", e => { const g = e.target.closest(".dot"); if (g) showTip(g, e); else tip.hidden = true; });
+radar.addEventListener("pointerleave", () => tip.hidden = true);
+radar.addEventListener("focusin", e => { const g = e.target.closest(".dot"); if (g) showTip(g); });
+radar.addEventListener("focusout", () => tip.hidden = true);
+function pickClient(k) { S.sel = null; if (S.selClient !== k) S.nudge = null; S.selClient = k; renderHeart(); renderRail(); }
+function pickBook(k) { S.sel = null; if (S.selBook !== k) S.intake = null; S.selBook = k; renderArr(); renderRail(); }
+$("views").addEventListener("click", e => { const b = e.target.closest("[data-v]"); if (b) setView(b.dataset.v); });
+["pane-heart","pane-arr","pane-river"].forEach(id => $(id).addEventListener("click", e => {
+  const c = e.target.closest("[data-client]"); if (c) return pickClient(c.dataset.client);
+  const b = e.target.closest("[data-book]"); if (b) return pickBook(b.dataset.book);
+  const f = e.target.closest("[data-id]"); if (f) return select(f.dataset.id);
+  const a = e.target.closest("[data-act]"); if (!a) return;
+  if (a.dataset.act === "heart-retry") { S.heartErr = null; loadHeart(true); }
+  if (a.dataset.act === "arr-retry") { S.bookErr = null; loadBookings(true); }
+}));
+$("pane-river").addEventListener("keydown", e => { const f = e.target.closest(".fish"); if (f && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); select(f.dataset.id); } });
+$("rail-b").addEventListener("click", e => {
+  const c = e.target.closest("[data-client]"); if (c) { pickClient(c.dataset.client); return; }
+  const bk = e.target.closest("[data-book]"); if (bk) { pickBook(bk.dataset.book); return; }
+  const tp = e.target.closest("[data-tpl]"); if (tp && S.nudge) { const g = S.heart.list.find(x => x.key === S.nudge.key); S.nudge.subject = $("n-subj") ? $("n-subj").value : S.nudge.subject; S.nudge.tpl = tp.dataset.tpl; S.nudge.body = NUDGES[tp.dataset.tpl].body((g && g.first) || "there"); renderRail(); return; }
+  const ac = e.target.closest("[data-act]");
+  if (ac && ac.dataset.act === "nudge") { const g = S.heart.list.find(x => x.key === S.selClient); if (g) { openNudge(g); renderRail(); } return; }
+  if (ac && ac.dataset.act === "mkdraft") { createNudge(); return; }
+  if (ac && ac.dataset.act === "intake") { runIntake(); return; }
+  const b = e.target.closest("[data-id]"); if (b) { select(b.dataset.id); return; }
+  const it = S.items.find(i => i.id === S.sel); if (!it) return;
+  const st = e.target.closest("[data-stage]"); if (st) { setStage(it, st.dataset.stage); return; }
+  if (e.target.closest("[data-act='post']")) postNote();
+});
+$("rail-h").addEventListener("click", e => { if (e.target.closest("[data-act='close'],[data-act='back']")) deselect(); });
+$("rail-b").addEventListener("input", e => { if (e.target.id === "note") S.draft = e.target.value; if (S.nudge && e.target.id === "n-body") S.nudge.body = e.target.value; if (S.nudge && e.target.id === "n-subj") S.nudge.subject = e.target.value; });
+$("rail-b").addEventListener("change", e => { if (e.target.id === "corr") S.corr = e.target.checked; if (e.target.id === "mention") S.mention = e.target.checked; });
+$("q").addEventListener("input", e => { S.q = e.target.value.trim(); if (S.view === "orbit") renderRadar(); renderHeart(); renderArr(); renderRiver(); renderRail(); });
+$("refresh").addEventListener("click", sync);
+document.addEventListener("keydown", e => {
+  const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement && document.activeElement.tagName);
+  if (typing) {
+    if (e.target.id === "note" && (e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); postNote(); }
+    if (e.key === "Escape") { if (e.target.id === "q") { e.target.value = ""; S.q = ""; renderRadar(); renderRail(); } e.target.blur(); }
+    return;
+  }
+  if (e.key === "/") { e.preventDefault(); $("q").focus(); }
+  else if (/^[1-4]$/.test(e.key)) setView(VIEWS[+e.key - 1][0]);
+  else if (e.key === "Escape" && (S.sel || S.selClient || S.selBook)) deselect();
+  else if (e.key === "r" || e.key === "R") sync();
+  else if (e.key === "n" || e.key === "N") { const top = onRadar().sort((a, b) => urgency(a) - urgency(b))[0]; if (top) select(top.id); }
+});
+
+/* ---------- data ---------- */
+async function loadMore(cursor, acc, depth) {
+  if (!cursor || depth > 3) return acc;
+  try {
+    const r = await mcp.callTool(SERVER, "get_board_items_page", { boardId: BOARD, includeColumns: true, includeGroup: false, columnIds: COLS, limit: 500, cursor }, { cache: { staleTime: 30000 } });
+    const p = r.payload || {}; acc.push(...(p.items || []));
+    return loadMore(p.pagination && p.pagination.has_more ? p.pagination.nextCursor : null, acc, depth + 1);
+  } catch (e) { return acc; }
+}
+async function start() {
+  setInterval(renderSync, 30000);
+  render();
+  try { mcp = window.claude && window.claude.use ? await window.claude.use("mcp") : null; } catch (e) { mcp = null; }
+  if (!mcp) { S.loading = false; S.error = { code: "no_mcp" }; render(); return; }
+  if (S.view === "arr") loadBookings();
+  loadClients();
+  mcp.watchTool(SERVER, "get_board_items_page", INPUT, async ev => {
+    if (ev.type === "error") {
+      const c = ev.error && ev.error.code;
+      if (["needs_reauth","server_not_connected","selection_required","not_in_manifest","not_granted","blocked_by_policy","approval_required","capability_disabled"].includes(c)) S.items = [];
+      S.error = ev.error; S.loading = false; render(); return;
+    }
+    const p = ev.result.payload || {};
+    let raw = p.items || [];
+    if (p.pagination && p.pagination.has_more) raw = await loadMore(p.pagination.nextCursor, raw.slice(), 1);
+    S.items = raw.map(norm);
+    S.storedAt = ev.result.cache ? ev.result.cache.storedAt : Date.now();
+    S.error = null; S.loading = !!(ev.result.cache && ev.result.cache.revalidating);
+    render();
+    if (S.view === "heart" && !S.heart) loadHeart();
+  }, { refetchInterval: 45000, cache: { staleTime: 30000 } });
+}
+start();
+</script>

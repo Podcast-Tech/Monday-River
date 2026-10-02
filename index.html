@@ -1,0 +1,666 @@
+<title>Poddster River</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: the whole screen is the river. Header (level gauge + flow numbers + editor filter) → river canvas (stages as reaches, gates between them,
+   the sea of finished work at the mouth) → "pressing on the gates" list. Episode panel slides over from the right.
+   Encoding: within a reach, an episode drifts toward the next gate as its deadline nears; overdue ones press against the gate and glow red.
+   Drag an episode across a gate to move it to that stage. Dark-only: water reads best at night. */
+:root{
+  color-scheme:dark;
+  --night:#05080D; --card:#0F1520; --hover:#151D2A; --line:rgb(160 200 255 / .08); --line-2:rgb(160 200 255 / .15);
+  --ink:#EEF3FA; --ink-2:#C9D3E2; --muted:#8693A8; --faint:#55617A;
+  --water:#3FA9FF; --foam:#BFE3FF;
+  --brand:#FF003C; --late:#FF4D6A; --today:#F6B64A; --ok:#3EDC97;
+  --st-queue:#8693A8; --st-assigned:#C9D3E2; --st-process:#F6C94A; --st-review:#5EB2FF; --st-corr:#FF8F45; --st-client:#3EDC97; --st-done:#9C8CFF; --st-other:#A68CFF;
+  --f:"Geist",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html,body{min-height:100%}
+body{margin:0;background:radial-gradient(1400px 700px at 50% 30%,#0C1626 0%,var(--night) 70%);background-color:var(--night);color:var(--ink);font:400 14px/1.45 var(--f);-webkit-font-smoothing:antialiased}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:0;padding:0}
+:focus-visible{outline:2px solid var(--water);outline-offset:2px;border-radius:6px}
+.tnum{font-variant-numeric:tabular-nums}
+.app{max-width:1440px;margin:0 auto;padding-inline:20px;padding-block:18px 60px;display:grid;gap:18px}
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:14px 22px}
+.brand{display:flex;align-items:center;gap:12px;margin-right:auto;min-width:0}
+.brand h1{margin:0;font-size:20px;font-weight:600;letter-spacing:-.02em;line-height:1.1}
+.brand span{display:block;font-size:12.5px;color:var(--muted)}
+.find{display:flex;align-items:center;gap:8px;border:1px solid var(--line-2);border-radius:999px;padding:6px 13px;width:230px;color:var(--muted);background:rgb(255 255 255 / .02)}
+.find input{border:0;outline:0;background:transparent;width:100%;min-width:0}
+.find input::placeholder{color:var(--faint)}
+.sync{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted)}
+.sync i{width:7px;height:7px;border-radius:50%;background:var(--faint)}
+.sync i.on{background:var(--ok);box-shadow:0 0 8px var(--ok)} .sync i.stale{background:var(--today)} .sync i.off{background:var(--late)}
+.btn-s{border:1px solid var(--line-2);border-radius:999px;padding:5px 13px;font-size:12.5px;font-weight:500;color:var(--ink-2)}
+.btn-s:hover{background:var(--hover)}
+.level{display:grid;grid-template-columns:minmax(0,1.3fr) repeat(3,minmax(0,1fr));gap:12px}
+@media (max-width:900px){.level{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.gauge,.stat{border:1px solid var(--line);border-radius:16px;padding:14px 16px;background:linear-gradient(180deg,rgb(255 255 255 / .025),transparent)}
+.gauge{display:grid;grid-template-columns:auto minmax(0,1fr);gap:16px;align-items:center}
+.tube{width:22px;height:72px;border-radius:12px;border:1px solid var(--line-2);position:relative;overflow:hidden;background:rgb(0 0 0 / .3)}
+.tube i{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(var(--foam),var(--water));transition:height 1.2s cubic-bezier(.2,.8,.2,1)}
+.tube.rising i{background:linear-gradient(#FFC6CF,var(--late))}
+.gauge b{display:block;font-size:20px;font-weight:600;letter-spacing:-.02em}
+.gauge b.rising{color:var(--late)} .gauge b.draining{color:var(--ok)}
+.gauge p{margin:2px 0 0;color:var(--muted);font-size:13px}
+.stat span{display:block;font-size:12.5px;color:var(--muted)}
+.stat b{display:block;font-size:30px;font-weight:600;letter-spacing:-.03em;line-height:1.15}
+.stat small{font-size:12px;color:var(--muted)}
+.stat b.bad{color:var(--late)} .stat b.good{color:var(--ok)}
+.tribs{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.tribs > span{font-size:12.5px;color:var(--muted);margin-right:4px}
+.trib{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line-2);border-radius:999px;padding:4px 11px 4px 5px;font-size:12.5px;color:var(--ink-2)}
+.trib:hover{background:var(--hover)}
+.trib[aria-pressed="true"]{background:var(--ink);color:var(--night);border-color:var(--ink)}
+.trib em{font-style:normal;font-family:var(--mono);font-size:11px;color:var(--muted)}
+.trib[aria-pressed="true"] em{color:#3B4658}
+.av{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:9.5px;font-weight:600;color:#fff;background:var(--ac,#55617A);flex:none}
+.river-box{position:relative;border:1px solid var(--line);border-radius:22px;overflow:hidden;background:radial-gradient(1000px 360px at 45% 55%,rgb(63 169 255 / .07),transparent 70%),linear-gradient(180deg,#081019,#05080D)}
+.river-scroll{overflow-x:auto}
+svg.river{display:block;width:100%;min-width:900px;height:auto;touch-action:none;user-select:none}
+.bank{fill:none;stroke:rgb(150 200 255 / .28);stroke-width:1.4}
+.gate{stroke:rgb(190 225 255 / .28);stroke-width:1.5;stroke-dasharray:3 5}
+.gate.hot{stroke:var(--late);stroke-width:2.5;stroke-dasharray:none;filter:drop-shadow(0 0 6px rgb(255 77 106 / .8))}
+.zone.drop{fill:rgb(63 169 255 / .10)}
+.current{fill:none;stroke:rgb(191 227 255 / .22);stroke-width:1.2;stroke-linecap:round;stroke-dasharray:14 46}
+@media (prefers-reduced-motion:no-preference){.current{animation:flow 5s linear infinite}.current.c2{animation-duration:7s;stroke-dasharray:8 60}.current.c3{animation-duration:9s;stroke-dasharray:20 80}@keyframes flow{to{stroke-dashoffset:-240}}}
+.st-l{font:600 16px var(--f)}
+.st-n{font:600 30px var(--f);fill:var(--ink);letter-spacing:-.03em}
+.st-late{font:500 13px var(--mono);fill:var(--late)}
+.st-hint{font:500 16px var(--f);fill:var(--muted)}
+.sea-n{font:700 58px var(--f);fill:var(--st-done);letter-spacing:-.04em}
+.sea-l{font:500 14px var(--f);fill:var(--ink-2)}
+.sea-s{font:500 12px var(--f);fill:var(--muted)}
+.bn{font:600 13px var(--f);fill:var(--today)}
+.fish{cursor:grab;outline:none}
+.fish.dragging{cursor:grabbing}
+.fish .b{stroke:var(--night);stroke-width:2}
+.fish .glow{fill:none;stroke:var(--late);stroke-width:2;opacity:.6}
+.fish .sel{fill:none;stroke:var(--ink);stroke-width:2;opacity:0}
+.fish:hover .sel,.fish:focus-visible .sel{opacity:.6}
+.fish.is-sel .sel{opacity:1}
+.fish.dim{opacity:.12;cursor:default}
+.fish-l{font:500 12.5px var(--f);fill:var(--ink-2);paint-order:stroke;stroke:var(--night);stroke-width:4px;stroke-linejoin:round;pointer-events:none}
+@media (prefers-reduced-motion:no-preference){.fish:not(.dragging) .bob{animation:bob var(--dur) ease-in-out infinite alternate;animation-delay:var(--del)}@keyframes bob{from{transform:translate(-2px,-2px)}to{transform:translate(2px,2px)}}
+  .fish .glow{animation:pulse 2.2s ease-out infinite}@keyframes pulse{from{opacity:.7;stroke-width:2}to{opacity:0;stroke-width:9}}}
+.tip{position:absolute;z-index:4;pointer-events:none;background:var(--card);border:1px solid var(--line-2);border-radius:10px;padding:8px 11px;font-size:12.5px;max-width:300px;box-shadow:0 14px 30px -12px #000}
+.tip b{display:block;font-weight:500}
+.tip span{color:var(--muted)}
+.hint{display:flex;flex-wrap:wrap;gap:6px 18px;padding:10px 16px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted)}
+.hint b{color:var(--ink-2);font-weight:500}
+.sec h2{margin:6px 0 10px;font-size:15px;font-weight:600}
+.sec h2 small{font-weight:400;color:var(--muted);margin-left:8px}
+.press{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px}
+.pi{display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:10px;align-items:center;text-align:left;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:rgb(255 255 255 / .015)}
+.pi:hover{background:var(--hover);border-color:var(--line-2)}
+.pi i{width:9px;height:9px;border-radius:50%;background:var(--c)}
+.pi span{min-width:0}
+.pi b{display:block;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pi small{display:block;color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pi em{font-style:normal;font-family:var(--mono);font-size:12px;color:var(--late);white-space:nowrap}
+.empty{color:var(--muted);padding:12px 0}
+.banner{border:1px solid rgb(255 77 106 / .4);background:rgb(255 77 106 / .08);border-radius:14px;padding:12px 16px;display:grid;gap:2px}
+.banner span{color:var(--muted)}
+.scrim{position:fixed;inset:0;z-index:20;background:rgb(2 4 8 / .5)}
+.panel{position:fixed;z-index:21;top:0;right:0;bottom:0;width:min(440px,100%);background:#0A0F17;border-left:1px solid var(--line-2);display:flex;flex-direction:column;box-shadow:-30px 0 60px -20px #000}
+.p-h{display:flex;align-items:center;gap:8px;padding:calc(env(safe-area-inset-top,0px) + 14px) 16px 14px 20px;border-bottom:1px solid var(--line)}
+.p-h span{flex:1;min-width:0;font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ib{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;color:var(--muted);flex:none}
+.ib:hover{background:var(--hover);color:var(--ink)}
+.p-b{overflow-y:auto;padding:20px 20px calc(env(safe-area-inset-bottom,0px) + 28px);display:grid;gap:22px;align-content:start}
+.p-b h2{margin:0;font-size:20px;font-weight:600;letter-spacing:-.015em;line-height:1.3;text-wrap:balance}
+.badge{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:500;border-radius:999px;padding:3px 10px;border:1px solid color-mix(in srgb,var(--c) 45%,transparent);background:color-mix(in srgb,var(--c) 12%,transparent);justify-self:start}
+.badge i{width:7px;height:7px;border-radius:50%;background:var(--c)}
+.props{display:grid;grid-template-columns:90px minmax(0,1fr);gap:7px 10px;font-size:13.5px;margin:0}
+.props dt{color:var(--muted)} .props dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.props .late{color:var(--late)} .props .today{color:var(--today)}
+.lbl{font-size:12.5px;color:var(--muted);font-weight:500;margin:0 0 8px}
+.moves{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.mv{display:flex;align-items:center;gap:7px;border:1px solid var(--line-2);border-radius:9px;padding:8px 9px;font-size:12.5px;font-weight:500;text-align:left;min-height:40px}
+.mv i{width:7px;height:7px;border-radius:50%;background:var(--c);flex:none}
+.mv:hover:not([disabled]){background:color-mix(in srgb,var(--c) 14%,transparent);border-color:color-mix(in srgb,var(--c) 50%,transparent)}
+.mv[disabled]{opacity:.35;cursor:default}
+.links{display:flex;flex-wrap:wrap;gap:6px}
+.lk{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line-2);border-radius:8px;padding:6px 10px;font-size:12.5px;font-weight:500;color:var(--ink-2);text-decoration:none}
+.lk:hover{background:var(--hover);color:var(--ink)}
+.composer{border:1px solid var(--line-2);border-radius:12px;display:grid;background:rgb(255 255 255 / .02)}
+.composer:focus-within{border-color:rgb(190 225 255 / .3)}
+.composer textarea{border:0;outline:0;background:transparent;resize:vertical;min-height:90px;padding:10px 12px;line-height:1.5}
+.composer textarea::placeholder{color:var(--faint)}
+.c-bar{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:8px 8px 8px 12px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+.c-bar label{display:inline-flex;gap:5px;align-items:center}
+.c-bar input{accent-color:var(--brand)}
+.post{margin-left:auto;background:var(--brand);color:#fff;border-radius:8px;padding:7px 13px;font-weight:500;font-size:12.5px}
+.post:hover{background:#E00035}
+.post[disabled]{opacity:.5}
+.add{display:inline-flex;align-items:center;gap:7px;background:var(--brand);color:#fff;border-radius:999px;padding:7px 15px;font-weight:600;font-size:13px}
+.add:hover{background:#E00035}
+.add kbd{font:500 11px var(--mono);border:1px solid rgb(255 255 255 / .4);border-radius:5px;padding:0 5px}
+.form{display:grid;gap:14px}
+.fld{display:grid;gap:5px;font-size:12.5px;color:var(--muted)}
+.fld input,.fld select{border:1px solid var(--line-2);border-radius:9px;background:rgb(255 255 255 / .03);padding:9px 11px;color:var(--ink);outline:0;font-size:14px;width:100%}
+.fld input:focus,.fld select:focus{border-color:rgb(190 225 255 / .35)}
+.fld select option{background:#0A0F17}
+.row2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+.kinds{display:flex;flex-wrap:wrap;gap:6px}
+.kinds button{border:1px solid var(--line-2);border-radius:999px;padding:5px 12px;font-size:12.5px;color:var(--muted)}
+.kinds button[aria-pressed="true"]{border-color:var(--water);color:var(--ink);background:rgb(63 169 255 / .12)}
+.sum{border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:13px;color:var(--ink-2);display:grid;gap:4px}
+.sum b{color:var(--ink);font-weight:500}
+.f-acts{display:flex;gap:8px;align-items:center}
+.f-acts .post{margin-left:0}
+.toast{position:fixed;z-index:30;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);transform:translateX(-50%);display:flex;align-items:center;gap:12px;background:var(--ink);color:var(--night);padding:9px 10px 9px 14px;border-radius:10px;font-size:13px;max-width:calc(100% - 32px)}
+.toast button{color:var(--night);font-weight:600;padding:2px 8px;border-radius:6px;background:rgb(0 0 0 / .1)}
+.toast.bad{background:var(--late);color:#fff}
+@media (prefers-reduced-motion:no-preference){.panel{animation:slide .2s ease-out}@keyframes slide{from{transform:translateX(30px);opacity:.5}}}
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <svg viewBox="0 0 40 40" width="34" height="34" aria-hidden="true"><rect width="40" height="40" rx="10" fill="#FF003C"/><rect x="12" y="8" width="16" height="18" rx="8" fill="none" stroke="#fff" stroke-width="3.6"/><path d="M13.8 22v11" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/></svg>
+      <div><h1>River</h1><span id="sub">Poddster production flow</span></div>
+    </div>
+    <label class="find"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" type="search" placeholder="Find a client or episode" aria-label="Find an episode"></label>
+    <button class="add" id="add" type="button" title="Add a task (N)">+ Add task <kbd>N</kbd></button>
+    <div class="sync"><i id="sync-dot"></i><span id="sync-t">Connecting</span><button class="btn-s" type="button" id="refresh">Sync</button></div>
+  </header>
+  <section class="level" id="level" aria-label="This week's flow"></section>
+  <div class="tribs" id="tribs" aria-label="Filter by editor"></div>
+  <section class="river-box" aria-label="Episode river">
+    <div class="river-scroll"><svg class="river" id="river" viewBox="0 0 1400 520" role="group" aria-label="Episodes flowing from Queue to Done"></svg></div>
+    <div class="tip" id="tip" hidden></div>
+    <div class="hint"><span><b>Drag</b> an episode across a gate to move it.</span><span><b>Closer to a gate</b> means its deadline is closer. Red ones are overdue and pressing on it.</span><span><b>Click</b> an episode to open it.</span></div>
+  </section>
+  <section class="sec" id="pressing"></section>
+</div>
+<div class="scrim" id="scrim" hidden></div>
+<aside class="panel" id="panel" hidden aria-label="Episode"></aside>
+<div class="toast" id="toast" hidden role="status"></div>
+
+<script>
+const SERVER = "monday.com";
+const BOARD = 2472462203;
+const BOARD_URL = "https://poddsterstudios-team.monday.com/boards/" + BOARD;
+const COLS = ["status","person","date","date4","date_mkx87nb3","dup__of_1st_cut_deadline","status_1","board_relation_mkxb8cpz","link_mm22fna1","link_mkxbtnjf","link_mkxbm8as","numeric_mm1y5e6b","date_mm02j5tr"];
+const INPUT = { boardId: BOARD, includeColumns: true, includeGroup: false, columnIds: COLS, limit: 500,
+  filters: [{ columnId: "people", compareValue: ["assigned_to_me"], operator: "any_of" }] };
+const FLOW = ["Queue","Assigned","In Process","In Review","Corrections","Client Review"];
+const COLOR = { "Queue": "--st-queue", "Assigned": "--st-assigned", "In Process": "--st-process", "In Review": "--st-review", "Corrections": "--st-corr", "Client Review": "--st-client", "Done": "--st-done" };
+const CLOSED = new Set(["Done","Cancelled","No Client Response","Paid"]);
+const IN_EDIT = new Set(["Queue","Assigned","In Process","In Review","Corrections"]);
+const MOVE_TO = ["Assigned","In Process","In Review","Corrections","Client Review","Done"];
+const CORPORATE = /dmitrii|suvo|enbd/i;
+const EDITOR_IDS = { igor:"43400381", stipe:"61381904", georges:"36795459", stefan:"38981225", akssat:"88817643",
+  glody:"60723690", shrijit:"101677796", motasem:"107518052", mahmoud:"107176166", bashar:"103717656", ajin:"71556126" };
+
+const ME_ID = 49670201, CLIENTS_BOARD = 18330033684;
+const EDITORS = [["Igor Garčev",43400381],["Motasem Jammal",107518052],["Stipe Majić",61381904],["Georges Saliba",36795459],["Stefan Mikić",38981225],["Akssat",88817643],["Mahmoud",107176166],["Glody Kikonga",60723690],["Shrijit Chowdhury",101677796],["Bashar M. Najjar",103717656],["Ajin",71556126]];
+const KINDS = [["Episode",""],["Highlights"," (Highlights)"],["Reel"," Reel"],["Teaser"," (Teaser)"]];
+let mcp = null;
+const S = { items: [], storedAt: null, error: null, loading: true, q: "", editor: null, sel: null, busy: false, draft: "", corr: true, mention: true, drag: null, dropZone: null };
+
+const str = v => typeof v === "string" ? v : "";
+const isoDate = v => /^\d{4}-\d{2}-\d{2}$/.test(str(v)) ? v : null;
+const lastUrl = v => { const m = str(v).match(/https?:\/\/[^\s]+/g); return m ? m[m.length - 1] : null; };
+const clientName = v => Array.isArray(v) && v[0] && v[0].name ? v[0].name.replace(/^(AG|BL)\s*-\s*/i, "").trim() : "";
+function norm(raw) {
+  const c = raw.column_values || {};
+  return { id: String(raw.id), name: raw.name || "Untitled", url: raw.url || BOARD_URL, updated: raw.updated_at, created: raw.created_at,
+    stage: str(c.status) || "No status", editor: str(c.person), available: isoDate(c.date), draft: isoDate(c.date4),
+    v1: isoDate(c.date_mkx87nb3), final: isoDate(c.dup__of_1st_cut_deadline), publishing: isoDate(c.date_mm02j5tr), invoice: str(c.status_1),
+    client: clientName(c.board_relation_mkxb8cpz), upload: lastUrl(c.link_mm22fna1), share: lastUrl(c.link_mkxbtnjf),
+    dropbox: lastUrl(c.link_mkxbm8as), units: parseFloat(str(c.numeric_mm1y5e6b)) || 0 };
+}
+const isoOf = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+const todayISO = () => isoOf(new Date());
+const dayNum = iso => Math.round(Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)) / 864e5);
+const T = () => dayNum(todayISO());
+const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const short = iso => iso ? (+iso.slice(8, 10)) + " " + MON[+iso.slice(5, 7) - 1] : "Not set";
+const DATE_COLS = [["available","date","Available"],["draft","date4","Draft"],["v1","date_mkx87nb3","V1"],["final","dup__of_1st_cut_deadline","Final"],["publishing","date_mm02j5tr","Publishing"]];
+function addWorkdays(n) { const d = new Date(); while (n > 0) { d.setDate(d.getDate() + 1); if (d.getDay() !== 0 && d.getDay() !== 6) n--; } return isoOf(d); }
+const nextEmptyDate = it => DATE_COLS.find(([k]) => !it[k]) || null;
+/* Corrections rule: moving to Corrections fills the next empty deadline column with today + 2 working days, in the same Monday write. */
+function correctionsPatch(it) { const slot = nextEmptyDate(it); if (!slot) return { cv: {}, slot: null }; const iso = addWorkdays(2); return { cv: { [slot[1]]: { date: iso } }, slot, iso }; }
+function nextDue(it) {
+  if (!IN_EDIT.has(it.stage)) return null;
+  if (it.stage === "Corrections") return [it.v1, it.final].filter(Boolean).sort().pop() || it.draft;
+  return it.draft;
+}
+const daysTo = it => { const d = nextDue(it); return d ? dayNum(d) - T() : null; };
+function ageDays(it) { const last = [it.draft, it.v1, it.final].filter(Boolean).sort().pop() || (it.updated || "").slice(0, 10); return last ? T() - dayNum(last) : 0; }
+const isLate = it => it.stage === "Client Review" ? (!CORPORATE.test(it.name) && ageDays(it) > 7) : (daysTo(it) !== null && daysTo(it) < 0);
+function rel(it) {
+  if (it.stage === "Client Review") { const a = ageDays(it); return { cls: a > 7 && !CORPORATE.test(it.name) ? "late" : "", txt: a + " days with the client" }; }
+  const d = daysTo(it); if (d === null) return { cls: "", txt: "No deadline" };
+  if (d < 0) return { cls: "late", txt: (-d) + (d === -1 ? " day late" : " days late") };
+  if (d === 0) return { cls: "today", txt: "Due today" };
+  return { cls: "", txt: d === 1 ? "Due tomorrow" : "Due in " + d + " days" };
+}
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const $ = id => document.getElementById(id);
+const colorOf = st => "var(" + (COLOR[st] || "--st-other") + ")";
+const firstName = n => ((n || "").split(", ")[0] || "").split(" ")[0];
+const label = it => it.client || it.name.split(/\s[-:]\s/)[0];
+const initials = n => { const p = (n || "").trim().split(/\s+/).filter(Boolean); return p.length ? (p[0][0] + (p[1] ? p[1][0] : "")).toUpperCase() : "–"; };
+const AVC = ["#7C6CF2","#2F9E7E","#D2693C","#3B82C4","#B5487A","#8A8F2C","#5A7BD8","#C2410C","#0E8A9B","#9B59B6"];
+const avColor = n => { let h = 0; for (const ch of n || "") h = (h * 31 + ch.charCodeAt(0)) >>> 0; return AVC[h % AVC.length]; };
+function seeded(id, k) { let h = 2166136261; const s = id + ":" + k; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return ((h >>> 0) % 10000) / 10000; }
+const active = () => S.items.filter(i => !CLOSED.has(i.stage));
+const inRiver = () => active().filter(i => FLOW.includes(i.stage));
+const editorsOf = it => it.editor ? it.editor.split(", ") : [];
+const shown = it => (!S.editor || editorsOf(it).includes(S.editor)) && (!S.q || (it.name + " " + it.client + " " + it.editor).toLowerCase().includes(S.q.toLowerCase()));
+
+/* geometry */
+const W = 1400, H = 520, MID = 262, X0 = 40, SEA = 1180, GATE_PAD = 26;
+let GEO = null;
+function geometry() {
+  const groups = FLOW.map(st => inRiver().filter(i => i.stage === st));
+  const maxN = Math.max(5, ...groups.map(g => g.length));
+  const reach = (SEA - X0) / FLOW.length;
+  const xs = FLOW.map((_, k) => X0 + reach * k);
+  return { groups, reach, xs, centres: xs.map(x => x + reach / 2), half: groups.map(g => 34 + Math.sqrt(g.length / maxN) * 150), gates: xs.map(x => x + reach) };
+}
+function halfAt(x, G) {
+  const pts = [[0, 26], ...G.centres.map((c, k) => [c, G.half[k]]), [SEA, 70], [W, 120]];
+  for (let k = 1; k < pts.length; k++) if (x <= pts[k][0]) { const a = pts[k - 1], b = pts[k], t = (x - a[0]) / (b[0] - a[0] || 1), s = t * t * (3 - 2 * t); return a[1] + (b[1] - a[1]) * s; }
+  return 120;
+}
+function edge(G, sign, from, to, step) { let d = ""; for (let x = from; step > 0 ? x <= to : x >= to; x += step) d += (d ? " L" : "M") + x + " " + (MID + sign * halfAt(x, G)).toFixed(1); return d; }
+function zoneAt(x, G) { if (x >= SEA - 10) return "Done"; const k = Math.floor((x - X0) / G.reach); return FLOW[Math.max(0, Math.min(FLOW.length - 1, k))]; }
+function place(it, k, G) {
+  const x0 = G.xs[k] + 22, x1 = G.gates[k] - GATE_PAD;
+  let t;
+  if (it.stage === "Client Review") t = Math.min(ageDays(it), 21) / 21;
+  else { const d = daysTo(it); t = d === null ? .08 : d < 0 ? 1 : Math.max(0, 1 - d / 14); }
+  if (isLate(it)) t = 1;
+  const x = x0 + t * (x1 - x0) - (isLate(it) ? seeded(it.id, 5) * 18 : 0);
+  const h = halfAt(x, G) - 18;
+  return { x, y: MID + (seeded(it.id, 2) * 2 - 1) * h * .92, r: 6 + Math.min(it.units || 1, 3) * 1.8 };
+}
+function relax(pts, G) {
+  for (let iter = 0; iter < 40; iter++) for (let a = 0; a < pts.length; a++) for (let b = a + 1; b < pts.length; b++) {
+    const p = pts[a], q = pts[b], dx = q.x - p.x, dy = q.y - p.y, d = Math.hypot(dx, dy) || .01, min = p.r + q.r + 4;
+    if (d < min) { const push = (min - d) / 2, ux = dx / d, uy = dy / d; p.y -= uy * push; q.y += uy * push; p.x -= ux * push * .3; q.x += ux * push * .3; }
+  }
+  pts.forEach(p => { const h = halfAt(p.x, G) - p.r - 6; p.y = Math.max(MID - h, Math.min(MID + h, p.y)); });
+}
+
+/* level + editors */
+function weekStats() {
+  const now = Date.now(), wk = 7 * 864e5, age = i => now - Date.parse(i.updated || 0);
+  const done = S.items.filter(i => i.stage === "Done" && i.updated);
+  const days = Array.from({ length: 14 }, (_, k) => { const d = new Date(); d.setDate(d.getDate() - 13 + k); const iso = isoOf(d); return done.filter(i => isoOf(new Date(i.updated)) === iso).length; });
+  return { outThis: done.filter(i => age(i) < wk).length, outPrev: done.filter(i => age(i) >= wk && age(i) < 2 * wk).length,
+    inThis: S.items.filter(i => i.created && now - Date.parse(i.created) < wk).length, days, late: inRiver().filter(isLate).length, open: inRiver().length };
+}
+function renderLevel() {
+  const r = S.items.length > 0, w = weekStats(), net = w.inThis - w.outThis;
+  const state = !r ? "" : net > 1 ? "rising" : net < -1 ? "draining" : "steady";
+  const fill = r ? Math.max(8, Math.min(100, w.open / Math.max(w.open, 40) * 100)) : 0;
+  $("level").innerHTML = `
+    <div class="gauge"><div class="tube ${state === "rising" ? "rising" : ""}" aria-hidden="true"><i style="height:${fill.toFixed(0)}%"></i></div>
+      <div><b class="${state}">${!r ? "Reading the river…" : state === "rising" ? "Water is rising" : state === "draining" ? "River is draining" : "Holding steady"}</b>
+      <p>${!r ? "" : `${w.inThis} episode${w.inThis === 1 ? "" : "s"} flowed in this week and ${w.outThis} reached Done. ${state === "rising" ? "Push a few through to stop the backlog building." : state === "draining" ? "You're finishing more than is arriving." : "In and out are about even."}`}</p></div></div>
+    <div class="stat"><span>Open in the river</span><b class="tnum">${r ? w.open : "–"}</b><small>across six stages</small></div>
+    <div class="stat"><span>Pressing on a gate</span><b class="tnum ${w.late ? "bad" : ""}">${r ? w.late : "–"}</b><small>overdue, or client quiet 7+ days</small></div>
+    <div class="stat"><span>Reached Done this week</span><b class="tnum ${r && w.outThis >= w.outPrev ? "good" : ""}">${r ? w.outThis : "–"}</b><small>${r ? w.outPrev + " the week before" : ""}</small></div>`;
+}
+function renderTribs() {
+  const counts = new Map();
+  inRiver().forEach(i => editorsOf(i).forEach(e => counts.set(e, (counts.get(e) || 0) + 1)));
+  const list = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  $("tribs").innerHTML = list.length ? `<span>Editors</span>` + list.map(([n, c]) => `<button class="trib" type="button" data-ed="${esc(n)}" aria-pressed="${S.editor === n}"><span class="av" style="--ac:${avColor(n)}">${esc(initials(n))}</span>${esc(n.split(" ")[0])}<em>${c}</em></button>`).join("") : "";
+}
+
+/* river */
+function renderRiver() {
+  const svg = $("river");
+  if (!S.items.length) { svg.innerHTML = `<text x="${W / 2}" y="${MID}" text-anchor="middle" class="st-hint">${S.error ? "Couldn't read your board." : "Reading your board…"}</text>`; return; }
+  const G = geometry(); GEO = G;
+  const w = weekStats();
+  let h = `<defs>
+      <linearGradient id="wG" x1="0" x2="1"><stop offset="0" stop-color="#3FA9FF" stop-opacity=".05"/><stop offset=".35" stop-color="#3FA9FF" stop-opacity=".16"/><stop offset=".85" stop-color="#6C7CFF" stop-opacity=".2"/><stop offset="1" stop-color="#9C8CFF" stop-opacity=".28"/></linearGradient>
+      <radialGradient id="seaG" cx="1" cy=".5" r="1"><stop offset="0" stop-color="#9C8CFF" stop-opacity=".35"/><stop offset="1" stop-color="#9C8CFF" stop-opacity="0"/></radialGradient></defs>
+    <rect x="${SEA - 30}" y="0" width="${W - SEA + 30}" height="${H}" fill="url(#seaG)"/>
+    <path d="${edge(G, -1, 0, W, 10)} ${edge(G, 1, W, 0, -10).replace(/^M/, "L")} Z" fill="url(#wG)"/>
+    <path class="bank" d="${edge(G, -1, 0, W, 10)}"/><path class="bank" d="${edge(G, 1, 0, W, 10)}"/>`;
+  [[-.55, ""], [-.15, "c2"], [.25, "c3"], [.6, ""]].forEach(([f, c]) => { let d = ""; for (let x = 0; x <= W; x += 14) { const y = MID + f * (halfAt(x, G) - 14) + Math.sin(x / 90 + f * 4) * 4; d += (x ? " L" : "M") + x + " " + y.toFixed(1); } h += `<path class="current ${c}" d="${d}"/>`; });
+  FLOW.forEach((st, k) => { if (S.dropZone === st) h += `<rect class="zone drop" x="${G.xs[k]}" y="0" width="${G.reach}" height="${H}"/>`; });
+  if (S.dropZone === "Done") h += `<rect class="zone drop" x="${SEA}" y="0" width="${W - SEA}" height="${H}"/>`;
+  G.gates.forEach((gx, k) => { const hh = halfAt(gx, G); h += `<line class="gate ${G.groups[k].some(isLate) ? "hot" : ""}" x1="${gx}" x2="${gx}" y1="${(MID - hh).toFixed(1)}" y2="${(MID + hh).toFixed(1)}"/>`; });
+  const wide = G.groups.reduce((m, g, k) => g.length > G.groups[m].length ? k : m, 0);
+  FLOW.forEach((st, k) => {
+    const c = G.centres[k], top = MID - G.half[k], late = G.groups[k].filter(isLate).length;
+    h += `<text class="st-n" x="${c}" y="${(top - 34).toFixed(1)}" text-anchor="middle">${G.groups[k].length}</text>
+      <text class="st-l" x="${c}" y="${(top - 12).toFixed(1)}" text-anchor="middle" fill="${colorOf(st)}">${esc(st)}</text>`;
+    if (late) h += `<text class="st-late" x="${c}" y="${(MID + G.half[k] + 26).toFixed(1)}" text-anchor="middle">${late} ${st === "Client Review" ? "quiet 7d+" : "overdue"}</text>`;
+  });
+  if (G.groups[wide].length > 3) h += `<text class="bn" x="${G.centres[wide]}" y="${(MID + G.half[wide] + (G.groups[wide].some(isLate) ? 48 : 26)).toFixed(1)}" text-anchor="middle">Widest point</text>`;
+  const max = Math.max(1, ...w.days), sx = SEA + 40, sw = W - sx - 30;
+  h += `<text class="sea-n" x="${sx}" y="${MID - 18}">${w.outThis}</text><text class="sea-l" x="${sx}" y="${MID + 8}">reached Done this week</text>
+    <text class="sea-s" x="${sx}" y="${MID + 28}">${w.outPrev} the week before</text>
+    ${w.days.map((n, k) => { const bw = sw / 14 - 3, x = sx + k * (sw / 14), bh = n ? 6 + (n / max) * 46 : 2; return `<rect x="${x.toFixed(1)}" y="${(MID + 110 - bh).toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="2" fill="${k >= 7 ? "#9C8CFF" : "rgb(156 140 255 / .35)"}"/>`; }).join("")}
+    <text class="sea-s" x="${sx}" y="${MID + 128}">Done per day, last 14 days</text>`;
+  const pts = [];
+  G.groups.forEach((g, k) => g.forEach(it => pts.push(Object.assign(place(it, k, G), { it }))));
+  relax(pts, G);
+  const urgent = new Set(pts.filter(p => isLate(p.it) || daysTo(p.it) === 0).sort((a, b) => (daysTo(a.it) ?? 99) - (daysTo(b.it) ?? 99)).slice(0, 10).map(p => p.it.id));
+  pts.forEach(p => {
+    const it = p.it, late = isLate(it), dim = !shown(it), sel = S.sel === it.id;
+    const fill = late ? "var(--late)" : daysTo(it) === 0 ? "var(--today)" : colorOf(it.stage);
+    const dragging = S.drag && S.drag.id === it.id && S.drag.moved;
+    const px = dragging ? S.drag.x : p.x, py = dragging ? S.drag.y : p.y;
+    h += `<g class="fish ${sel ? "is-sel" : ""} ${dim ? "dim" : ""} ${dragging ? "dragging" : ""}" data-id="${esc(it.id)}" tabindex="${dim ? -1 : 0}" role="button" aria-label="${esc(it.name)}, ${esc(it.stage)}, ${esc(rel(it).txt)}"
+      style="--dur:${(2.6 + seeded(it.id, 3) * 2.4).toFixed(2)}s;--del:-${(seeded(it.id, 4) * 3).toFixed(2)}s"><g class="bob">
+      ${late && !dim ? `<circle class="glow" cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${p.r}"/>` : ""}
+      <circle class="sel" cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${p.r + 6}"/>
+      <circle class="b" cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${p.r}" fill="${fill}"/></g></g>`;
+    if (!dim && (urgent.has(it.id) || sel || dragging || (S.q && shown(it)) || (S.editor && shown(it)))) {
+      const right = px < SEA - 140;
+      h += `<text class="fish-l" x="${(px + (right ? p.r + 7 : -p.r - 7)).toFixed(1)}" y="${(py + 4).toFixed(1)}" text-anchor="${right ? "start" : "end"}">${esc(label(it))}</text>`;
+    }
+  });
+  svg.innerHTML = h;
+}
+
+/* pressing list */
+function renderPressing() {
+  const el = $("pressing");
+  if (S.error && !S.items.length) { el.innerHTML = banner(S.error); return; }
+  if (!S.items.length) { el.innerHTML = ""; return; }
+  const key = it => it.stage === "Client Review" ? -ageDays(it) : daysTo(it);
+  const list = inRiver().filter(isLate).filter(shown).sort((a, b) => key(a) - key(b));
+  el.innerHTML = (S.error ? banner(S.error) : "") + `<h2>Pressing on the gates<small>${list.length ? "Overdue episodes and clients quiet for 7+ days. Clear these first." : ""}</small></h2>` +
+    (list.length ? `<div class="press">${list.map(it => `<button class="pi" type="button" data-id="${esc(it.id)}" style="--c:${colorOf(it.stage)}"><i></i><span><b>${esc(it.name)}</b><small>${esc(it.stage)}${it.editor ? ", " + esc(it.editor) : ""}</small></span><em>${esc(rel(it).txt.replace(" with the client", " quiet"))}</em></button>`).join("")}</div>`
+      : `<p class="empty">Nothing is overdue. The river is flowing freely.</p>`);
+}
+function banner(err) { const m = errorCopy(err); return `<div class="banner"><b>${esc(m.title)}</b><span>${esc(m.body)}</span></div>`; }
+function errorCopy(err) {
+  switch (err && err.code) {
+    case "no_mcp": return { title: "Open this in Claude", body: "River reads your board through the monday.com connector, which only works inside claude.ai or the Claude app." };
+    case "needs_reauth": return { title: "Reconnect monday.com", body: "Your Monday connection expired. Reconnect it in claude.ai Settings, Connectors, then sync." };
+    case "server_not_connected": return { title: "Add the monday.com connector", body: "Add monday.com in claude.ai Settings, Connectors, then reload." };
+    case "selection_required": return { title: "Choose a Monday account", body: "You have more than one monday.com connector. Pick one when Claude asks, then reload." };
+    case "not_in_manifest": case "not_granted": return { title: "Monday is switched off for this page", body: "Allow monday.com for this page when Claude asks, then reload." };
+    case "blocked_by_policy": case "approval_required": return { title: "Blocked by your organisation", body: "Your workspace policy doesn't allow this Monday action from here." };
+    case "server_unavailable": return { title: "Monday isn't answering", body: "Showing the last data loaded. Sync again in a moment." };
+    case "tool_error": return { title: "Monday refused the request", body: err.message || "Try again, or open the episode in Monday." };
+    default: return { title: "Couldn't reach Monday", body: (err && err.message) || "Sync to try again." };
+  }
+}
+function renderSync() {
+  const dot = $("sync-dot"), t = $("sync-t"); dot.className = "";
+  $("sub").textContent = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+  if (S.loading && !S.items.length) { t.textContent = "Syncing"; return; }
+  if (S.error && !S.items.length) { dot.className = "off"; t.textContent = "Not connected"; return; }
+  if (!S.storedAt) { t.textContent = ""; return; }
+  const stale = Date.now() - S.storedAt > 5 * 60000; dot.className = stale ? "stale" : "on";
+  t.textContent = (stale ? "Stale, synced " : "Synced ") + new Date(S.storedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+/* panel */
+function renderPanel() {
+  const it = S.items.find(i => i.id === S.sel);
+  $("panel").hidden = !it && !S.adding; $("scrim").hidden = !it && !S.adding;
+  if (S.adding && S.form) return renderForm();
+  if (!it) return;
+  const r = rel(it), canMention = !!EDITOR_IDS[firstName(it.editor).toLowerCase()];
+  const lk = (u, l) => u ? `<a class="lk" href="${esc(u)}" target="_blank" rel="noopener">${l}</a>` : "";
+  $("panel").innerHTML = `
+    <div class="p-h"><span>${esc(it.client || "Episode")}</span>
+      <a class="ib" href="${esc(it.url)}" target="_blank" rel="noopener" aria-label="Open in Monday" title="Open in Monday"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>
+      <button class="ib" type="button" data-act="close" aria-label="Close" title="Close (Esc)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <div class="p-b">
+      <div style="display:grid;gap:10px"><span class="badge" style="--c:${colorOf(it.stage)}"><i></i>${esc(it.stage)}</span><h2>${esc(it.name)}</h2></div>
+      <dl class="props"><dt>Status</dt><dd class="${r.cls}">${esc(r.txt)}</dd><dt>Editor</dt><dd>${esc(it.editor || "No editor yet")}</dd>
+        <dt>Draft</dt><dd class="tnum">${short(it.draft)}</dd><dt>V1</dt><dd class="tnum">${short(it.v1)}</dd><dt>Final</dt><dd class="tnum">${short(it.final)}</dd><dt>Publishing</dt><dd class="tnum">${short(it.publishing)}</dd>
+        <dt>Invoice</dt><dd>${esc(it.invoice || "Not set")}</dd>${it.units ? `<dt>Units</dt><dd class="tnum">${it.units}</dd>` : ""}</dl>
+      <div><p class="lbl">Move to</p><div class="moves">${MOVE_TO.map(s => `<button class="mv" type="button" data-stage="${esc(s)}" style="--c:${colorOf(s)}" ${s === it.stage || S.busy ? "disabled" : ""}><i></i>${esc(s)}</button>`).join("")}</div></div>
+      ${it.upload || it.share || it.dropbox ? `<div><p class="lbl">Files</p><div class="links">${lk(it.upload, "Frame.io upload")}${lk(it.share, "Frame.io review")}${lk(it.dropbox, "Dropbox raws")}</div></div>` : ""}
+      <div><p class="lbl">Note to editor</p>
+        <div class="composer"><textarea id="note" placeholder="C#1 Cut start: “…” 12:04, Cut end: “…” 12:31" aria-label="Note to editor">${esc(S.draft)}</textarea>
+          <div class="c-bar"><label title="Also fills the next empty deadline with 2 working days from today"><input type="checkbox" id="corr" ${S.corr ? "checked" : ""}> Set to Corrections${nextEmptyDate(it) ? ", " + nextEmptyDate(it)[2] + " " + short(addWorkdays(2)) : ""}</label>
+            <label><input type="checkbox" id="mention" ${canMention && S.mention ? "checked" : ""} ${canMention ? "" : "disabled"}> Mention ${esc(firstName(it.editor) || "editor")}</label>
+            <button class="post" type="button" data-act="post" ${S.busy ? "disabled" : ""}>${S.busy ? "Posting" : "Post note"}</button></div></div></div>
+    </div>`;
+}
+/* add task */
+S.adding = false; S.form = null; S.clients = null;
+async function loadClients() {
+  if (S.clients || !mcp) return;
+  try {
+    const r = await mcp.callTool(SERVER, "get_board_items_page", { boardId: CLIENTS_BOARD, includeColumns: true, includeGroup: false, limit: 500, columnIds: ["person"] }, { cache: { staleTime: 300000 } });
+    S.clients = ((r.payload && r.payload.items) || []).map(x => ({ id: String(x.id), raw: x.name || "", name: (x.name || "").replace(/^(AG|BL)\s*-\s*/i, "").trim(), mine: /^AG\s*-/i.test(x.name || "") }))
+      .sort((a, b) => (b.mine - a.mine) || a.name.localeCompare(b.name));
+  } catch (e) { S.clients = []; S.clientsErr = e; }
+  if (S.adding) renderPanel();
+}
+function autoName(f) { const dmy = f.date ? f.date.slice(8, 10) + "." + f.date.slice(5, 7) + "." + f.date.slice(2, 4) : ""; return (f.client || "Client") + " - Session " + dmy + (KINDS.find(k => k[0] === f.kind) || KINDS[0])[1]; }
+function openAdd() { S.sel = null; S.adding = true; S.form = { client: "", clientId: null, kind: "Episode", date: todayISO(), name: "", custom: false, editor: "", units: "", busy: false }; S.form.name = autoName(S.form); render(); loadClients(); setTimeout(() => { const i = $("f-client"); if (i) i.focus(); }, 0); }
+function renderForm() {
+  const f = S.form, draft = addWorkdays(2), ed = EDITORS.find(e => e[0] === f.editor);
+  $("panel").innerHTML = `
+    <div class="p-h"><span>New task on the Episode board</span><button class="ib" type="button" data-act="close" aria-label="Close" title="Close (Esc)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <div class="p-b"><h2>Add a task</h2>
+      <div class="form">
+        <label class="fld">Client<input id="f-client" list="f-clients" value="${esc(f.client)}" placeholder="${S.clients ? "Start typing a client" : "Loading clients…"}" autocomplete="off"></label>
+        <datalist id="f-clients">${(S.clients || []).map(c => `<option value="${esc(c.name)}">${c.mine ? "Your client" : "Laura's client"}</option>`).join("")}</datalist>
+        <div class="fld">Type<div class="kinds">${KINDS.map(([k]) => `<button type="button" data-kind="${k}" aria-pressed="${f.kind === k}">${k}</button>`).join("")}</div></div>
+        <div class="row2"><label class="fld">Session date<input id="f-date" type="date" value="${esc(f.date)}"></label>
+          <label class="fld">Units<input id="f-units" type="number" min="0" step="0.33" value="${esc(f.units)}" placeholder="1"></label></div>
+        <label class="fld">Task name<input id="f-name" value="${esc(f.name)}"></label>
+        <label class="fld">Editor<select id="f-editor"><option value="">No editor yet (stays in Queue)</option>${EDITORS.map(([n]) => `<option ${f.editor === n ? "selected" : ""}>${esc(n)}</option>`).join("")}</select></label>
+        <div class="sum"><span>Producer <b>you</b>${f.clientId ? `, linked to <b>${esc(f.client)}</b>` : f.client ? `, <span class="late">client not found on PP Clients Only, so it won't be linked</span>` : ""}</span>
+          <span>Available <b>${short(todayISO())}</b>, Draft <b>${short(draft)}</b> (two working days)</span>
+          <span>Status <b>${ed ? "Assigned to " + esc(ed[0].split(" ")[0]) : "Queue"}</b></span></div>
+        <div class="f-acts"><button class="post" type="button" data-act="create" ${f.busy || !f.name.trim() ? "disabled" : ""}>${f.busy ? "Adding…" : "Add task"}</button><button class="btn-s" type="button" data-act="close">Cancel</button></div>
+      </div></div>`;
+}
+async function createTask() {
+  const f = S.form; if (!f || f.busy || !mcp || !f.name.trim()) return;
+  f.busy = true; renderForm();
+  const ed = EDITORS.find(e => e[0] === f.editor), name = f.name.trim();
+  const cv = { people: { personsAndTeams: [{ id: ME_ID, kind: "person" }] }, date: { date: todayISO() }, date4: { date: addWorkdays(2) } };
+  if (f.clientId) cv.board_relation_mkxb8cpz = { item_ids: [Number(f.clientId)] };
+  if (ed) { cv.person = { personsAndTeams: [{ id: ed[1], kind: "person" }] }; cv.status = { label: "Assigned" }; }
+  if (f.units !== "" && !isNaN(parseFloat(f.units))) cv.numeric_mm1y5e6b = String(parseFloat(f.units));
+  try {
+    const r = await mcp.callTool(SERVER, "create_item", { boardId: BOARD, name, groupId: ed ? "new_group60072" : "topics", columnValues: JSON.stringify(cv) }, { cache: false });
+    const p = r.payload; const txt = typeof p === "string" ? p : JSON.stringify(p || "");
+    let id = (p && (p.id || p.item_id || p.itemId || (p.item && p.item.id))) || (txt.match(/"(?:item_)?id"\s*:\s*"?(\d{8,})/) || [])[1] || null;
+    if (!id) { try { const q = await mcp.callTool(SERVER, "get_board_items_page", { boardId: BOARD, searchTerm: name, limit: 5, includeColumns: false }, { cache: false }); const hit = ((q.payload && q.payload.items) || []).find(x => (x.name || "").trim().toLowerCase() === name.toLowerCase()); id = hit && hit.id; } catch (_) {} }
+    S.adding = false; S.form = null;
+    toast(name + " added" + (ed ? ", assigned to " + ed[0].split(" ")[0] : " to Queue") + ", Draft " + short(addWorkdays(2)));
+    mcp.invalidate(SERVER, "get_board_items_page").catch(() => {});
+    if (id) S.pendingOpen = String(id);
+  } catch (e) {
+    f.busy = false;
+    toast(e && (e.code === "server_unavailable" || e.code === "upstream_error") ? "Monday didn't confirm. Check the board before adding it again." : writeErr(e), { bad: true });
+  }
+  render();
+}
+function render() { renderSync(); renderLevel(); renderTribs(); renderRiver(); renderPressing(); renderPanel(); }
+
+/* actions */
+let tt;
+function toast(text, o = {}) {
+  const t = $("toast"); t.className = "toast" + (o.bad ? " bad" : "");
+  t.innerHTML = `<span>${esc(text)}</span>${o.undo ? `<button type="button" id="undo">Undo</button>` : ""}`;
+  t.hidden = false; clearTimeout(tt); tt = setTimeout(() => t.hidden = true, o.undo ? 6000 : 3500);
+  if (o.undo) $("undo").onclick = () => { t.hidden = true; o.undo(); };
+}
+function writeErr(e) {
+  if (e && (e.code === "server_unavailable" || e.code === "upstream_error")) return "Monday didn't confirm the change. Sync to check before trying again.";
+  const m = errorCopy(e); return m.title + ". " + m.body;
+}
+async function setStage(it, lbl, isUndo) {
+  if (!mcp || S.busy || !it || it.stage === lbl) return;
+  const prev = it.stage, prevUpd = it.updated; S.busy = true;
+  const patch = lbl === "Corrections" && !isUndo ? correctionsPatch(it) : { cv: {}, slot: null };
+  const undoSlot = isUndo && it._autoDate ? it._autoDate : null;
+  const cv = Object.assign({ status: { label: lbl } }, patch.cv, undoSlot ? { [undoSlot[1]]: null } : {});
+  it.stage = lbl; if (lbl === "Done") it.updated = new Date().toISOString();
+  if (patch.slot) it[patch.slot[0]] = patch.iso; if (undoSlot) it[undoSlot[0]] = null;
+  render();
+  try {
+    await mcp.callTool(SERVER, "change_item_column_values", { boardId: BOARD, itemId: Number(it.id), columnValues: JSON.stringify(cv) }, { cache: false });
+    it._autoDate = patch.slot || null;
+    const extra = patch.slot ? `, ${patch.slot[2]} set to ${short(patch.iso)}` : lbl === "Corrections" && !isUndo ? ", every deadline column is already filled" : "";
+    toast(isUndo ? "Back in " + lbl + (undoSlot ? ", " + undoSlot[2] + " cleared" : "") : lbl === "Done" ? label(it) + " reached the sea" : label(it) + " moved to " + lbl + extra, isUndo ? {} : { undo: () => setStage(it, prev, true) });
+    if (lbl === "Done" && S.sel === it.id) S.sel = null;
+    mcp.invalidate(SERVER, "get_board_items_page").catch(() => {});
+  } catch (e) { it.stage = prev; it.updated = prevUpd; if (patch.slot) it[patch.slot[0]] = null; if (undoSlot) it[undoSlot[0]] = undoSlot._iso || it[undoSlot[0]]; toast(writeErr(e), { bad: true }); }
+  finally { S.busy = false; render(); }
+}
+async function postNote() {
+  const it = S.items.find(i => i.id === S.sel); const text = (S.draft || "").trim();
+  if (!it || !mcp || S.busy) return;
+  if (!text) { toast("Write the note first.", { bad: true }); return; }
+  S.busy = true; renderPanel();
+  try {
+    const input = { itemId: Number(it.id), body: esc(text).replace(/\n/g, "<br>") };
+    const mid = S.mention ? EDITOR_IDS[firstName(it.editor).toLowerCase()] : null;
+    if (mid) input.mentionsList = JSON.stringify([{ id: mid, type: "User" }]);
+    await mcp.callTool(SERVER, "create_update", input, { cache: false });
+    let msg = "Note posted";
+    if (S.corr) {
+      const patch = correctionsPatch(it);
+      await mcp.callTool(SERVER, "change_item_column_values", { boardId: BOARD, itemId: Number(it.id), columnValues: JSON.stringify(Object.assign({ status: { label: "Corrections" } }, patch.cv)) }, { cache: false });
+      if (patch.slot) it[patch.slot[0]] = patch.iso;
+      msg = (it.stage === "Corrections" ? "Note posted" : "Note posted, moved to Corrections") + (patch.slot ? `, ${patch.slot[2]} set to ${short(patch.iso)}` : ", every deadline column is already filled");
+      it.stage = "Corrections";
+    }
+    S.draft = ""; toast(msg);
+    mcp.invalidate(SERVER, "get_board_items_page").catch(() => {});
+  } catch (e) { toast(writeErr(e), { bad: true }); }
+  finally { S.busy = false; render(); }
+}
+function select(id) { if (S.sel !== id) { S.draft = ""; S.corr = true; S.mention = true; } S.sel = id; $("tip").hidden = true; render(); }
+function closePanel() { S.sel = null; S.adding = false; S.form = null; render(); }
+function sync() { if (!mcp) return; S.loading = true; $("sync-t").textContent = "Syncing"; mcp.invalidate(SERVER, "get_board_items_page").catch(() => {}); }
+
+/* interaction */
+const svg = $("river"), tip = $("tip"), box = document.querySelector(".river-box");
+function svgPoint(e) { const r = svg.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * W, y: (e.clientY - r.top) / r.height * H }; }
+function placeTip(cx, cy) { const br = box.getBoundingClientRect(); tip.style.left = Math.max(8, Math.min(cx - br.left + 14, br.width - tip.offsetWidth - 8)) + "px"; tip.style.top = Math.max(8, Math.min(cy - br.top + 14, br.height - tip.offsetHeight - 8)) + "px"; }
+function showTip(g, e) {
+  const it = S.items.find(i => i.id === g.dataset.id); if (!it || S.drag) return;
+  tip.innerHTML = `<b>${esc(it.name)}</b><span>${esc(it.stage)}, ${esc(rel(it).txt)}${it.editor ? ", " + esc(it.editor) : ""}</span>`; tip.hidden = false;
+  if (e && e.clientX) placeTip(e.clientX, e.clientY); else { const r = g.getBoundingClientRect(); placeTip(r.right, r.top); }
+}
+svg.addEventListener("pointerdown", e => {
+  const g = e.target.closest(".fish"); if (!g || g.classList.contains("dim")) return;
+  const it = S.items.find(i => i.id === g.dataset.id); if (!it) return;
+  const p = svgPoint(e); S.drag = { id: it.id, from: it.stage, sx: p.x, sy: p.y, x: p.x, y: p.y, moved: false };
+  try { svg.setPointerCapture(e.pointerId); } catch (_) {}
+});
+svg.addEventListener("pointermove", e => {
+  if (S.drag) {
+    const p = svgPoint(e);
+    if (!S.drag.moved && Math.hypot(p.x - S.drag.sx, p.y - S.drag.sy) < 6) return;
+    S.drag.moved = true; S.drag.x = p.x; S.drag.y = p.y;
+    const z = GEO ? zoneAt(p.x, GEO) : null; S.dropZone = z && z !== S.drag.from ? z : null;
+    tip.innerHTML = S.dropZone ? `<b>Drop to move to ${esc(S.dropZone)}</b>` : `<b>Drag across a gate</b>`; tip.hidden = false; placeTip(e.clientX, e.clientY);
+    renderRiver(); return;
+  }
+  const g = e.target.closest(".fish"); if (g) showTip(g, e); else tip.hidden = true;
+});
+function endDrag(e, cancel) {
+  if (!S.drag) return;
+  const d = S.drag, zone = S.dropZone; S.drag = null; S.dropZone = null; tip.hidden = true;
+  try { svg.releasePointerCapture(e.pointerId); } catch (_) {}
+  const it = S.items.find(i => i.id === d.id);
+  if (!d.moved) { if (!cancel && it) select(it.id); return; }
+  renderRiver();
+  if (!cancel && it && zone && zone !== it.stage) setStage(it, zone);
+}
+svg.addEventListener("pointerup", e => endDrag(e, false));
+svg.addEventListener("pointercancel", e => endDrag(e, true));
+svg.addEventListener("pointerleave", () => { if (!S.drag) tip.hidden = true; });
+svg.addEventListener("keydown", e => { const g = e.target.closest(".fish"); if (g && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); select(g.dataset.id); } });
+svg.addEventListener("focusin", e => { const g = e.target.closest(".fish"); if (g) showTip(g); });
+svg.addEventListener("focusout", () => { if (!S.drag) tip.hidden = true; });
+$("pressing").addEventListener("click", e => { const b = e.target.closest("[data-id]"); if (b) select(b.dataset.id); });
+$("tribs").addEventListener("click", e => { const b = e.target.closest("[data-ed]"); if (!b) return; S.editor = S.editor === b.dataset.ed ? null : b.dataset.ed; renderTribs(); renderRiver(); renderPressing(); });
+$("q").addEventListener("input", e => { S.q = e.target.value.trim(); renderRiver(); renderPressing(); });
+$("refresh").addEventListener("click", sync);
+$("scrim").addEventListener("click", closePanel);
+$("add").addEventListener("click", openAdd);
+$("panel").addEventListener("click", e => {
+  if (S.adding) {
+    const k = e.target.closest("[data-kind]"); if (k) { S.form.kind = k.dataset.kind; if (!S.form.custom) S.form.name = autoName(S.form); renderForm(); return; }
+    const a = e.target.closest("[data-act]"); if (!a) return;
+    if (a.dataset.act === "close") closePanel(); else if (a.dataset.act === "create") createTask();
+    return;
+  }
+  const it = S.items.find(i => i.id === S.sel); if (!it) return;
+  const st = e.target.closest("[data-stage]"); if (st) { setStage(it, st.dataset.stage); return; }
+  const a = e.target.closest("[data-act]"); if (!a) return;
+  if (a.dataset.act === "close") closePanel(); else if (a.dataset.act === "post") postNote();
+});
+$("panel").addEventListener("input", e => {
+  if (e.target.id === "note") S.draft = e.target.value;
+  if (!S.adding || !S.form) return;
+  const f = S.form, id = e.target.id;
+  if (id === "f-name") { f.name = e.target.value; f.custom = true; const b = $("panel").querySelector('[data-act="create"]'); if (b) b.disabled = !f.name.trim(); return; }
+  if (id === "f-units") { f.units = e.target.value; return; }
+  if (id === "f-client") { f.client = e.target.value.trim(); const c = (S.clients || []).find(x => x.name.toLowerCase() === f.client.toLowerCase()); f.clientId = c ? c.id : null; if (c) f.client = c.name; }
+  if (id === "f-date") f.date = e.target.value;
+  if (!f.custom) { f.name = autoName(f); const n = $("f-name"); if (n) n.value = f.name; }
+  const sum = $("panel").querySelector(".sum span"); if (sum && id === "f-client") sum.innerHTML = `Producer <b>you</b>${f.clientId ? `, linked to <b>${esc(f.client)}</b>` : f.client ? `, <span class="late">client not found on PP Clients Only, so it won't be linked</span>` : ""}`;
+});
+$("panel").addEventListener("change", e => { if (e.target.id === "corr") S.corr = e.target.checked; if (e.target.id === "mention") S.mention = e.target.checked; if (S.adding && e.target.id === "f-editor") { S.form.editor = e.target.value; renderForm(); } });
+document.addEventListener("keydown", e => {
+  const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement && document.activeElement.tagName);
+  if (typing) {
+    if (e.target.id === "note" && (e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); postNote(); }
+    if (e.key === "Enter" && S.adding && /^f-/.test(e.target.id) && e.target.id !== "f-client") { e.preventDefault(); createTask(); return; }
+    if (e.key === "Escape" && S.adding) { closePanel(); return; }
+    if (e.key === "Escape") { if (e.target.id === "q") { e.target.value = ""; S.q = ""; renderRiver(); renderPressing(); } e.target.blur(); }
+    return;
+  }
+  if (e.key === "Escape") { if (S.drag) { S.drag = null; S.dropZone = null; tip.hidden = true; renderRiver(); } else if (S.sel || S.adding) closePanel(); }
+  else if ((e.key === "n" || e.key === "N") && !S.adding) { e.preventDefault(); openAdd(); }
+  else if (e.key === "/") { e.preventDefault(); $("q").focus(); }
+  else if (e.key === "r" || e.key === "R") sync();
+});
+
+/* data */
+async function loadMore(cursor, acc, depth) {
+  if (!cursor || depth > 3) return acc;
+  try {
+    const r = await mcp.callTool(SERVER, "get_board_items_page", { boardId: BOARD, includeColumns: true, includeGroup: false, columnIds: COLS, limit: 500, cursor }, { cache: { staleTime: 30000 } });
+    const p = r.payload || {}; acc.push(...(p.items || []));
+    return loadMore(p.pagination && p.pagination.has_more ? p.pagination.nextCursor : null, acc, depth + 1);
+  } catch (e) { return acc; }
+}
+async function start() {
+  setInterval(renderSync, 30000);
+  render();
+  try { mcp = window.claude && window.claude.use ? await window.claude.use("mcp") : null; } catch (e) { mcp = null; }
+  if (!mcp) { S.loading = false; S.error = { code: "no_mcp" }; render(); return; }
+  mcp.watchTool(SERVER, "get_board_items_page", INPUT, async ev => {
+    if (ev.type === "error") {
+      const c = ev.error && ev.error.code;
+      if (["needs_reauth","server_not_connected","selection_required","not_in_manifest","not_granted","blocked_by_policy","approval_required","capability_disabled"].includes(c)) S.items = [];
+      S.error = ev.error; S.loading = false; render(); return;
+    }
+    if (S.drag) return;
+    const p = ev.result.payload || {};
+    let raw = p.items || [];
+    if (p.pagination && p.pagination.has_more) raw = await loadMore(p.pagination.nextCursor, raw.slice(), 1);
+    S.items = raw.map(norm);
+    S.storedAt = ev.result.cache ? ev.result.cache.storedAt : Date.now();
+    S.error = null; S.loading = !!(ev.result.cache && ev.result.cache.revalidating);
+    if (S.pendingOpen && S.items.some(i => i.id === S.pendingOpen) && !S.adding) { S.sel = S.pendingOpen; S.pendingOpen = null; }
+    render();
+  }, { refetchInterval: 45000, cache: { staleTime: 30000 } });
+}
+start();
+</script>
