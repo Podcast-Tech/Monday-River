@@ -18,6 +18,7 @@
   --mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
 }
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html,body{min-height:100%}
 body{margin:0;background:radial-gradient(1400px 700px at 50% 30%,#0C1626 0%,var(--night) 70%);background-color:var(--night);color:var(--ink);font:400 14px/1.45 var(--f);-webkit-font-smoothing:antialiased}
 button,input,textarea{font:inherit;color:inherit}
@@ -58,6 +59,9 @@ button{cursor:pointer;background:none;border:0;padding:0}
 .trib[aria-pressed="true"]{background:var(--ink);color:var(--night);border-color:var(--ink)}
 .trib em{font-style:normal;font-family:var(--mono);font-size:11px;color:var(--muted)}
 .trib[aria-pressed="true"] em{color:#3B4658}
+.trib.idle{color:var(--muted)} .trib.idle .av{opacity:.55}
+.tribs.drag .trib[data-eid]{border-style:dashed;border-color:rgb(63 169 255 / .5)}
+.tribs.drag .trib.drop{border-style:solid;border-color:var(--water);background:rgb(63 169 255 / .16);color:var(--ink);box-shadow:0 0 0 3px rgb(63 169 255 / .18)}
 .av{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:9.5px;font-weight:600;color:#fff;background:var(--ac,#55617A);flex:none}
 .river-box{position:relative;border:1px solid var(--line);border-radius:22px;overflow:hidden;background:radial-gradient(1000px 360px at 45% 55%,rgb(63 169 255 / .07),transparent 70%),linear-gradient(180deg,#081019,#05080D)}
 .river-scroll{overflow-x:auto}
@@ -156,6 +160,48 @@ svg.river{display:block;width:100%;min-width:900px;height:auto;touch-action:none
 .toast{position:fixed;z-index:30;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);transform:translateX(-50%);display:flex;align-items:center;gap:12px;background:var(--ink);color:var(--night);padding:9px 10px 9px 14px;border-radius:10px;font-size:13px;max-width:calc(100% - 32px)}
 .toast button{color:var(--night);font-weight:600;padding:2px 8px;border-radius:6px;background:rgb(0 0 0 / .1)}
 .toast.bad{background:var(--late);color:#fff}
+/* Live: ripples on dots changed elsewhere, and a feed beside the pressing list */
+.ripple{fill:none;stroke:var(--foam);stroke-width:2;opacity:.85;stroke-dasharray:3 3;pointer-events:none}
+@media (prefers-reduced-motion:no-preference){.ripple{stroke-dasharray:none;transform-box:fill-box;transform-origin:center;animation:ripple 2s ease-out 3 both}@keyframes ripple{from{transform:scale(1);opacity:.9}to{transform:scale(3.6);opacity:0}}}
+.below{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:18px;align-items:start}
+@media (max-width:900px){.below{grid-template-columns:minmax(0,1fr)}}
+.live h2{display:flex;align-items:center;gap:8px}
+.live h2 i{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok)}
+@media (prefers-reduced-motion:no-preference){.live h2 i{animation:blink 2.4s ease-in-out infinite}@keyframes blink{50%{opacity:.35}}}
+.feed{display:grid;gap:2px;border:1px solid var(--line);border-radius:12px;padding:4px;background:rgb(255 255 255 / .015)}
+.lv{display:grid;grid-template-columns:8px minmax(0,1fr);gap:4px 10px;align-items:baseline;text-align:left;border-radius:8px;padding:7px 9px;font-size:13px;color:var(--ink-2)}
+.lv:hover{background:var(--hover)}
+.lv i{width:7px;height:7px;border-radius:50%;background:var(--c);align-self:center}
+.lv small{grid-column:2;font:400 11.5px var(--mono);color:var(--muted)}
+.lv.fresh{background:rgb(63 169 255 / .08)}
+.feed .empty{padding:10px 9px;font-size:13px}
+/* Clear the gates: focus mode, one overdue episode at a time */
+.gbtn{display:inline-flex;align-items:center;gap:7px;border:1px solid rgb(255 77 106 / .45);border-radius:999px;padding:6px 13px;font-weight:600;font-size:13px;color:var(--ink)}
+.gbtn:hover{background:rgb(255 77 106 / .1)}
+.gbtn b{font:500 12px var(--mono);color:var(--late)}
+.gbtn.clear{border-color:var(--line-2);color:var(--ink-2)} .gbtn.clear b{color:var(--ok)}
+.gbtn kbd,.mv kbd{font:500 11px var(--mono);border:1px solid var(--line-2);border-radius:5px;padding:0 5px;color:var(--muted)}
+.gates{position:fixed;inset:0;z-index:25;display:grid;place-items:center;padding:16px;background:rgb(2 4 8 / .74);backdrop-filter:blur(6px)}
+.g-card{width:min(580px,100%);max-height:calc(100vh - 32px);overflow:auto;background:#0A0F17;border:1px solid var(--line-2);border-radius:20px;box-shadow:0 40px 80px -30px #000;outline:none}
+.g-top{display:flex;align-items:center;gap:10px;padding:14px 12px 0 20px}
+.g-top b{font-size:15px;font-weight:600}
+.g-top span{margin-left:auto;font-size:12.5px;color:var(--muted)}
+.g-bar{height:4px;margin:12px 20px 0;border-radius:4px;background:var(--line-2);overflow:hidden}
+.g-bar i{display:block;height:100%;background:var(--ok);transition:width .4s ease-out}
+.g-body{padding:20px;display:grid;gap:14px}
+.g-body h2{margin:0;font-size:21px;font-weight:600;letter-spacing:-.015em;line-height:1.3;text-wrap:balance}
+.g-late{font:600 30px var(--f);letter-spacing:-.03em;color:var(--late);line-height:1.1}
+.g-late small{display:block;font:400 13px var(--f);letter-spacing:0;color:var(--muted);margin-top:4px}
+.g-acts{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;padding:0 20px 14px}
+.g-acts .mv{flex-direction:column;align-items:flex-start;justify-content:space-between;min-height:58px}
+.g-acts .mv span{display:flex;align-items:center;gap:7px}
+.g-foot{margin:0;padding:0 20px 16px;font-size:12px;color:var(--faint)}
+.g-done{padding:34px 24px 26px;display:grid;gap:10px;justify-items:center;text-align:center}
+.g-done h2{margin:0;font-size:24px;font-weight:600;letter-spacing:-.02em}
+.g-done p{margin:0;color:var(--muted)}
+.g-done .f-acts{margin-top:8px}
+@media (max-width:600px){.g-acts{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (prefers-reduced-motion:no-preference){.g-card{animation:rise .18s ease-out}@keyframes rise{from{transform:translateY(8px);opacity:.6}}}
 @media (prefers-reduced-motion:no-preference){.panel{animation:slide .2s ease-out}@keyframes slide{from{transform:translateX(30px);opacity:.5}}}
 </style>
 
@@ -166,6 +212,7 @@ svg.river{display:block;width:100%;min-width:900px;height:auto;touch-action:none
       <div><h1>River</h1><span id="sub">Poddster production flow</span></div>
     </div>
     <label class="find"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" type="search" placeholder="Find a client or episode" aria-label="Find an episode"></label>
+    <button class="gbtn" id="gates-btn" type="button" title="Walk through every overdue episode (G)">Clear the gates <b id="gates-n">–</b> <kbd>G</kbd></button>
     <button class="add" id="add" type="button" title="Add a task (N)">+ Add task <kbd>N</kbd></button>
     <div class="sync"><i id="sync-dot"></i><span id="sync-t">Connecting</span><button class="btn-s" type="button" id="refresh">Sync</button></div>
   </header>
@@ -174,12 +221,13 @@ svg.river{display:block;width:100%;min-width:900px;height:auto;touch-action:none
   <section class="river-box" aria-label="Episode river">
     <div class="river-scroll"><svg class="river" id="river" viewBox="0 0 1400 520" role="group" aria-label="Episodes flowing from Queue to Done"></svg></div>
     <div class="tip" id="tip" hidden></div>
-    <div class="hint"><span><b>Drag</b> an episode across a gate to move it.</span><span><b>Closer to a gate</b> means its deadline is closer. Red ones are overdue and pressing on it.</span><span><b>Click</b> an episode to open it.</span></div>
+    <div class="hint"><span><b>Drag</b> an episode across a gate to move it.</span><span><b>Closer to a gate</b> means its deadline is closer. Red ones are overdue and pressing on it.</span><span><b>Click</b> an episode to open it.</span><span><b>Drop</b> one on an editor above to hand it over.</span></div>
   </section>
-  <section class="sec" id="pressing"></section>
+  <div class="below"><section class="sec" id="pressing"></section><section class="sec live" id="live" aria-live="polite"></section></div>
 </div>
 <div class="scrim" id="scrim" hidden></div>
 <aside class="panel" id="panel" hidden aria-label="Episode"></aside>
+<div class="gates" id="gates" hidden></div>
 <div class="toast" id="toast" hidden role="status"></div>
 
 <script>
@@ -202,6 +250,10 @@ const ME_ID = 49670201, CLIENTS_BOARD = 18330033684;
 const EDITORS = [["Igor Garčev",43400381],["Motasem Jammal",107518052],["Stipe Majić",61381904],["Georges Saliba",36795459],["Stefan Mikić",38981225],["Akssat",88817643],["Mahmoud",107176166],["Glody Kikonga",60723690],["Shrijit Chowdhury",101677796],["Bashar M. Najjar",103717656],["Ajin",71556126]];
 const KINDS = [["Episode",""],["Highlights"," (Highlights)"],["Reel"," Reel"],["Teaser"," (Teaser)"]];
 let mcp = null;
+/* IDs this page wrote recently, so a refresh doesn't report our own changes back as live activity. */
+const WROTE = new Map();
+const markWrote = id => WROTE.set(String(id), Date.now());
+const wroteRecently = id => Date.now() - (WROTE.get(String(id)) || 0) < 120000;
 const S = { items: [], storedAt: null, error: null, loading: true, q: "", editor: null, sel: null, busy: false, draft: "", corr: true, mention: true, drag: null, dropZone: null };
 
 const str = v => typeof v === "string" ? v : "";
@@ -311,11 +363,27 @@ function renderLevel() {
     <div class="stat"><span>Pressing on a gate</span><b class="tnum ${w.late ? "bad" : ""}">${r ? w.late : "–"}</b><small>overdue, or client quiet 7+ days</small></div>
     <div class="stat"><span>Reached Done this week</span><b class="tnum ${r && w.outThis >= w.outPrev ? "good" : ""}">${r ? w.outThis : "–"}</b><small>${r ? w.outPrev + " the week before" : ""}</small></div>`;
 }
+const editorId = n => EDITOR_IDS[firstName(n).toLowerCase()] || null;
+const fmtU = u => String(Math.round(u * 100) / 100);
+/* Live load per editor: episodes and units in edit stages (Assigned to Corrections), plus Client Review. An episode with no Units counts as 1. */
+function editorLoad() {
+  const m = new Map(), at = n => m.get(n) || (m.set(n, { n: 0, u: 0, cr: 0 }), m.get(n));
+  inRiver().forEach(i => editorsOf(i).forEach(e => { const x = at(e); if (IN_EDIT.has(i.stage)) { x.n++; x.u += i.units || 1; } else x.cr++; }));
+  return m;
+}
+/* Every editor gets a chip, so you can drop an episode on someone who is free right now. */
+function roster() {
+  const load = editorLoad(), seen = new Set([...load.keys()].map(n => firstName(n).toLowerCase()));
+  EDITORS.forEach(([n]) => { if (!seen.has(firstName(n).toLowerCase())) load.set(n, { n: 0, u: 0, cr: 0 }); });
+  return [...load.entries()].sort((a, b) => (b[1].n - a[1].n) || (b[1].u - a[1].u) || (b[1].cr - a[1].cr) || a[0].localeCompare(b[0]));
+}
 function renderTribs() {
-  const counts = new Map();
-  inRiver().forEach(i => editorsOf(i).forEach(e => counts.set(e, (counts.get(e) || 0) + 1)));
-  const list = [...counts.entries()].sort((a, b) => b[1] - a[1]);
-  $("tribs").innerHTML = list.length ? `<span>Editors</span>` + list.map(([n, c]) => `<button class="trib" type="button" data-ed="${esc(n)}" aria-pressed="${S.editor === n}"><span class="av" style="--ac:${avColor(n)}">${esc(initials(n))}</span>${esc(n.split(" ")[0])}<em>${c}</em></button>`).join("") : "";
+  if (!S.items.length) { $("tribs").innerHTML = ""; return; }
+  const dragging = !!(S.drag && S.drag.moved);
+  $("tribs").className = "tribs" + (dragging ? " drag" : "");
+  $("tribs").innerHTML = `<span>Editors</span>` + roster().map(([n, l]) => { const id = editorId(n), busy = l.n + l.cr;
+    const t = `${n}: ${l.n} in edit (${fmtU(l.u)} unit${l.u === 1 ? "" : "s"}), ${l.cr} with clients. Click to filter${id ? ", or drop an episode here to give it to " + firstName(n) : ""}.`;
+    return `<button class="trib ${busy ? "" : "idle"} ${S.dropEditor === n ? "drop" : ""}" type="button" data-ed="${esc(n)}" ${id ? `data-eid="${id}"` : ""} aria-pressed="${S.editor === n}" title="${esc(t)}" aria-label="${esc(t)}"><span class="av" style="--ac:${avColor(n)}">${esc(initials(n))}</span>${esc(n.split(" ")[0])}<em>${l.n ? l.n + " · " + fmtU(l.u) + "u" : busy ? "0" : "free"}</em></button>`; }).join("");
 }
 
 /* river */
@@ -357,7 +425,7 @@ function renderRiver() {
     const dragging = S.drag && S.drag.id === it.id && S.drag.moved;
     const px = dragging ? S.drag.x : p.x, py = dragging ? S.drag.y : p.y;
     h += `<g class="fish ${sel ? "is-sel" : ""} ${dim ? "dim" : ""} ${dragging ? "dragging" : ""}" data-id="${esc(it.id)}" tabindex="${dim ? -1 : 0}" role="button" aria-label="${esc(it.name)}, ${esc(it.stage)}, ${esc(rel(it).txt)}"
-      style="--dur:${(2.6 + seeded(it.id, 3) * 2.4).toFixed(2)}s;--del:-${(seeded(it.id, 4) * 3).toFixed(2)}s"><g class="bob">
+      style="--dur:${(2.6 + seeded(it.id, 3) * 2.4).toFixed(2)}s;--del:-${(seeded(it.id, 4) * 3).toFixed(2)}s">${rippleAt(it.id, px, py, p.r)}<g class="bob">
       ${late && !dim ? `<circle class="glow" cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${p.r}"/>` : ""}
       <circle class="sel" cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${p.r + 6}"/>
       <circle class="b" cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${p.r}" fill="${fill}"/></g></g>`;
@@ -367,6 +435,12 @@ function renderRiver() {
     }
   });
   svg.innerHTML = h;
+}
+
+function rippleAt(id, x, y, r) {
+  const t = S.ripples.get(id); if (!t) return "";
+  const el = Date.now() - t; if (el >= RIPPLE_MS) { S.ripples.delete(id); return ""; }
+  return [0, 700].map(off => `<circle class="ripple" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r + 3}" style="animation-delay:${off - el}ms"/>`).join("");
 }
 
 /* pressing list */
@@ -431,7 +505,7 @@ function renderPanel() {
     </div>`;
 }
 /* add task */
-S.adding = false; S.form = null; S.clients = null;
+S.adding = false; S.form = null; S.clients = null; S.createdNames = new Map(); S.dropEditor = null;
 async function loadClients() {
   if (S.clients || !mcp) return;
   try {
@@ -478,14 +552,74 @@ async function createTask() {
     S.adding = false; S.form = null;
     toast(name + " added" + (ed ? ", assigned to " + ed[0].split(" ")[0] : " to Queue") + ", Draft " + short(addWorkdays(2)));
     mcp.invalidate(SERVER, "get_board_items_page").catch(() => {});
-    if (id) S.pendingOpen = String(id);
+    if (id) { S.pendingOpen = String(id); markWrote(id); }
+    S.createdNames.set(name.toLowerCase(), Date.now());
   } catch (e) {
     f.busy = false;
     toast(e && (e.code === "server_unavailable" || e.code === "upstream_error") ? "Monday didn't confirm. Check the board before adding it again." : writeErr(e), { bad: true });
   }
   render();
 }
-function render() { renderSync(); renderLevel(); renderTribs(); renderRiver(); renderPressing(); renderPanel(); }
+/* Live ripples: each refresh is compared with the last snapshot by ID. Changes this page didn't write ripple on the dot and land in the feed. */
+const LIVE_FIELDS = [["stage","status","stage"],["editor","person","editor"],["available","date","Available"],["draft","date4","Draft"],["v1","date_mkx87nb3","V1"],["final","dup__of_1st_cut_deadline","Final"],["publishing","date_mm02j5tr","Publishing"]];
+const RIPPLE_MS = 6000, FEED_MAX = 20;
+S.feed = []; S.ripples = new Map(); S.seeded = false;
+const USERS = new Map([[String(ME_ID), "You"], ...EDITORS.map(([n, id]) => [String(id), n.split(" ")[0]])]);
+function diffItems(prev, next) {
+  const old = new Map(prev.map(i => [i.id, i])), out = [], now = Date.now();
+  next.forEach(n => {
+    if (wroteRecently(n.id)) return;
+    const o = old.get(n.id);
+    if (!o) { if (now - (S.createdNames.get(n.name.trim().toLowerCase()) || 0) > 120000) out.push({ id: n.id, isNew: true, changes: [] }); return; }
+    const ch = LIVE_FIELDS.filter(([k]) => (o[k] || "") !== (n[k] || "")).map(([k, col, nm]) => ({ k, col, nm, from: o[k] || "", to: n[k] || "" }));
+    if (ch.length) out.push({ id: n.id, changes: ch });
+  });
+  return out;
+}
+function feedText(e) {
+  const it = S.items.find(i => i.id === e.id) || e.it, L = label(it), A = e.actor;
+  if (e.isNew) return A ? `${A} added ${L} to ${it.stage}` : `${L} arrived in ${it.stage}`;
+  const [c, ...rest] = e.changes;
+  let t;
+  if (c.k === "stage") t = c.to === "Done" ? (A ? `${A} moved ${L} to Done` : `${L} reached the sea`) : A ? `${A} moved ${L} to ${c.to}` : `${L} moved to ${c.to}`;
+  else if (c.k === "editor") t = c.to ? (A ? `${A} gave ${L} to ${firstName(c.to)}` : `${L} is now with ${firstName(c.to)}`) : (A ? `${A} removed the editor from ${L}` : `${L} has no editor now`);
+  else t = c.to ? (A ? `${A} set ${L}'s ${c.nm} to ${short(c.to)}` : `${L}'s ${c.nm} is now ${short(c.to)}`) : (A ? `${A} cleared ${L}'s ${c.nm}` : `${L}'s ${c.nm} was cleared`);
+  return t + (rest.length ? ", plus " + rest.map(x => x.nm).join(" and ") : "");
+}
+function ago(t) { const s = (Date.now() - t) / 1000; return s < 45 ? "just now" : s < 3600 ? Math.round(s / 60) + " min ago" : new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
+function noteChanges(found, since) {
+  if (!found.length) return;
+  const at = Date.now();
+  const entries = found.map(f => ({ ...f, at, actor: null, it: S.items.find(i => i.id === f.id) }));
+  S.feed = entries.concat(S.feed).slice(0, FEED_MAX);
+  entries.forEach(e => S.ripples.set(e.id, at));
+  setTimeout(() => renderRiver(), RIPPLE_MS + 100);
+  findActors(entries, since);
+}
+/* Who made each change, from Monday's activity log. Best effort: without it the feed just leaves the name out. */
+async function findActors(entries, since) {
+  if (!mcp) return;
+  try {
+    const r = await mcp.callTool(SERVER, "get_board_activity", { boardId: BOARD, itemIds: entries.map(e => Number(e.id)), fromDate: new Date(since - 5 * 60000).toISOString(), includeData: true }, { cache: false });
+    const p = r.payload || {}, rows = (Array.isArray(p) ? p : p.data || []).map(x => { let d = x.data; if (typeof d === "string") { try { d = JSON.parse(d); } catch (_) { d = {}; } } return { ev: x.event, user: String(x.user_id), at: String(x.created_at || ""), pulse: String((d && d.pulse_id) || ""), col: d && d.column_id }; })
+      .sort((a, b) => a.at.length - b.at.length || (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+    entries.forEach(e => {
+      const cols = e.changes.map(c => c.col);
+      const hit = rows.find(x => x.pulse === e.id && (e.isNew ? x.ev === "create_pulse" : x.ev === "update_column_value" && cols.includes(x.col)));
+      if (hit && USERS.has(hit.user)) e.actor = USERS.get(hit.user);
+    });
+  } catch (_) {}
+  renderLive();
+}
+function renderLive() {
+  const el = $("live");
+  if (!S.items.length) { el.innerHTML = ""; return; }
+  el.innerHTML = `<h2><i aria-hidden="true"></i>Live<small>${S.feed.length ? "Changes made outside this page" : ""}</small></h2><div class="feed">` +
+    (S.feed.length ? S.feed.map(e => { const it = S.items.find(i => i.id === e.id) || e.it;
+      return `<button class="lv ${Date.now() - e.at < RIPPLE_MS ? "fresh" : ""}" type="button" data-id="${esc(e.id)}" style="--c:${colorOf(it.stage)}"><i></i><span>${esc(feedText(e))}</span><small>${ago(e.at)}</small></button>`; }).join("")
+      : `<p class="empty">When an editor or anyone else changes one of your episodes, it ripples on the river and shows up here.</p>`) + `</div>`;
+}
+function render() { renderSync(); renderLevel(); renderGateBtn(); renderTribs(); renderRiver(); renderPressing(); renderLive(); renderPanel(); renderGates(); }
 
 /* actions */
 let tt;
@@ -499,47 +633,177 @@ function writeErr(e) {
   if (e && (e.code === "server_unavailable" || e.code === "upstream_error")) return "Monday didn't confirm the change. Sync to check before trying again.";
   const m = errorCopy(e); return m.title + ". " + m.body;
 }
-async function setStage(it, lbl, isUndo) {
-  if (!mcp || S.busy || !it || it.stage === lbl) return;
+async function setStage(it, lbl, isUndo, o = {}) {
+  if (!mcp || S.busy || !it || it.stage === lbl) return false;
   const prev = it.stage, prevUpd = it.updated; S.busy = true;
   const patch = lbl === "Corrections" && !isUndo ? correctionsPatch(it) : { cv: {}, slot: null };
   const undoSlot = isUndo && it._autoDate ? it._autoDate : null;
   const cv = Object.assign({ status: { label: lbl } }, patch.cv, undoSlot ? { [undoSlot[1]]: null } : {});
   it.stage = lbl; if (lbl === "Done") it.updated = new Date().toISOString();
   if (patch.slot) it[patch.slot[0]] = patch.iso; if (undoSlot) it[undoSlot[0]] = null;
-  render();
+  markWrote(it.id); render();
+  let ok = false;
   try {
     await mcp.callTool(SERVER, "change_item_column_values", { boardId: BOARD, itemId: Number(it.id), columnValues: JSON.stringify(cv) }, { cache: false });
-    it._autoDate = patch.slot || null;
+    it._autoDate = patch.slot || null; markWrote(it.id);
     const extra = patch.slot ? `, ${patch.slot[2]} set to ${short(patch.iso)}` : lbl === "Corrections" && !isUndo ? ", every deadline column is already filled" : "";
-    toast(isUndo ? "Back in " + lbl + (undoSlot ? ", " + undoSlot[2] + " cleared" : "") : lbl === "Done" ? label(it) + " reached the sea" : label(it) + " moved to " + lbl + extra, isUndo ? {} : { undo: () => setStage(it, prev, true) });
+    toast(isUndo ? "Back in " + lbl + (undoSlot ? ", " + undoSlot[2] + " cleared" : "") : lbl === "Done" ? label(it) + " reached the sea" : label(it) + " moved to " + lbl + extra, isUndo ? {} : { undo: () => setStage(it, prev, true).then(ok => { if (ok && o.onUndo) o.onUndo(); }) });
     if (lbl === "Done" && S.sel === it.id) S.sel = null;
     mcp.invalidate(SERVER, "get_board_items_page").catch(() => {});
+    ok = true;
   } catch (e) { it.stage = prev; it.updated = prevUpd; if (patch.slot) it[patch.slot[0]] = null; if (undoSlot) it[undoSlot[0]] = undoSlot._iso || it[undoSlot[0]]; toast(writeErr(e), { bad: true }); }
   finally { S.busy = false; render(); }
+  return ok;
 }
-async function postNote() {
-  const it = S.items.find(i => i.id === S.sel); const text = (S.draft || "").trim();
-  if (!it || !mcp || S.busy) return;
-  if (!text) { toast("Write the note first.", { bad: true }); return; }
-  S.busy = true; renderPanel();
+/* Drag to reassign: writes the editor to person and, from Queue, sets Assigned in the same write. Further along, only the editor changes. Undo restores the previous editor. */
+async function reassign(it, name, undo) {
+  if (!mcp || S.busy || !it) return false;
+  const id = undo ? null : editorId(name), first = firstName(name);
+  if (!undo && !id) { toast(first + " isn't in River's editor list, so assign them in Monday.", { bad: true }); return false; }
+  if (!undo && editorsOf(it).length === 1 && editorId(it.editor) === id) { toast(label(it) + " is already with " + first); return false; }
+  const prev = { editor: it.editor, stage: it.stage }, prevIds = editorsOf(it).map(editorId), canUndo = prevIds.every(Boolean);
+  const cv = { person: undo ? undo.person : { personsAndTeams: [{ id: Number(id), kind: "person" }] } };
+  const toAssigned = !undo && it.stage === "Queue";
+  if (toAssigned) cv.status = { label: "Assigned" };
+  if (undo && undo.stage !== it.stage) cv.status = { label: undo.stage };
+  it.editor = undo ? undo.editor : (EDITORS.find(e => String(e[1]) === id) || [name])[0];
+  it.stage = undo ? undo.stage : toAssigned ? "Assigned" : it.stage;
+  S.busy = true; markWrote(it.id); render();
+  let ok = false;
+  try {
+    await mcp.callTool(SERVER, "change_item_column_values", { boardId: BOARD, itemId: Number(it.id), columnValues: JSON.stringify(cv) }, { cache: false });
+    markWrote(it.id); ok = true;
+    if (undo) toast(prev.editor === undo.editor ? "Back as it was" : undo.editor ? "Back with " + firstName(undo.editor) + (cv.status ? ", in " + undo.stage : "") : "Editor cleared" + (cv.status ? ", back in " + undo.stage : ""));
+    else {
+      const back = { editor: prev.editor, stage: prev.stage, person: prevIds.length ? { personsAndTeams: prevIds.map(x => ({ id: Number(x), kind: "person" })) } : null };
+      toast(label(it) + " given to " + first + (toAssigned ? ", now Assigned" : "") + (canUndo ? "" : ". Undo is off: the previous editor isn't in River's list"), canUndo ? { undo: () => reassign(it, back.editor, back) } : {});
+    }
+    mcp.invalidate(SERVER, "get_board_items_page").catch(() => {});
+  } catch (e) { it.editor = prev.editor; it.stage = prev.stage; toast(writeErr(e), { bad: true }); }
+  finally { S.busy = false; render(); }
+  return ok;
+}
+/* Posts an editor note. With no options it posts the panel's draft; Clear the gates passes { it, text, corr, mention } for a canned nudge. */
+async function postNote(o = {}) {
+  const fromPanel = !o.it;
+  const it = o.it || S.items.find(i => i.id === S.sel), text = ((fromPanel ? S.draft : o.text) || "").trim();
+  const corr = fromPanel ? S.corr : !!o.corr, mention = fromPanel ? S.mention : o.mention !== false;
+  if (!it || !mcp || S.busy) return false;
+  if (!text) { toast("Write the note first.", { bad: true }); return false; }
+  S.busy = true; renderPanel(); renderGates();
+  let ok = false;
   try {
     const input = { itemId: Number(it.id), body: esc(text).replace(/\n/g, "<br>") };
-    const mid = S.mention ? EDITOR_IDS[firstName(it.editor).toLowerCase()] : null;
+    const mid = mention ? EDITOR_IDS[firstName(it.editor).toLowerCase()] : null;
     if (mid) input.mentionsList = JSON.stringify([{ id: mid, type: "User" }]);
+    markWrote(it.id);
     await mcp.callTool(SERVER, "create_update", input, { cache: false });
-    let msg = "Note posted";
-    if (S.corr) {
+    let msg = o.msg || "Note posted";
+    if (corr) {
       const patch = correctionsPatch(it);
       await mcp.callTool(SERVER, "change_item_column_values", { boardId: BOARD, itemId: Number(it.id), columnValues: JSON.stringify(Object.assign({ status: { label: "Corrections" } }, patch.cv)) }, { cache: false });
       if (patch.slot) it[patch.slot[0]] = patch.iso;
+      markWrote(it.id);
       msg = (it.stage === "Corrections" ? "Note posted" : "Note posted, moved to Corrections") + (patch.slot ? `, ${patch.slot[2]} set to ${short(patch.iso)}` : ", every deadline column is already filled");
       it.stage = "Corrections";
     }
-    S.draft = ""; toast(msg);
+    if (fromPanel) S.draft = "";
+    toast(msg); ok = true;
     mcp.invalidate(SERVER, "get_board_items_page").catch(() => {});
   } catch (e) { toast(writeErr(e), { bad: true }); }
   finally { S.busy = false; render(); }
+  return ok;
+}
+
+/* Clear the gates: walks every overdue episode, most overdue first. Actions reuse setStage and postNote, so the Corrections date rule and Undo still apply. */
+S.gates = null;
+const overdueBy = it => it.stage === "Client Review" ? ageDays(it) - 7 : -(daysTo(it) ?? 0);
+const lateList = () => inRiver().filter(isLate).filter(shown).sort((a, b) => overdueBy(b) - overdueBy(a));
+function openGates(ids) {
+  S.sel = null; S.adding = false; S.form = null;
+  ids = ids || lateList().map(i => i.id);
+  S.gates = { ids, idx: 0, cleared: 0, skipped: [], total: ids.length };
+  render(); setTimeout(() => { const c = $("gates").querySelector(".g-card"); if (c) c.focus(); }, 0);
+}
+function closeGates() { S.gates = null; render(); const b = $("gates-btn"); if (b) b.focus(); }
+/* The current card's episode, stepping past anything that left the river since the walk started. */
+function gateItem() {
+  const g = S.gates; if (!g) return null;
+  if (g.acting) return S.items.find(i => i.id === g.acting) || null;
+  while (g.idx < g.ids.length) { const it = S.items.find(i => i.id === g.ids[g.idx]); if (it && FLOW.includes(it.stage)) return it; g.ids.splice(g.idx, 1); g.total--; }
+  return null;
+}
+function dueLabel(it) { const d = nextDue(it); const c = d && [...DATE_COLS].reverse().find(([k]) => it[k] === d); return c ? c[2] : "deadline"; }
+function nudgeText(it) {
+  const d = nextDue(it), late = -daysTo(it);
+  return `Hi ${firstName(it.editor)}, quick check on ${it.name}: the ${dueLabel(it)} deadline was ${short(d)}, ${late} ${late === 1 ? "day" : "days"} ago. Can you share an update, or upload to the F.IO Upload link when it's ready?` +
+    (it.upload ? "\n" + it.upload : "") + "\nThanks!";
+}
+const GATE_ACTS = [["corr","Corrections","C"],["client","Client Review","R"],["done","Done","D"],["nudge","Nudge editor","N"],["skip","Skip","S"]];
+function renderGates() {
+  const el = $("gates"), g = S.gates;
+  el.hidden = !g; if (!g) { el.innerHTML = ""; return; }
+  const it = gateItem(), pct = g.total ? g.cleared / g.total * 100 : 100;
+  const head = `<div class="g-top"><b>Clear the gates</b><span class="tnum">${g.cleared} of ${g.total} cleared</span>
+      <button class="ib" type="button" data-g="close" aria-label="Close" title="Close (Esc)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <div class="g-bar" role="progressbar" aria-valuemin="0" aria-valuemax="${g.total}" aria-valuenow="${g.cleared}" aria-label="Cleared"><i style="width:${pct.toFixed(1)}%"></i></div>`;
+  if (!it) {
+    const sk = g.skipped.length;
+    el.innerHTML = `<div class="g-card" role="dialog" aria-modal="true" aria-label="Clear the gates" tabindex="-1">${head}
+      <div class="g-done"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m7.5 12.5 3 3 6-6.5"/></svg>
+        <h2>${!g.total ? "Nothing is pressing on the gates" : sk ? "Through the gates" : "Gates cleared"}</h2>
+        <p>${!g.total ? "No episode is overdue right now." : `You cleared ${g.cleared} of ${g.total}${sk ? ` and skipped ${sk}` : ""}.`}</p>
+        <div class="f-acts">${sk ? `<button class="post" type="button" data-g="again">Go through the ${sk} skipped</button>` : ""}<button class="${sk ? "btn-s" : "post"}" type="button" data-g="close">Back to the river</button></div></div></div>`;
+    return;
+  }
+  const r = rel(it), canNudge = it.stage !== "Client Review" && !!it.editor, canMention = !!EDITOR_IDS[firstName(it.editor).toLowerCase()];
+  const slot = nextEmptyDate(it), late = overdueBy(it);
+  const lk = (u, l) => u ? `<a class="lk" href="${esc(u)}" target="_blank" rel="noopener">${l}</a>` : "";
+  const sub = { corr: it.stage === "Corrections" ? "Already here" : slot ? slot[2] + " " + short(addWorkdays(2)) : "Dates all set", client: "Client has it", done: "Reached the sea",
+    nudge: !canNudge ? (it.stage === "Client Review" ? "Waiting on client" : "No editor yet") : canMention ? "Mention " + firstName(it.editor) : "Note, no mention", skip: "Leave for now" };
+  const dis = { corr: it.stage === "Corrections", client: it.stage === "Client Review", done: false, nudge: !canNudge, skip: false };
+  const col = { corr: "Corrections", client: "Client Review", done: "Done" };
+  el.innerHTML = `<div class="g-card" role="dialog" aria-modal="true" aria-label="Clear the gates" tabindex="-1">${head}
+    <div class="g-body">
+      <div style="display:grid;gap:10px"><span class="badge" style="--c:${colorOf(it.stage)}"><i></i>${esc(it.stage)}</span><h2>${esc(it.name)}</h2></div>
+      <div class="g-late tnum">${it.stage === "Client Review" ? ageDays(it) + " days quiet" : late + (late === 1 ? " day late" : " days late")}
+        <small>${it.stage === "Client Review" ? "With the client since " + short([it.draft, it.v1, it.final].filter(Boolean).sort().pop()) : esc(dueLabel(it)) + " was due " + short(nextDue(it))}</small></div>
+      <dl class="props"><dt>Client</dt><dd>${esc(it.client || "Not linked")}</dd><dt>Editor</dt><dd>${esc(it.editor || "No editor yet")}</dd>
+        <dt>Draft</dt><dd class="tnum">${short(it.draft)}</dd><dt>V1</dt><dd class="tnum">${short(it.v1)}</dd><dt>Final</dt><dd class="tnum">${short(it.final)}</dd></dl>
+      ${it.upload || it.share || it.dropbox ? `<div class="links">${lk(it.upload, "Frame.io upload")}${lk(it.share, "Frame.io review")}${lk(it.dropbox, "Dropbox raws")}</div>` : ""}
+    </div>
+    <div class="g-acts">${GATE_ACTS.map(([k, t, key]) => `<button class="mv" type="button" data-g="${k}" style="--c:${col[k] ? colorOf(col[k]) : k === "nudge" ? "var(--water)" : "var(--muted)"}" ${dis[k] || S.busy ? "disabled" : ""}>
+      <span>${col[k] ? "<i></i>" : ""}${t}</span><span style="gap:6px;color:var(--muted);font-weight:400;font-size:11.5px"><kbd>${key}</kbd>${esc(sub[k])}</span></button>`).join("")}</div>
+    <p class="g-foot">Card ${g.idx + 1} of ${g.ids.length}. Moves and notes go straight to Monday, with Undo on the toast. Esc closes.</p></div>`;
+}
+async function gateAct(k) {
+  const g = S.gates; if (!g) return;
+  if (k === "close") return closeGates();
+  if (k === "again") return openGates(g.skipped.slice());
+  const it = gateItem(); if (!it || S.busy) return;
+  const id = it.id, advance = () => { g.cleared++; g.idx++; };
+  if (k === "skip") { g.skipped.push(id); g.idx++; render(); return; }
+  if (k === "nudge") {
+    if (it.stage === "Client Review" || !it.editor) return;
+    g.acting = id;
+    const ok = await postNote({ it, text: nudgeText(it), corr: false, msg: "Nudged " + (firstName(it.editor) || "the editor") + " on " + label(it) });
+    g.acting = null;
+    if (ok) advance();
+    render(); return;
+  }
+  const lbl = { corr: "Corrections", client: "Client Review", done: "Done" }[k]; if (!lbl || it.stage === lbl) return;
+  /* Undo from the toast puts the card back in front of you and un-counts it. */
+  const onUndo = () => { const gg = S.gates; if (!gg || gg !== g) return; gg.cleared = Math.max(0, gg.cleared - 1);
+    const at = gg.ids.indexOf(id); if (at >= 0) { gg.ids.splice(at, 1); if (at < gg.idx) gg.idx--; } gg.ids.splice(gg.idx, 0, id); render(); };
+  g.acting = id;
+  const ok = await setStage(it, lbl, false, { onUndo });
+  g.acting = null;
+  if (ok) advance();
+  render();
+}
+function renderGateBtn() {
+  const b = $("gates-btn"), n = S.items.length ? lateList().length : null;
+  $("gates-n").textContent = n === null ? "–" : n; b.className = "gbtn" + (n === 0 ? " clear" : "");
 }
 function select(id) { if (S.sel !== id) { S.draft = ""; S.corr = true; S.mention = true; } S.sel = id; $("tip").hidden = true; render(); }
 function closePanel() { S.sel = null; S.adding = false; S.form = null; render(); }
@@ -564,21 +828,25 @@ svg.addEventListener("pointermove", e => {
   if (S.drag) {
     const p = svgPoint(e);
     if (!S.drag.moved && Math.hypot(p.x - S.drag.sx, p.y - S.drag.sy) < 6) return;
-    S.drag.moved = true; S.drag.x = p.x; S.drag.y = p.y;
-    const z = GEO ? zoneAt(p.x, GEO) : null; S.dropZone = z && z !== S.drag.from ? z : null;
-    tip.innerHTML = S.dropZone ? `<b>Drop to move to ${esc(S.dropZone)}</b>` : `<b>Drag across a gate</b>`; tip.hidden = false; placeTip(e.clientX, e.clientY);
+    const first = !S.drag.moved; S.drag.moved = true; S.drag.x = p.x; S.drag.y = p.y;
+    const hit = document.elementFromPoint ? document.elementFromPoint(e.clientX, e.clientY) : null;
+    const chip = hit && hit.closest ? hit.closest("[data-eid]") : null, ed = chip ? chip.dataset.ed : null;
+    const z = !ed && GEO ? zoneAt(p.x, GEO) : null; S.dropZone = z && z !== S.drag.from ? z : null;
+    if (first || ed !== S.dropEditor) { S.dropEditor = ed; renderTribs(); }
+    tip.innerHTML = ed ? `<b>Drop to give it to ${esc(firstName(ed))}</b>` : S.dropZone ? `<b>Drop to move to ${esc(S.dropZone)}</b>` : `<b>Drag across a gate, or onto an editor</b>`; tip.hidden = false; placeTip(e.clientX, e.clientY);
     renderRiver(); return;
   }
   const g = e.target.closest(".fish"); if (g) showTip(g, e); else tip.hidden = true;
 });
 function endDrag(e, cancel) {
   if (!S.drag) return;
-  const d = S.drag, zone = S.dropZone; S.drag = null; S.dropZone = null; tip.hidden = true;
+  const d = S.drag, zone = S.dropZone, ed = S.dropEditor; S.drag = null; S.dropZone = null; S.dropEditor = null; tip.hidden = true;
   try { svg.releasePointerCapture(e.pointerId); } catch (_) {}
   const it = S.items.find(i => i.id === d.id);
   if (!d.moved) { if (!cancel && it) select(it.id); return; }
-  renderRiver();
-  if (!cancel && it && zone && zone !== it.stage) setStage(it, zone);
+  renderRiver(); renderTribs();
+  if (!cancel && it && ed) reassign(it, ed);
+  else if (!cancel && it && zone && zone !== it.stage) setStage(it, zone);
 }
 svg.addEventListener("pointerup", e => endDrag(e, false));
 svg.addEventListener("pointercancel", e => endDrag(e, true));
@@ -586,12 +854,15 @@ svg.addEventListener("pointerleave", () => { if (!S.drag) tip.hidden = true; });
 svg.addEventListener("keydown", e => { const g = e.target.closest(".fish"); if (g && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); select(g.dataset.id); } });
 svg.addEventListener("focusin", e => { const g = e.target.closest(".fish"); if (g) showTip(g); });
 svg.addEventListener("focusout", () => { if (!S.drag) tip.hidden = true; });
+$("live").addEventListener("click", e => { const b = e.target.closest("[data-id]"); if (b) select(b.dataset.id); });
 $("pressing").addEventListener("click", e => { const b = e.target.closest("[data-id]"); if (b) select(b.dataset.id); });
 $("tribs").addEventListener("click", e => { const b = e.target.closest("[data-ed]"); if (!b) return; S.editor = S.editor === b.dataset.ed ? null : b.dataset.ed; renderTribs(); renderRiver(); renderPressing(); });
 $("q").addEventListener("input", e => { S.q = e.target.value.trim(); renderRiver(); renderPressing(); });
 $("refresh").addEventListener("click", sync);
 $("scrim").addEventListener("click", closePanel);
 $("add").addEventListener("click", openAdd);
+$("gates-btn").addEventListener("click", () => openGates());
+$("gates").addEventListener("click", e => { const b = e.target.closest("[data-g]"); if (b && !b.disabled) gateAct(b.dataset.g); else if (e.target.id === "gates") closeGates(); });
 $("panel").addEventListener("click", e => {
   if (S.adding) {
     const k = e.target.closest("[data-kind]"); if (k) { S.form.kind = k.dataset.kind; if (!S.form.custom) S.form.name = autoName(S.form); renderForm(); return; }
@@ -616,7 +887,16 @@ $("panel").addEventListener("input", e => {
   const sum = $("panel").querySelector(".sum span"); if (sum && id === "f-client") sum.innerHTML = `Producer <b>you</b>${f.clientId ? `, linked to <b>${esc(f.client)}</b>` : f.client ? `, <span class="late">client not found on PP Clients Only, so it won't be linked</span>` : ""}`;
 });
 $("panel").addEventListener("change", e => { if (e.target.id === "corr") S.corr = e.target.checked; if (e.target.id === "mention") S.mention = e.target.checked; if (S.adding && e.target.id === "f-editor") { S.form.editor = e.target.value; renderForm(); } });
+const GATE_KEYS = { c: "corr", r: "client", d: "done", n: "nudge", s: "skip", arrowright: "skip" };
 document.addEventListener("keydown", e => {
+  if (S.gates) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === "Escape") { e.preventDefault(); closeGates(); return; }
+    const k = GATE_KEYS[e.key.toLowerCase()], b = k && $("gates").querySelector(`[data-g="${k}"]`);
+    if (b && !b.disabled) { e.preventDefault(); gateAct(k); }
+    else if (e.key === "Enter" && !gateItem()) { e.preventDefault(); closeGates(); }
+    return;
+  }
   const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement && document.activeElement.tagName);
   if (typing) {
     if (e.target.id === "note" && (e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); postNote(); }
@@ -625,9 +905,10 @@ document.addEventListener("keydown", e => {
     if (e.key === "Escape") { if (e.target.id === "q") { e.target.value = ""; S.q = ""; renderRiver(); renderPressing(); } e.target.blur(); }
     return;
   }
-  if (e.key === "Escape") { if (S.drag) { S.drag = null; S.dropZone = null; tip.hidden = true; renderRiver(); } else if (S.sel || S.adding) closePanel(); }
+  if (e.key === "Escape") { if (S.drag) { S.drag = null; S.dropZone = null; S.dropEditor = null; tip.hidden = true; renderRiver(); renderTribs(); } else if (S.sel || S.adding) closePanel(); }
   else if ((e.key === "n" || e.key === "N") && !S.adding) { e.preventDefault(); openAdd(); }
   else if (e.key === "/") { e.preventDefault(); $("q").focus(); }
+  else if ((e.key === "g" || e.key === "G") && !e.metaKey && !e.ctrlKey) { e.preventDefault(); openGates(); }
   else if (e.key === "r" || e.key === "R") sync();
 });
 
@@ -641,26 +922,32 @@ async function loadMore(cursor, acc, depth) {
   } catch (e) { return acc; }
 }
 async function start() {
-  setInterval(renderSync, 30000);
+  setInterval(() => { renderSync(); renderLive(); }, 30000);
   render();
   try { mcp = window.claude && window.claude.use ? await window.claude.use("mcp") : null; } catch (e) { mcp = null; }
   if (!mcp) { S.loading = false; S.error = { code: "no_mcp" }; render(); return; }
-  mcp.watchTool(SERVER, "get_board_items_page", INPUT, async ev => {
-    if (ev.type === "error") {
-      const c = ev.error && ev.error.code;
-      if (["needs_reauth","server_not_connected","selection_required","not_in_manifest","not_granted","blocked_by_policy","approval_required","capability_disabled"].includes(c)) S.items = [];
-      S.error = ev.error; S.loading = false; render(); return;
-    }
-    if (S.drag) return;
-    const p = ev.result.payload || {};
-    let raw = p.items || [];
-    if (p.pagination && p.pagination.has_more) raw = await loadMore(p.pagination.nextCursor, raw.slice(), 1);
-    S.items = raw.map(norm);
-    S.storedAt = ev.result.cache ? ev.result.cache.storedAt : Date.now();
-    S.error = null; S.loading = !!(ev.result.cache && ev.result.cache.revalidating);
-    if (S.pendingOpen && S.items.some(i => i.id === S.pendingOpen) && !S.adding) { S.sel = S.pendingOpen; S.pendingOpen = null; }
-    render();
-  }, { refetchInterval: 45000, cache: { staleTime: 30000 } });
+  mcp.watchTool(SERVER, "get_board_items_page", INPUT, onBoard, { refetchInterval: 45000, cache: { staleTime: 30000 } });
+}
+async function onBoard(ev) {
+  if (ev.type === "error") {
+    const c = ev.error && ev.error.code;
+    if (["needs_reauth","server_not_connected","selection_required","not_in_manifest","not_granted","blocked_by_policy","approval_required","capability_disabled"].includes(c)) { S.items = []; S.seeded = false; }
+    S.error = ev.error; S.loading = false; render(); return;
+  }
+  if (S.drag) return;
+  const p = ev.result.payload || {};
+  let raw = p.items || [];
+  if (p.pagination && p.pagination.has_more) raw = await loadMore(p.pagination.nextCursor, raw.slice(), 1);
+  const next = raw.map(norm), since = S.syncedAt || Date.now(), revalidating = !!(ev.result.cache && ev.result.cache.revalidating);
+  /* No ripples on first load, or for a cached copy that is about to be replaced. */
+  const found = S.seeded && !revalidating ? diffItems(S.items, next) : [];
+  S.items = next;
+  if (!revalidating) { S.seeded = true; S.syncedAt = Date.now(); }
+  S.storedAt = ev.result.cache ? ev.result.cache.storedAt : Date.now();
+  S.error = null; S.loading = revalidating;
+  noteChanges(found, since);
+  if (S.pendingOpen && S.items.some(i => i.id === S.pendingOpen) && !S.adding) { S.sel = S.pendingOpen; S.pendingOpen = null; }
+  render();
 }
 start();
 </script>

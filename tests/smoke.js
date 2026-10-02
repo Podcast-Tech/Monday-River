@@ -20,6 +20,8 @@ const test = new Function("els", "assert", src + `
       calls.push({ tool, input });
       if (tool === "get_board_items_page" && input.boardId === CLIENTS_BOARD) return { payload: { items: [{ id: "77", name: "AG - Test Client" }] } };
       if (tool === "create_item") return { payload: { id: "13200000001" } };
+      if (tool === "get_board_activity") return { payload: { message: "Board activity retrieved", data: input.itemIds.map(id => ({ event: "update_column_value", user_id: "43400381", entity: "pulse", created_at: "17909535157344256",
+        data: JSON.stringify({ pulse_id: id, column_id: "status", value: { label: { text: "In Review" } } }) })) } };
       return { payload: {} };
     } };
     const d = n => { const x = new Date(); x.setDate(x.getDate() + n); return isoOf(x); };
@@ -52,6 +54,96 @@ const test = new Function("els", "assert", src + `
     endDrag({ pointerId: 1 }, false); await new Promise(r => r());
     assert.ok(calls.some(c => c.tool === "change_item_column_values" && /In Process/.test(c.input.columnValues)), "drag moves stage");
     console.log("✓ Drag across a gate changes stage");
+
+    // Clear the gates: most overdue first, actions reuse setStage/postNote, Undo puts the card back.
+    const late = lateList();
+    assert.ok(late.length >= 3, "sample has overdue episodes");
+    openGates();
+    assert.deepStrictEqual(S.gates.ids, late.map(i => i.id), "walks the overdue list");
+    for (let k = 1; k < late.length; k++) assert.ok(overdueBy(late[k - 1]) >= overdueBy(late[k]), "most overdue first");
+    assert.ok(els.gates.innerHTML.includes("0 of " + late.length + " cleared"), "progress shows 0 cleared");
+    let cur = gateItem();
+    if (cur.stage === "Corrections") { await gateAct("skip"); cur = gateItem(); }
+    cur.v1 = null; cur.final = null; const curDraft = cur.draft;
+    const before = calls.length;
+    await gateAct("corr");
+    const gcv = JSON.parse(calls[before].input.columnValues);
+    assert.strictEqual(gcv.status.label, "Corrections"); assert.strictEqual(gcv.date_mkx87nb3.date, addWorkdays(2));
+    assert.strictEqual(S.gates.cleared, 1); assert.ok(els.gates.innerHTML.includes("1 of "), "progress moves on");
+    assert.notStrictEqual(gateItem().id, cur.id, "next card shown");
+    console.log("✓ Gates: Corrections from a card fills V1 and advances");
+    els.undo.onclick(); await new Promise(r => r()); await new Promise(r => r());
+    const ucv = JSON.parse(calls[calls.length - 1].input.columnValues);
+    assert.strictEqual(ucv.date_mkx87nb3, null, "Undo clears the auto date"); assert.notStrictEqual(ucv.status.label, "Corrections");
+    assert.strictEqual(S.gates.cleared, 0); assert.strictEqual(gateItem().id, cur.id, "Undo brings the card back");
+    assert.strictEqual(cur.draft, curDraft);
+    console.log("✓ Gates: Undo clears the date and puts the card back");
+    const nudgee = S.items.find(i => i.stage === "In Process" && isLate(i));
+    openGates([nudgee.id]); nudgee.editor = "Igor Garčev";
+    await gateAct("nudge");
+    const up = calls[calls.length - 1];
+    assert.strictEqual(up.tool, "create_update"); assert.ok(up.input.body.includes(esc(nudgee.name)));
+    assert.deepStrictEqual(JSON.parse(up.input.mentionsList), [{ id: EDITOR_IDS.igor, type: "User" }]);
+    assert.strictEqual(nudgee.stage, "In Process", "a nudge doesn't change the stage");
+    assert.ok(els.gates.innerHTML.includes("Gates cleared"), "finish state");
+    console.log("✓ Gates: Nudge posts a mention without changing stage, then finishes");
+    openGates(late.slice(0, 2).map(i => i.id)); await gateAct("skip"); await gateAct("skip");
+    assert.ok(els.gates.innerHTML.includes("Go through the 2 skipped"));
+    closeGates(); assert.strictEqual(S.gates, null);
+    console.log("✓ Gates: Skip leads to a finish state offering the skipped ones");
+
+    // Drag to reassign: drop on an editor chip writes person; Queue also becomes Assigned; Undo restores the editor.
+    const lastWrite = () => JSON.parse(calls.filter(c => c.tool === "change_item_column_values").pop().input.columnValues);
+    const flush = async () => { for (let k = 0; k < 4; k++) await new Promise(r => r()); };
+    const queued = S.items.find(i => i.stage === "Queue"); queued.editor = "";
+    S.drag = { id: queued.id, from: "Queue", sx: 0, sy: 0, x: 0, y: 0, moved: true }; S.dropEditor = "Stipe Majić";
+    endDrag({ pointerId: 1 }, false); await flush();
+    let rcv = lastWrite();
+    assert.deepStrictEqual(rcv.person, { personsAndTeams: [{ id: 61381904, kind: "person" }] }); assert.strictEqual(rcv.status.label, "Assigned");
+    assert.strictEqual(queued.stage, "Assigned"); assert.strictEqual(queued.editor, "Stipe Majić");
+    console.log("✓ Reassign: Queue episode dropped on Stipe gets person + Assigned");
+    const rev = S.items.find(i => i.stage === "In Review"); rev.editor = "Igor Garčev";
+    S.drag = { id: rev.id, from: "In Review", sx: 0, sy: 0, x: 0, y: 0, moved: true }; S.dropEditor = "Georges Saliba";
+    endDrag({ pointerId: 1 }, false); await flush();
+    rcv = lastWrite();
+    assert.strictEqual(rcv.person.personsAndTeams[0].id, 36795459); assert.ok(!rcv.status, "past Assigned keeps its status");
+    els.undo.onclick(); await flush();
+    rcv = lastWrite();
+    assert.deepStrictEqual(rcv.person, { personsAndTeams: [{ id: 43400381, kind: "person" }] }); assert.ok(!rcv.status);
+    assert.strictEqual(rev.editor, "Igor Garčev"); assert.strictEqual(rev.stage, "In Review");
+    console.log("✓ Reassign: In Review keeps its stage, Undo restores Igor");
+    renderTribs();
+    const load = editorLoad().get("Igor Garčev");
+    assert.ok(els.tribs.innerHTML.includes(load.n + " · " + fmtU(load.u) + "u"), "chip shows count and units");
+    assert.ok(els.tribs.innerHTML.includes('data-eid="88817643"'), "free editors still get a chip");
+    console.log("✓ Editor chips show load (" + load.n + " · " + fmtU(load.u) + "u for Igor) and the full roster");
+
+    // Live ripples: no ripple on first load; outside changes ripple and get an actor; our own writes are ignored.
+    const raws = S.items.map(i => ({ id: i.id, name: i.name, updated_at: i.updated, created_at: i.created,
+      column_values: { status: i.stage, person: i.editor, date: i.available, date4: i.draft, date_mkx87nb3: i.v1, dup__of_1st_cut_deadline: i.final, board_relation_mkxb8cpz: [{ id: "77", name: "AG - " + i.client }] } }));
+    S.seeded = false; S.feed = [];
+    await onBoard({ type: "result", result: { payload: { items: raws } } });
+    assert.strictEqual(S.feed.length, 0, "no ripples on first load"); assert.ok(S.seeded);
+    const outside = raws.find(r => r.column_values.status === "In Process" && !wroteRecently(r.id));
+    const ours = raws.find(r => r.column_values.status === "Assigned" && r !== outside); markWrote(ours.id);
+    outside.column_values = Object.assign({}, outside.column_values, { status: "In Review" });
+    ours.column_values = Object.assign({}, ours.column_values, { status: "In Process" });
+    const actCalls = calls.length;
+    await onBoard({ type: "result", result: { payload: { items: raws } } }); await flush();
+    assert.strictEqual(S.feed.length, 1, "one outside change"); assert.strictEqual(S.feed[0].id, outside.id);
+    assert.ok(S.ripples.has(outside.id) && !S.ripples.has(ours.id), "ripple only on the outside change");
+    assert.ok(new RegExp('class="ripple"').test(els.river.innerHTML), "ripple drawn on the river");
+    assert.ok(calls.slice(actCalls).some(c => c.tool === "get_board_activity"));
+    const ftxt = feedText(S.feed[0]);
+    assert.ok(/^Igor moved .+ to In Review$/.test(ftxt), "feed names the actor: " + ftxt);
+    assert.ok(els.live.innerHTML.includes(esc(ftxt)) && els.live.innerHTML.includes("just now"));
+    console.log("✓ Live: '" + ftxt + "', just now; own write ignored");
+    raws.push({ id: "999", name: "New One - Session", column_values: { status: "Queue" } });
+    await onBoard({ type: "result", result: { payload: { items: raws } } }); await flush();
+    assert.ok(S.feed[0].isNew && S.feed[0].id === "999" && /added New One - Session to Queue|arrived in Queue/.test(feedText(S.feed[0])), "new arrivals show up");
+    for (let k = 0; k < 25; k++) { const r = raws[k % 5]; r.column_values = Object.assign({}, r.column_values, { date_mm02j5tr: d(k + 1) }); WROTE.delete(r.id); await onBoard({ type: "result", result: { payload: { items: raws } } }); }
+    assert.strictEqual(S.feed.length, 20, "feed keeps the last 20");
+    console.log("✓ Live: feed capped at 20 entries");
     console.log("All smoke tests passed.");
   })();
 `);

@@ -12,10 +12,12 @@ Owner: AG (abdullah@poddster.com), Podcast Content Producer at Poddster Studios,
   - Runtime contract `0.2.66`. Reach it with `const mcp = await window.claude.use("mcp")`, which resolves `null` when unavailable.
   - Reads use `mcp.watchTool("monday.com", "get_board_items_page", INPUT, handler, { refetchInterval: 45000 })`.
   - Writes use `mcp.callTool("monday.com", tool, input, { cache: false })`, then `mcp.invalidate("monday.com", "get_board_items_page")`.
+  - `get_board_activity` (read-only) names who made a change for the Live feed. It needs `includeData: true`; each row's `data` is a JSON string with `pulse_id` and `column_id`, and `user_id` maps through `USERS`. If it fails, the feed leaves the name out.
+  - Every write calls `markWrote(id)` so Live ripples ignore the page's own changes for 2 minutes.
   - Errors reject with a `.code`. Branch on the code; `errorCopy()` and `writeErr()` hold the copy. `server_unavailable` and `upstream_error` on a write are ambiguous: the write may have run, so never auto-retry a write.
 - **Declared capabilities** (must be re-declared in full whenever tools change):
   ```json
-  {"mcp": {"servers": [{"server": "monday.com", "tools": ["get_board_items_page", "change_item_column_values", "create_update", "create_item"]}]}}
+  {"mcp": {"servers": [{"server": "monday.com", "tools": ["get_board_items_page", "change_item_column_values", "create_update", "create_item", "get_board_activity"]}]}}
   ```
 - **Publishing from Claude Code:** use the Artifact tool with `file_path: index.html` and `url: https://claude.ai/artifact/VdyYthkp8rzoVTWecnXpoF`, so it updates the same link. Read the artifact first (`action: "read"`) if this session hasn't published it. Pass `capabilities` only when the tool list changes; omitting it keeps the current declaration.
 - **Browser limits inside an artifact:**
@@ -69,6 +71,8 @@ Value formats:
   - If an editor is chosen, set `person` and status Assigned (group `new_group60072`); otherwise group Queue.
   - Name pattern: `{Client} - Session dd.mm.yy` plus a suffix (` (Highlights)`, ` Reel`, ` (Teaser)`).
 - **Editor notes:** post with `create_update` and an HTML body (`<br>` line breaks, escaped text). Mention the editor via `mentionsList` `[{"id":"…","type":"User"}]`. Posting an editor-actionable note sets Corrections by default.
+- **Clear the gates** (`G`): walks `lateList()`, most overdue first (`overdueBy`). Its actions go through `setStage` and `postNote`, so the Corrections rule and Undo apply. "Nudge editor" posts a canned note with a mention and does **not** change the stage; it's off for Client Review and for episodes with no editor.
+- **Drag to reassign:** dropping a dot on an editor chip writes `person`; from Queue it also sets Assigned in the same write. Undo restores the previous editors (and Queue). If a previous editor isn't in `EDITORS`, Undo is off.
 - **Corporate clients** (Dmitrii Tverdokhleb, Suvo Sarkar, ENBD) have open-ended review timelines. Never count them as "quiet" in Client Review (`CORPORATE` regex).
 - **"Late":**
   - In edit stages: the next deadline has passed. For Corrections that is the latest of V1/Final, falling back to Draft.
