@@ -9,7 +9,7 @@ const el = () => ({ innerHTML: "", textContent: "", hidden: false, className: ""
   getBoundingClientRect() { return { left: 0, top: 0, width: 1400, height: 520, right: 0 }; },
   setPointerCapture() {}, releasePointerCapture() {}, offsetWidth: 100, offsetHeight: 40 });
 const els = {};
-global.document = { getElementById: id => els[id] || (els[id] = el()), querySelector: () => el(), addEventListener() {}, activeElement: null };
+global.document = { getElementById: id => els[id] || (els[id] = el()), querySelector: () => el(), querySelectorAll: () => [], addEventListener() {}, activeElement: null };
 global.window = {}; global.setInterval = () => 0; global.setTimeout = () => 0; global.clearTimeout = () => 0;
 global.localStorage = { getItem() { return null; }, setItem() {} };
 
@@ -40,6 +40,10 @@ const test = new Function("els", "assert", src + `
     render();
     assert.ok(!/NaN/.test(els.river.innerHTML), "river has NaN coordinates");
     assert.strictEqual((els.river.innerHTML.match(/<g class="fish /g) || []).length, S.items.filter(i => FLOW.includes(i.stage)).length, "one dot per open episode");
+    const nNames = (els.river.innerHTML.match(/<text class="fish-l/g) || []).length, nDots = S.items.filter(i => FLOW.includes(i.stage)).length;
+    assert.ok(nNames >= nDots * 0.6, "most dots carry a name (" + nNames + "/" + nDots + ")");
+    assert.strictEqual((els.river.innerHTML.match(/<text class="ini"/g) || []).length, nDots, "every dot has initials");
+    console.log("✓ Names on", nNames, "of", nDots, "dots, initials on all");
     console.log("✓ river renders", (els.river.innerHTML.match(/<g class="fish /g) || []).length, "episodes");
 
     const it = S.items.find(i => i.stage === "In Review"); it.v1 = null; it.final = null;

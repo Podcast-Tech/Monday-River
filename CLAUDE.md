@@ -103,6 +103,7 @@ Value formats:
 - Type: Geist (UI) and Geist Mono (small numbers).
 - Respect `prefers-reduced-motion` for every animation.
 - The river is one SVG in a 1400×520 viewBox. `geometry()` sizes each stretch by episode count, `place()` maps deadline to position, and `relax()` stops dots overlapping.
+- **Names on the river:** every visible dot carries client initials, and `placeLabels()` puts the client name beside it, trying 8 spots and skipping any that collide with dots, names, stage headers or the sea. Placement is most urgent first, so in a crowded stretch the calm names drop and their initials stay. A client with several open tasks gets a tag (HL, Reel, Teaser or session date) from `nameTag()`. The Names toggle (All / Urgent) is per viewer in localStorage `river.names`.
 
 ## Working on it
 

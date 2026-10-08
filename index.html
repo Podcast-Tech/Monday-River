@@ -88,7 +88,15 @@ svg.river{display:block;width:100%;min-width:900px;height:auto;touch-action:none
 .fish:hover .sel,.fish:focus-visible .sel{opacity:.6}
 .fish.is-sel .sel{opacity:1}
 .fish.dim{opacity:.12;cursor:default}
-.fish-l{font:500 12.5px var(--f);fill:var(--ink-2);paint-order:stroke;stroke:var(--night);stroke-width:4px;stroke-linejoin:round;pointer-events:none}
+.fish-l{font:500 12px var(--f);fill:var(--ink-2);paint-order:stroke;stroke:#060B12;stroke-width:4px;stroke-linejoin:round;pointer-events:none}
+.fish-l.late{fill:#FF8A9C} .fish-l.today{fill:var(--today)} .fish-l.on{fill:var(--ink);font-weight:600}
+.fish-l .tag{fill:var(--muted);font-weight:400}
+.ini{font:700 8.5px var(--f);fill:#05080D;pointer-events:none;letter-spacing:.02em}
+.fish.dim .ini{opacity:0}
+.names{position:absolute;top:10px;right:12px;z-index:3;display:flex;gap:2px;padding:3px;border:1px solid var(--line-2);border-radius:999px;background:rgb(5 8 13 / .7);font-size:12px}
+.names span{color:var(--muted);padding:3px 6px 3px 8px}
+.names button{padding:3px 10px;border-radius:999px;color:var(--muted)}
+.names button[aria-pressed="true"]{background:var(--ink);color:var(--night);font-weight:500}
 @media (prefers-reduced-motion:no-preference){.fish:not(.dragging) .bob{animation:bob var(--dur) ease-in-out infinite alternate;animation-delay:var(--del)}@keyframes bob{from{transform:translate(-2px,-2px)}to{transform:translate(2px,2px)}}
   .fish .glow{animation:pulse 2.2s ease-out infinite}@keyframes pulse{from{opacity:.7;stroke-width:2}to{opacity:0;stroke-width:9}}}
 .tip{position:absolute;z-index:4;pointer-events:none;background:var(--card);border:1px solid var(--line-2);border-radius:10px;padding:8px 11px;font-size:12.5px;max-width:300px;box-shadow:0 14px 30px -12px #000}
@@ -226,6 +234,7 @@ svg.river{display:block;width:100%;min-width:900px;height:auto;touch-action:none
   <div class="tribs" id="tribs" aria-label="Filter by editor"></div>
   <section class="river-box" aria-label="Episode river">
     <div class="river-scroll"><svg class="river" id="river" viewBox="0 0 1400 520" role="group" aria-label="Episodes flowing from Queue to Done"></svg></div>
+    <div class="names" role="group" aria-label="Names on the river"><span>Names</span><button type="button" data-names="all">All</button><button type="button" data-names="urgent">Urgent</button></div>
     <div class="tip" id="tip" hidden></div>
     <div class="hint"><span><b>Drag</b> an episode across a gate to move it.</span><span><b>Closer to a gate</b> means its deadline is closer. Red ones are overdue and pressing on it.</span><span><b>Click</b> an episode to open it.</span><span><b>Drop</b> one on an editor above to hand it over.</span></div>
   </section>
@@ -261,6 +270,7 @@ const WROTE = new Map();
 const markWrote = id => WROTE.set(String(id), Date.now());
 const wroteRecently = id => Date.now() - (WROTE.get(String(id)) || 0) < 120000;
 const S = { items: [], storedAt: null, error: null, loading: true, q: "", editor: null, sel: null, busy: false, draft: "", corr: true, mention: true, drag: null, dropZone: null };
+try { S.names = localStorage.getItem("river.names") === "urgent" ? "urgent" : "all"; } catch (_) { S.names = "all"; }
 
 const str = v => typeof v === "string" ? v : "";
 const isoDate = v => /^\d{4}-\d{2}-\d{2}$/.test(str(v)) ? v : null;
@@ -339,7 +349,7 @@ function place(it, k, G) {
   if (isLate(it)) t = 1;
   const x = x0 + t * (x1 - x0) - (isLate(it) ? seeded(it.id, 5) * 18 : 0);
   const h = halfAt(x, G) - 18;
-  return { x, y: MID + (seeded(it.id, 2) * 2 - 1) * h * .92, r: 6 + Math.min(it.units || 1, 3) * 1.8 };
+  return { x, y: MID + (seeded(it.id, 2) * 2 - 1) * h * .92, r: 9 + Math.min(it.units || 1, 3) * 1.4 };
 }
 function relax(pts, G) {
   for (let iter = 0; iter < 40; iter++) for (let a = 0; a < pts.length; a++) for (let b = a + 1; b < pts.length; b++) {
@@ -425,22 +435,54 @@ function renderRiver() {
   G.groups.forEach((g, k) => g.forEach(it => pts.push(Object.assign(place(it, k, G), { it }))));
   relax(pts, G);
   const urgent = new Set(pts.filter(p => isLate(p.it) || daysTo(p.it) === 0).sort((a, b) => (daysTo(a.it) ?? 99) - (daysTo(b.it) ?? 99)).slice(0, 10).map(p => p.it.id));
+  const labels = [];
   pts.forEach(p => {
     const it = p.it, late = isLate(it), dim = !shown(it), sel = S.sel === it.id;
     const fill = late ? "var(--late)" : daysTo(it) === 0 ? "var(--today)" : colorOf(it.stage);
     const dragging = S.drag && S.drag.id === it.id && S.drag.moved;
     const px = dragging ? S.drag.x : p.x, py = dragging ? S.drag.y : p.y;
+    p.px = px; p.py = py;
     h += `<g class="fish ${sel ? "is-sel" : ""} ${dim ? "dim" : ""} ${dragging ? "dragging" : ""}" data-id="${esc(it.id)}" tabindex="${dim ? -1 : 0}" role="button" aria-label="${esc(it.name)}, ${esc(it.stage)}, ${esc(rel(it).txt)}"
       style="--dur:${(2.6 + seeded(it.id, 3) * 2.4).toFixed(2)}s;--del:-${(seeded(it.id, 4) * 3).toFixed(2)}s">${rippleAt(it.id, px, py, p.r)}<g class="bob">
       ${late && !dim ? `<circle class="glow" cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${p.r}"/>` : ""}
       <circle class="sel" cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${p.r + 6}"/>
-      <circle class="b" cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${p.r}" fill="${fill}"/></g></g>`;
-    if (!dim && (urgent.has(it.id) || sel || dragging || (S.q && shown(it)) || (S.editor && shown(it)))) {
-      const right = px < SEA - 140;
-      h += `<text class="fish-l" x="${(px + (right ? p.r + 7 : -p.r - 7)).toFixed(1)}" y="${(py + 4).toFixed(1)}" text-anchor="${right ? "start" : "end"}">${esc(label(it))}</text>`;
-    }
+      <circle class="b" cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${p.r}" fill="${fill}"/>
+      <text class="ini" x="${px.toFixed(1)}" y="${(py + 3).toFixed(1)}" text-anchor="middle">${esc(initials(label(it)))}</text></g></g>`;
+    const want = S.names === "all" ? !dim : !dim && (urgent.has(it.id) || sel || dragging || (S.q && shown(it)) || (S.editor && shown(it)));
+    if (want) labels.push(p);
   });
+  h += placeLabels(labels, G);
   svg.innerHTML = h;
+}
+/* Names on the river: every visible dot gets its client name, placed beside it where it doesn't collide with another dot, name or stage header.
+   Most urgent first, so if a stretch is crowded it is the calm episodes whose names drop (their initials stay on the dot). */
+const KIND_TAG = [[/\(highlights?\)|highlights?/i, "HL"], [/\breels?\b/i, "Reel"], [/\(teaser\)|teaser/i, "Teaser"], [/trailer/i, "Trailer"]];
+function nameTag(it) {
+  const k = KIND_TAG.find(([re]) => re.test(it.name)); if (k) return k[1];
+  const m = it.name.match(/(\d{2})\.(\d{2})\.\d{2}/); return m ? (+m[1]) + " " + MON[+m[2] - 1] : "";
+}
+function placeLabels(list, G) {
+  const counts = new Map(); inRiver().forEach(i => { const l = label(i); counts.set(l, (counts.get(l) || 0) + 1); });
+  const pri = p => p.it.id === S.sel ? -3 : S.drag && p.it.id === S.drag.id ? -2 : isLate(p.it) ? -1 : (daysTo(p.it) ?? 50);
+  list.sort((a, b) => pri(a) - pri(b) || (daysTo(a.it) ?? 50) - (daysTo(b.it) ?? 50));
+  const boxes = [], hit = (b) => b.x < 4 || b.y < 4 || b.x + b.w > W - 4 || b.y + b.h > H - 4 || boxes.some(o => b.x < o.x + o.w + 3 && b.x + b.w + 3 > o.x && b.y < o.y + o.h + 2 && b.y + b.h + 2 > o.y);
+  G.centres.forEach((c, k) => boxes.push({ x: c - 70, y: MID - G.half[k] - 62, w: 140, h: 56 }));
+  boxes.push({ x: SEA + 30, y: MID - 70, w: W - SEA - 30, h: 210 });
+  list.concat().forEach(p => boxes.push({ x: p.px - p.r, y: p.py - p.r, w: p.r * 2, h: p.r * 2, dot: true }));
+  let out = "", dropped = 0;
+  list.forEach(p => {
+    const base = label(p.it), tag = counts.get(base) > 1 ? nameTag(p.it) : "";
+    const name = base.length > 18 ? base.slice(0, 17) + "…" : base, txt = name + (tag ? " · " + tag : "");
+    const w = txt.length * 6.7 + 6, h = 16, x = p.px, y = p.py, r = p.r + 4;
+    const cands = [[x + r, y - h / 2], [x - r - w, y - h / 2], [x - w / 2, y - r - h], [x - w / 2, y + r], [x + r - 2, y - r - h + 4], [x + r - 2, y + r - 4], [x - r - w + 2, y - r - h + 4], [x - r - w + 2, y + r - 4]];
+    const spot = cands.map(([bx, by]) => ({ x: bx, y: by, w, h })).find(b => !hit(b));
+    if (!spot) { dropped++; return; }
+    boxes.push(spot);
+    const cls = isLate(p.it) ? " late" : daysTo(p.it) === 0 ? " today" : p.it.id === S.sel ? " on" : "";
+    out += `<text class="fish-l${cls}" x="${(spot.x + 3).toFixed(1)}" y="${(spot.y + 12).toFixed(1)}">${esc(name)}${tag ? `<tspan class="tag"> · ${esc(tag)}</tspan>` : ""}</text>`;
+  });
+  S.namesDropped = dropped;
+  return out;
 }
 
 function rippleAt(id, x, y, r) {
@@ -966,6 +1008,9 @@ $("pressing").addEventListener("click", e => { const b = e.target.closest("[data
 $("tribs").addEventListener("click", e => { const b = e.target.closest("[data-ed]"); if (!b) return; S.editor = S.editor === b.dataset.ed ? null : b.dataset.ed; renderTribs(); renderRiver(); renderPressing(); });
 $("q").addEventListener("input", e => { S.q = e.target.value.trim(); renderRiver(); renderPressing(); });
 $("refresh").addEventListener("click", sync);
+document.querySelector(".names").addEventListener("click", e => { const b = e.target.closest("[data-names]"); if (!b) return; S.names = b.dataset.names; try { localStorage.setItem("river.names", S.names); } catch (_) {} renderNames(); renderRiver(); });
+function renderNames() { document.querySelectorAll("[data-names]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.names === S.names))); }
+renderNames();
 $("scrim").addEventListener("click", closePanel);
 $("add").addEventListener("click", openAdd);
 $("gates-btn").addEventListener("click", () => openGates());
