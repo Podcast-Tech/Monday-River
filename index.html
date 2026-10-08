@@ -123,6 +123,12 @@ svg.river{display:block;width:100%;min-width:900px;height:auto;touch-action:none
 .props dt{color:var(--muted)} .props dd{margin:0;min-width:0;overflow-wrap:anywhere}
 .props .late{color:var(--late)} .props .today{color:var(--today)}
 .lbl{font-size:12.5px;color:var(--muted);font-weight:500;margin:0 0 8px}
+.pkg{border:1px solid var(--line, rgba(255,255,255,.08));border-radius:12px;padding:12px 14px;display:grid;gap:10px;background:rgba(63,169,255,.04)}
+.pkg .lbl{margin:0;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.pkg .lbl a{color:var(--water, #BFE3FF);font-weight:500;text-decoration:none} .pkg .lbl a:hover{text-decoration:underline}
+.pkg dd{white-space:pre-line} .pkg .muted{color:var(--muted);font-size:13px;margin:0}
+.pkg .tag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:999px;border:1px solid currentColor;color:#9C8CFF;margin-left:6px;vertical-align:1px}
+.pkg + .pkg{margin-top:-4px}
 .moves{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
 .mv{display:flex;align-items:center;gap:7px;border:1px solid var(--line-2);border-radius:9px;padding:8px 9px;font-size:12.5px;font-weight:500;text-align:left;min-height:40px}
 .mv i{width:7px;height:7px;border-radius:50%;background:var(--c);flex:none}
@@ -288,7 +294,7 @@ const daysTo = it => { const d = nextDue(it); return d ? dayNum(d) - T() : null;
 function ageDays(it) { const last = [it.draft, it.v1, it.final].filter(Boolean).sort().pop() || (it.updated || "").slice(0, 10); return last ? T() - dayNum(last) : 0; }
 const isLate = it => it.stage === "Client Review" ? (!CORPORATE.test(it.name) && ageDays(it) > 7) : (daysTo(it) !== null && daysTo(it) < 0);
 function rel(it) {
-  if (it.stage === "Client Review") { const a = ageDays(it); return { cls: a > 7 && !CORPORATE.test(it.name) ? "late" : "", txt: a + " days with the client" }; }
+  if (it.stage === "Client Review") { const a = ageDays(it); return { cls: a > 7 && !CORPORATE.test(it.name) ? "late" : "", txt: a + (a === 1 ? " day" : " days") + " with the client" }; }
   const d = daysTo(it); if (d === null) return { cls: "", txt: "No deadline" };
   if (d < 0) return { cls: "late", txt: (-d) + (d === -1 ? " day late" : " days late") };
   if (d === 0) return { cls: "today", txt: "Due today" };
@@ -484,6 +490,7 @@ function renderPanel() {
   $("panel").hidden = !it && !S.adding; $("scrim").hidden = !it && !S.adding;
   if (S.adding && S.form) return renderForm();
   if (!it) return;
+  if (!S.pkg[it.id]) setTimeout(() => loadPackage(it), 0);
   const r = rel(it), canMention = !!EDITOR_IDS[firstName(it.editor).toLowerCase()];
   const lk = (u, l) => u ? `<a class="lk" href="${esc(u)}" target="_blank" rel="noopener">${l}</a>` : "";
   $("panel").innerHTML = `
@@ -494,7 +501,8 @@ function renderPanel() {
       <div style="display:grid;gap:10px"><span class="badge" style="--c:${colorOf(it.stage)}"><i></i>${esc(it.stage)}</span><h2>${esc(it.name)}</h2></div>
       <dl class="props"><dt>Status</dt><dd class="${r.cls}">${esc(r.txt)}</dd><dt>Editor</dt><dd>${esc(it.editor || "No editor yet")}</dd>
         <dt>Draft</dt><dd class="tnum">${short(it.draft)}</dd><dt>V1</dt><dd class="tnum">${short(it.v1)}</dd><dt>Final</dt><dd class="tnum">${short(it.final)}</dd><dt>Publishing</dt><dd class="tnum">${short(it.publishing)}</dd>
-        <dt>Invoice</dt><dd>${esc(it.invoice || "Not set")}</dd>${it.units ? `<dt>Units</dt><dd class="tnum">${it.units}</dd>` : ""}</dl>
+        ${it.units ? `<dt>Units</dt><dd class="tnum">${it.units}</dd>` : ""}</dl>
+      ${renderPackage(it)}
       <div><p class="lbl">Move to</p><div class="moves">${MOVE_TO.map(s => `<button class="mv" type="button" data-stage="${esc(s)}" style="--c:${colorOf(s)}" ${s === it.stage || S.busy ? "disabled" : ""}><i></i>${esc(s)}</button>`).join("")}</div></div>
       ${it.upload || it.share || it.dropbox ? `<div><p class="lbl">Files</p><div class="links">${lk(it.upload, "Frame.io upload")}${lk(it.share, "Frame.io review")}${lk(it.dropbox, "Dropbox raws")}</div></div>` : ""}
       <div><p class="lbl">Note to editor</p>
@@ -503,6 +511,105 @@ function renderPanel() {
             <label><input type="checkbox" id="mention" ${canMention && S.mention ? "checked" : ""} ${canMention ? "" : "disabled"}> Mention ${esc(firstName(it.editor) || "editor")}</label>
             <button class="post" type="button" data-act="post" ${S.busy ? "disabled" : ""}>${S.busy ? "Posting" : "Post note"}</button></div></div></div>
     </div>`;
+}
+/* package: the studio booking behind this episode, read from Google Calendar (production@ and studio@, then AG's own) */
+const GCAL = "Google Calendar", BOOK_CALS = ["production@poddster.com", "studio@poddster.com"];
+S.pkg = {};
+const lc = s => String(s || "").toLowerCase().trim();
+function parseDesc(desc) {
+  const out = {}; let key = null;
+  String(desc || "").replace(/<br\s*\/?>/gi, "\n").replace(/<\/(p|div|li)>/gi, "\n").replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&nbsp;/g, " ").split(/\n/).forEach(line => {
+    const m = line.match(/^\s*([A-Za-z][A-Za-z ?/&]+?):\s*(.*)$/);
+    if (m && m[1].length < 40) { key = m[1].trim().toLowerCase().replace(/\?$/, ""); out[key] = m[2].trim(); }
+    else if (!line.trim()) { if (key && out[key]) key = "extra"; }
+    else if (key) out[key] = (out[key] ? out[key] + "\n" : "") + line.trim().replace(/^[-•*]\s*/, "");
+  });
+  return out;
+}
+const dubaiISO = dt => { try { return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dubai", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(dt)); } catch (e) { return String(dt).slice(0, 10); } };
+const dubaiTime = dt => { try { return new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Dubai", hour: "2-digit", minute: "2-digit" }).format(new Date(dt)); } catch (e) { return ""; } };
+function toBooking(ev) {
+  const sum = ev.summary || "", d = parseDesc(ev.description);
+  let name = sum.split("|")[0].replace(/\(NC\)/i, "").trim();
+  if (/@/.test(name) && d.customer && !/@/.test(d.customer)) name = d.customer;
+  const start = ev.start && (ev.start.dateTime || ev.start.date), end = ev.end && (ev.end.dateTime || ev.end.date);
+  const org = (ev.organizer && (ev.organizer.displayName || ev.organizer.email)) || "";
+  const studio = /abu dhabi/i.test(sum + org) ? "Abu Dhabi" : /studio@|dmc/i.test(org) || /studio booking/i.test(sum) ? "DMC Studio 1" : /barsha/i.test(org) ? org : "Al Barsha";
+  return { id: ev.id, name, nc: /\(NC\)/i.test(sum), studio, start, end, date: start ? dubaiISO(start) : null,
+    time: start && ev.start.dateTime ? dubaiTime(start) + (end ? "–" + dubaiTime(end) : "") : "",
+    email: lc(d["client email"]), order: d["order id"] || "", customer: d.customer || "", seats: d.seats || "", setup: d.setup || "",
+    services: d.services || "", addons: d["additional services"] || "", notes: [d["any special requests or note"], d.extra].filter(Boolean).join("\n"),
+    guests: d.guests || "", transfer: d["file transfer"] || "", link: ev.htmlLink || "" };
+}
+function sessionDate(it) {
+  const m = it.name.match(/(\d{2})\.(\d{2})\.(\d{2})(?!\d)/);
+  if (m) { const iso = "20" + m[3] + "-" + m[2] + "-" + m[1]; if (!isNaN(Date.parse(iso))) return { iso, exact: true }; }
+  return it.available ? { iso: it.available, exact: false } : null;
+}
+const shiftISO = (iso, n) => { const d = new Date(iso + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+function bookingMatches(b, it) {
+  const want = lc(it.client || it.name.split(" - ")[0]); if (!want) return false;
+  const email = S.clientEmails && S.clientEmails[want];
+  if (email && b.email && email === b.email) return true;
+  return [b.name, b.customer].map(lc).filter(n => n.length > 2).some(n => n === want || n.includes(want) || want.includes(n)
+    || (n.split(/\s+/).length > 1 && want.split(/\s+/).length > 1 && n.split(/\s+/).pop() === want.split(/\s+/).pop() && n[0] === want[0]));
+}
+async function loadPackage(it, force) {
+  const cur = S.pkg[it.id]; if (!force && cur && cur.state !== "error") return;
+  const sd = sessionDate(it);
+  if (!mcp) { S.pkg[it.id] = { state: "error", err: { code: "no_mcp" } }; return renderPanel(); }
+  if (!sd) { S.pkg[it.id] = { state: "nodate" }; return renderPanel(); }
+  S.pkg[it.id] = { state: "loading", sd }; if (S.sel === it.id) renderPanel();
+  const from = shiftISO(sd.iso, sd.exact ? -1 : -14), to = shiftISO(sd.iso, sd.exact ? 1 : 1);
+  const input = c => ({ calendarId: c, fullText: "Booking", startTime: from + "T00:00:00+04:00", endTime: to + "T23:59:59+04:00", orderBy: "startTime", pageSize: 50, timeZone: "Asia/Dubai" });
+  const opts = force ? { cache: { refresh: true, staleTime: 0 } } : { cache: { staleTime: 300000 } };
+  const ask = cals => Promise.all(cals.map(c => mcp.callTool(GCAL, "list_events", input(c), opts).then(r => ({ ok: r }), e => ({ err: e }))));
+  const pick = res => { const seen = new Set(), list = [];
+    res.forEach(r => ((r.ok && r.ok.payload && r.ok.payload.events) || []).forEach(ev => {
+      if (!/booking/i.test(ev.summary || "") || ev.status === "cancelled" || seen.has(ev.id)) return; seen.add(ev.id);
+      const b = toBooking(ev); if (bookingMatches(b, it)) list.push(b);
+    }));
+    return list.sort((a, b) => Math.abs(dayNum(a.date || sd.iso) - dayNum(sd.iso)) - Math.abs(dayNum(b.date || sd.iso) - dayNum(sd.iso))); };
+  try {
+    await loadClientEmails();
+    let res = await ask(BOOK_CALS), list = pick(res);
+    if (!list.length) { const own = await ask(["primary"]); list = pick(own); if (res.every(r => r.err) && own.every(r => r.err)) throw res[0].err; }
+    S.pkg[it.id] = { state: list.length ? "ok" : "none", list: list.slice(0, 2), sd };
+  } catch (e) { S.pkg[it.id] = { state: "error", err: e, sd }; }
+  if (S.sel === it.id) renderPanel();
+}
+async function loadClientEmails() {
+  if (S.clientEmails) return;
+  S.clientEmails = {};
+  try {
+    const r = await mcp.callTool(SERVER, "get_board_items_page", { boardId: CLIENTS_BOARD, includeColumns: true, includeGroup: false, limit: 500, columnIds: ["text_mkxbach4"] }, { cache: { staleTime: 600000 } });
+    ((r.payload && r.payload.items) || []).forEach(x => { const em = lc(x.column_values && x.column_values.text_mkxbach4); if (em) S.clientEmails[lc((x.name || "").replace(/^(AG|BL)\s*-\s*/i, ""))] = em; });
+  } catch (e) { /* email match is a bonus; name match still works */ }
+}
+function calErr(err) {
+  switch (err && err.code) {
+    case "no_mcp": return "Open this in Claude to read the booking.";
+    case "needs_reauth": return "Your Google Calendar connection expired. Reconnect it in claude.ai Settings, Connectors.";
+    case "server_not_connected": return "Add the Google Calendar connector in claude.ai Settings, Connectors to see the package.";
+    case "not_in_manifest": case "not_granted": return "Allow Google Calendar for this page when Claude asks, then reopen the episode.";
+    case "blocked_by_policy": case "approval_required": return "Your workspace policy blocks Calendar from here.";
+    default: return "Couldn't reach Google Calendar. " + ((err && err.message) || "");
+  }
+}
+function renderPackage(it) {
+  const p = S.pkg[it.id] || { state: "loading" };
+  const head = (extra) => `<p class="lbl"><span>Package</span>${extra || ""}</p>`;
+  if (p.state === "loading") return `<div class="pkg">${head()}<p class="muted">Looking for the booking in the studio calendars…</p></div>`;
+  if (p.state === "nodate") return `<div class="pkg">${head()}<p class="muted">No session date in the task name, so the booking can't be matched.</p></div>`;
+  if (p.state === "error") return `<div class="pkg">${head(`<button class="lk" type="button" data-act="pkg-retry">Try again</button>`)}<p class="muted">${esc(calErr(p.err))}</p></div>`;
+  if (p.state === "none") return `<div class="pkg">${head(`<button class="lk" type="button" data-act="pkg-retry">Search again</button>`)}<p class="muted">No booking found for ${esc(it.client || "this client")} ${p.sd && p.sd.exact ? "around " + short(p.sd.iso) : "in the two weeks before Available"}.</p></div>`;
+  return p.list.map((b, i) => {
+    const row = (k, v) => v ? `<dt>${k}</dt><dd>${esc(v)}</dd>` : "";
+    const when = [b.date ? new Date(b.date + "T12:00:00Z").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }) : "", b.time].filter(Boolean).join(", ");
+    return `<div class="pkg">${head(b.link ? `<a href="${esc(b.link)}" target="_blank" rel="noopener">Open in Calendar</a>` : "")}
+      <dl class="props">${row("Session", [b.studio, when].filter(Boolean).join(", "))}${b.order || b.nc ? `<dt>Order</dt><dd>${esc(b.order || "No ID")}${b.nc ? '<span class="tag">New client</span>' : ""}</dd>` : ""}
+        ${row("Services", b.services)}${row("Add-ons", b.addons)}${row("Setup", b.setup)}${row("Seats", b.seats)}${row("Guests", b.guests)}${row("Requests", b.notes)}${row("File transfer", b.transfer)}</dl></div>`;
+  }).join("");
 }
 /* add task */
 S.adding = false; S.form = null; S.clients = null; S.createdNames = new Map(); S.dropEditor = null;
@@ -805,7 +912,7 @@ function renderGateBtn() {
   const b = $("gates-btn"), n = S.items.length ? lateList().length : null;
   $("gates-n").textContent = n === null ? "–" : n; b.className = "gbtn" + (n === 0 ? " clear" : "");
 }
-function select(id) { if (S.sel !== id) { S.draft = ""; S.corr = true; S.mention = true; } S.sel = id; $("tip").hidden = true; render(); }
+function select(id) { if (S.sel !== id) { S.draft = ""; S.corr = true; S.mention = true; } S.sel = id; $("tip").hidden = true; render(); const it = S.items.find(i => i.id === id); if (it) loadPackage(it); }
 function closePanel() { S.sel = null; S.adding = false; S.form = null; render(); }
 function sync() { if (!mcp) return; S.loading = true; $("sync-t").textContent = "Syncing"; mcp.invalidate(SERVER, "get_board_items_page").catch(() => {}); }
 
@@ -873,7 +980,7 @@ $("panel").addEventListener("click", e => {
   const it = S.items.find(i => i.id === S.sel); if (!it) return;
   const st = e.target.closest("[data-stage]"); if (st) { setStage(it, st.dataset.stage); return; }
   const a = e.target.closest("[data-act]"); if (!a) return;
-  if (a.dataset.act === "close") closePanel(); else if (a.dataset.act === "post") postNote();
+  if (a.dataset.act === "close") closePanel(); else if (a.dataset.act === "post") postNote(); else if (a.dataset.act === "pkg-retry") loadPackage(it, true);
 });
 $("panel").addEventListener("input", e => {
   if (e.target.id === "note") S.draft = e.target.value;

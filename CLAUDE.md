@@ -17,7 +17,7 @@ Owner: AG (abdullah@poddster.com), Podcast Content Producer at Poddster Studios,
   - Errors reject with a `.code`. Branch on the code; `errorCopy()` and `writeErr()` hold the copy. `server_unavailable` and `upstream_error` on a write are ambiguous: the write may have run, so never auto-retry a write.
 - **Declared capabilities** (must be re-declared in full whenever tools change):
   ```json
-  {"mcp": {"servers": [{"server": "monday.com", "tools": ["get_board_items_page", "change_item_column_values", "create_update", "create_item", "get_board_activity"]}]}}
+  {"mcp": {"servers": [{"server": "monday.com", "tools": ["get_board_items_page", "change_item_column_values", "create_update", "create_item", "get_board_activity"]}, {"server": "Google Calendar", "tools": ["list_events"]}]}}
   ```
 - **Publishing from Claude Code:** use the Artifact tool with `file_path: index.html` and `url: https://claude.ai/artifact/VdyYthkp8rzoVTWecnXpoF`, so it updates the same link. Read the artifact first (`action: "read"`) if this session hasn't published it. Pass `capabilities` only when the tool list changes; omitting it keeps the current declaration.
 - **Browser limits inside an artifact:**
@@ -42,7 +42,7 @@ Episode Editing Board `2472462203`, filtered to Episode Producer = AG (`people` 
 | `date_mkx87nb3` | V1 |
 | `dup__of_1st_cut_deadline` | Final |
 | `date_mm02j5tr` | Publishing |
-| `status_1` | Invoice (Payment pending / Paid) |
+| `status_1` | Invoice (Payment pending / Paid). Still fetched but no longer shown in the panel (AG asked to remove it). |
 | `board_relation_mkxb8cpz` | Client (links to PP Clients Only `18330033684`) |
 | `link_mm22fna1` | F.IO Upload link (internal; this goes in editor notes) |
 | `link_mkxbtnjf` | F.IO Share/review link (client-facing) |
@@ -78,6 +78,11 @@ Value formats:
   - In edit stages: the next deadline has passed. For Corrections that is the latest of V1/Final, falling back to Draft.
   - In Client Review: more than 7 days since the latest deadline date, excluding corporate clients.
 - **Client emails:** never send email from this app. Any future email feature creates Gmail **drafts** only, CCs production@poddster.com, and shows the full draft for AG to confirm first.
+- **Package details:** the episode panel shows the studio booking behind the episode (session, order ID, services, add-ons, setup, seats, guests, requests, file transfer, Calendar link).
+  - It is read-only, loaded lazily with `loadPackage()` when an episode opens, and cached per item in `S.pkg`.
+  - It searches `production@poddster.com` and `studio@poddster.com` for "Booking" events within ±1 day of the `dd.mm.yy` in the task name; if nothing matches, it tries AG's `primary` calendar. With no date in the name, it searches the 14 days before Available.
+  - Matching is by client name or customer (including a shared surname plus first initial), or by client email from PP Clients Only `text_mkxbach4`.
+  - Descriptions come as plain newlines or `<br>` HTML. `parseDesc()` handles both, and free text after a blank line goes to Requests.
 - **Laura's lane:** never act on `BL - ` clients' episodes automatically.
 
 ## Known quirks

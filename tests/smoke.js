@@ -22,6 +22,12 @@ const test = new Function("els", "assert", src + `
       if (tool === "create_item") return { payload: { id: "13200000001" } };
       if (tool === "get_board_activity") return { payload: { message: "Board activity retrieved", data: input.itemIds.map(id => ({ event: "update_column_value", user_id: "43400381", entity: "pulse", created_at: "17909535157344256",
         data: JSON.stringify({ pulse_id: id, column_id: "status", value: { label: { text: "In Review" } } }) })) } };
+      if (tool === "list_events" && input.calendarId === "production@poddster.com") return { payload: { events: [
+        { id: "e1", summary: "Brett King | Poddster Booking", status: "confirmed", htmlLink: "https://calendar.google.com/event?eid=e1",
+          start: { dateTime: "2026-10-02T14:00:00+04:00" }, end: { dateTime: "2026-10-02T16:00:00+04:00" }, organizer: { displayName: "Al Barsha Studio 2" },
+          description: "Order ID: 4821<br>Customer: Brett King<br>Client email: brett@example.com<br>Seats: 2<br>Setup: 2 cameras<br>Services:<br>- Video podcast 2h<br>- Full episode edit<br>Additional Services:<br>3 highlights<br>Any special requests or note?: Bring the blue backdrop" },
+        { id: "e2", summary: "Someone Else | Poddster Booking", start: { dateTime: "2026-10-02T10:00:00+04:00" }, description: "Order ID: 1" }] } };
+      if (tool === "list_events") return { payload: { events: [] } };
       return { payload: {} };
     } };
     const d = n => { const x = new Date(); x.setDate(x.getDate() + n); return isoOf(x); };
@@ -144,6 +150,22 @@ const test = new Function("els", "assert", src + `
     for (let k = 0; k < 25; k++) { const r = raws[k % 5]; r.column_values = Object.assign({}, r.column_values, { date_mm02j5tr: d(k + 1) }); WROTE.delete(r.id); await onBoard({ type: "result", result: { payload: { items: raws } } }); }
     assert.strictEqual(S.feed.length, 20, "feed keeps the last 20");
     console.log("✓ Live: feed capped at 20 entries");
+    const bk = norm({ id: "555", name: "Brett King - Session 02.10.26", column_values: { status: "Client Review", person: "Akssat", status_1: "Payment pending", board_relation_mkxb8cpz: [{ id: "78", name: "AG - Brett King" }] } });
+    S.items.push(bk); S.adding = false; S.form = null; S.sel = bk.id; await loadPackage(bk); renderPanel();
+    const ph = els.panel.innerHTML;
+    assert.ok(/4821/.test(ph) && /Full episode edit/.test(ph) && /3 highlights/.test(ph) && /blue backdrop/.test(ph), "package shows booking details");
+    assert.ok(!/Someone Else|>1</.test(ph.replace(/Units[\s\S]*/, "")), "other clients' bookings are ignored");
+    assert.ok(!/Invoice/.test(ph), "invoice row removed");
+    const lev = calls.find(c => c.tool === "list_events").input;
+    assert.strictEqual(lev.startTime, "2026-10-01T00:00:00+04:00");
+    console.log("✓ Package details load from the calendar booking (Order 4821), invoice hidden");
+    const sh = toBooking({ id: "x", summary: "Sharon hello@sharonpakir.com | Poddster Booking", start: { dateTime: "2026-10-01T14:00:00+04:00" }, end: { dateTime: "2026-10-01T15:00:00+04:00" }, organizer: { displayName: "Al Barsha Studio 2" },
+      description: 'Order ID: E8TW5S4C<br>Customer: Sharon <a href="mailto:hello@sharonpakir.com">hello@sharonpakir.com</a><br>Seats: 1<br>Setup: Nest<br>Services:<br>Recording + Live Mix<br>Additional Services:<br>Session Photos (1)<br>Teleprompter (1)<br><br> <br><span>Client requesting for Neetu<br>Will be standing</span>' });
+    assert.strictEqual(sh.addons, "Session Photos (1)\\nTeleprompter (1)"); assert.ok(/Neetu/.test(sh.notes)); assert.strictEqual(sh.studio, "Al Barsha Studio 2"); assert.strictEqual(sh.time, "14:00–15:00");
+    const en = toBooking({ id: "y", summary: "x | Poddster Abu Dhabi Booking", start: { dateTime: "2026-10-02T13:00:00+04:00" }, organizer: { email: "abudhabi@poddster.com" },
+      description: "Order ID: W\\nServices:\\nRecording\\nAdditional Services:\\n\\nMulti-cam Recording (1)\\nTeleprompter \\n\\n\\nAny special requests or note?: ENBD Arabic" });
+    assert.strictEqual(en.addons, "Multi-cam Recording (1)\\nTeleprompter"); assert.strictEqual(en.notes, "ENBD Arabic"); assert.strictEqual(en.studio, "Abu Dhabi");
+    console.log("✓ Parses real booking formats (HTML and plain, trailing notes, Abu Dhabi)");
     console.log("All smoke tests passed.");
   })();
 `);
