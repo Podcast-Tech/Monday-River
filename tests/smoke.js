@@ -5,7 +5,7 @@ const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
 const src = html.match(/<script>([\s\S]*?)<\/script>/)[1].replace(/start\(\);\s*$/, "");
 
 const el = () => ({ innerHTML: "", textContent: "", hidden: false, className: "", style: {}, value: "", disabled: false,
-  classList: { contains() { return false; }, toggle() {} }, addEventListener() {}, querySelector() { return null; }, focus() {},
+  classList: { contains() { return false; }, toggle() {}, add() {}, remove() {} }, addEventListener() {}, querySelector() { return null; }, focus() {},
   getBoundingClientRect() { return { left: 0, top: 0, width: 1400, height: 520, right: 0 }; },
   setPointerCapture() {}, releasePointerCapture() {}, offsetWidth: 100, offsetHeight: 40 });
 const els = {};
@@ -170,6 +170,26 @@ const test = new Function("els", "assert", src + `
       description: "Order ID: W\\nServices:\\nRecording\\nAdditional Services:\\n\\nMulti-cam Recording (1)\\nTeleprompter \\n\\n\\nAny special requests or note?: ENBD Arabic" });
     assert.strictEqual(en.addons, "Multi-cam Recording (1)\\nTeleprompter"); assert.strictEqual(en.notes, "ENBD Arabic"); assert.strictEqual(en.studio, "Abu Dhabi");
     console.log("✓ Parses real booking formats (HTML and plain, trailing notes, Abu Dhabi)");
+    const ep = S.items.find(i => i.stage === "In Process");
+    const N = (id, mins, extra) => Object.assign({ id, created_at: new Date(Date.now() - mins * 60000).toISOString(), read: false }, extra);
+    const batch1 = [N("n1", 30, { title: "Stipe Majić Mentioned you in a reply", kind_name: "new_reply_im_mentioned", text: "you in a reply: @Abdullah Ghanem uploading.", item: { id: ep.id, name: ep.name, board: { id: "2472462203" } }, board: { id: "2472462203", name: "Episode editing board" }, update: { id: "5612173060", text_body: "client comments", creator_id: "49670201" } }),
+      N("n2", 90, { title: "Automations", kind_name: "automation_notify", text: "Hey Abdullah,\\nThis is to notify you that Keerthana R is a new client.", item: { id: "13237739065", name: "Keerthana R", board: { id: "8655597806" } }, board: { id: "8655597806", name: "Poddster Customer Database" }, update: null }),
+      N("n3", 200, { title: "Roy Wrote an update on an item you're subscribed to", kind_name: "new_post_im_owner", text: null, read: true, item: { id: "999001", name: "Pavle Rastovic - Session 17.09.26 (Highlights)", board: { id: "2472462203" } }, board: { id: "2472462203", name: "Episode editing board" }, update: { id: "77", text_body: "Raw files: link" } })];
+    S.nfSeen = 0; onNotifs({ type: "result", result: { payload: { notifications: batch1 } } });
+    assert.strictEqual(els["bell-n"].textContent, 2, "badge counts unread"); 
+    const lastToast0 = els.toast.innerHTML;
+    onNotifs({ type: "result", result: { payload: { notifications: [N("n0", 0, { title: "Akssat Mentioned you in a reply", kind_name: "new_reply_im_mentioned", text: "you in a reply: @Abdullah Ghanem Uploaded, please check", item: { id: ep.id, name: ep.name, board: { id: "2472462203" } }, board: { id: "2472462203", name: "Episode editing board" }, update: { id: "5611725266", text_body: "x" } }), ...batch1] } } });
+    assert.ok(/Akssat mentioned you/.test(els.toast.innerHTML) && S.ripples.has(ep.id), "new mention toasts and ripples its dot");
+    openInbox();
+    const ih = els.inbox.innerHTML;
+    assert.ok(/Stipe Majić/.test(ih) && /@you uploading/.test(ih) && /Automation/.test(ih) && /Keerthana R/.test(ih) && /data-nfo="/.test(ih), "inbox lists mentions, automations and links episodes");
+    assert.strictEqual(els["bell-n"].hidden, true, "opening the bell clears the badge");
+    S.nfFilter = "mention"; renderInbox(); assert.ok(!/Keerthana/.test(els.inbox.innerHTML), "filter works");
+    S.nfReply = { id: "n1", text: "Thanks, checking now", mention: true, busy: false }; await sendReply();
+    const rc = calls.filter(c => c.tool === "create_update").pop().input;
+    assert.strictEqual(rc.parentId, 5612173060); assert.strictEqual(JSON.parse(rc.mentionsList)[0].id, "61381904");
+    S.inbox = false; S.sel = ep.id; renderPanel(); assert.ok(/Latest on Monday/.test(els.panel.innerHTML) && /Akssat/.test(els.panel.innerHTML), "episode panel shows its notifications");
+    console.log("✓ Notifications: badge, toast + ripple on new mention, inbox filters, threaded reply with mention, per-episode list");
     console.log("All smoke tests passed.");
   })();
 `);

@@ -13,11 +13,12 @@ Owner: AG (abdullah@poddster.com), Podcast Content Producer at Poddster Studios,
   - Reads use `mcp.watchTool("monday.com", "get_board_items_page", INPUT, handler, { refetchInterval: 45000 })`.
   - Writes use `mcp.callTool("monday.com", tool, input, { cache: false })`, then `mcp.invalidate("monday.com", "get_board_items_page")`.
   - `get_board_activity` (read-only) names who made a change for the Live feed. It needs `includeData: true`; each row's `data` is a JSON string with `pulse_id` and `column_id`, and `user_id` maps through `USERS`. If it fails, the feed leaves the name out.
+  - `all_api_read` (read-only GraphQL) is used for one fixed query only: `NOTIF_Q`, AG's Monday `notifications(limit: 50)`. Don't ask for `creators` on it: one deleted user makes the whole query fail with "User not found". Take the sender's name from `title` instead (`ACTION_RE`).
   - Every write calls `markWrote(id)` so Live ripples ignore the page's own changes for 2 minutes.
   - Errors reject with a `.code`. Branch on the code; `errorCopy()` and `writeErr()` hold the copy. `server_unavailable` and `upstream_error` on a write are ambiguous: the write may have run, so never auto-retry a write.
 - **Declared capabilities** (must be re-declared in full whenever tools change):
   ```json
-  {"mcp": {"servers": [{"server": "monday.com", "tools": ["get_board_items_page", "change_item_column_values", "create_update", "create_item", "get_board_activity"]}, {"server": "Google Calendar", "tools": ["list_events"]}]}}
+  {"mcp": {"servers": [{"server": "monday.com", "tools": ["get_board_items_page", "change_item_column_values", "create_update", "create_item", "get_board_activity", "all_api_read"]}, {"server": "Google Calendar", "tools": ["list_events"]}]}}
   ```
 - **Publishing from Claude Code:** use the Artifact tool with `file_path: index.html` and `url: https://claude.ai/artifact/VdyYthkp8rzoVTWecnXpoF`, so it updates the same link. Read the artifact first (`action: "read"`) if this session hasn't published it. Pass `capabilities` only when the tool list changes; omitting it keeps the current declaration.
 - **Browser limits inside an artifact:**
@@ -73,6 +74,12 @@ Value formats:
 - **Editor notes:** post with `create_update` and an HTML body (`<br>` line breaks, escaped text). Mention the editor via `mentionsList` `[{"id":"…","type":"User"}]`. Posting an editor-actionable note sets Corrections by default.
 - **Clear the gates** (`G`): walks `lateList()`, most overdue first (`overdueBy`). Its actions go through `setStage` and `postNote`, so the Corrections rule and Undo apply. "Nudge editor" posts a canned note with a mention and does **not** change the stage; it's off for Client Review and for episodes with no editor.
 - **Drag to reassign:** dropping a dot on an editor chip writes `person`; from Queue it also sets Assigned in the same write. Undo restores the previous editors (and Queue). If a previous editor isn't in `EDITORS`, Undo is off.
+- **Monday notifications:** the bell (`I`) opens an inbox drawer of AG's real Monday notifications, polled every 60 s, with filters for All, Mentions, Updates and Automations.
+  - Monday's read flag can't be set from here, so the badge counts unread notifications newer than the last time the bell was opened (localStorage `river.notifSeen`).
+  - A new mention or update after first load toasts with View and ripples the episode's dot. Automations never toast.
+  - Episodes on the river open in River; anything else opens in Monday.
+  - Reply posts `create_update` with `parentId` (the notification's `update.id`) into the same thread, and mentions the sender when they're in `EDITORS`. Replying never changes the stage.
+  - The episode panel lists the latest 4 non-automation notifications for that item under "Latest on Monday".
 - **Corporate clients** (Dmitrii Tverdokhleb, Suvo Sarkar, ENBD) have open-ended review timelines. Never count them as "quiet" in Client Review (`CORPORATE` regex).
 - **"Late":**
   - In edit stages: the next deadline has passed. For Corrections that is the latest of V1/Final, falling back to Draft.

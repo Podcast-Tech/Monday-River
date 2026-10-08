@@ -174,6 +174,38 @@ svg.river{display:block;width:100%;min-width:900px;height:auto;touch-action:none
 .toast{position:fixed;z-index:30;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);transform:translateX(-50%);display:flex;align-items:center;gap:12px;background:var(--ink);color:var(--night);padding:9px 10px 9px 14px;border-radius:10px;font-size:13px;max-width:calc(100% - 32px)}
 .toast button{color:var(--night);font-weight:600;padding:2px 8px;border-radius:6px;background:rgb(0 0 0 / .1)}
 .toast.bad{background:var(--late);color:#fff}
+/* Monday notifications: bell + inbox drawer */
+.bell{position:relative;width:36px;height:36px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--line-2);color:var(--ink-2)}
+.bell:hover{background:var(--hover);color:var(--ink)}
+.bell b{position:absolute;top:-4px;right:-5px;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--brand);color:#fff;font:600 11px/18px var(--mono);text-align:center;box-shadow:0 0 0 2px var(--night)}
+@media (prefers-reduced-motion:no-preference){.bell.ping svg{animation:ring .9s ease-in-out 2}@keyframes ring{20%{transform:rotate(14deg)}40%{transform:rotate(-12deg)}60%{transform:rotate(7deg)}80%{transform:rotate(-4deg)}}}
+.inbox{z-index:22}
+.nf-filters{display:flex;flex-wrap:wrap;gap:6px}
+.nf-filters button{border:1px solid var(--line-2);border-radius:999px;padding:4px 11px;font-size:12.5px;color:var(--muted)}
+.nf-filters button[aria-pressed="true"]{background:var(--ink);color:var(--night);border-color:var(--ink);font-weight:500}
+.nf-filters em{font-style:normal;font-family:var(--mono);font-size:11px;margin-left:4px;opacity:.75}
+.nf-list{display:grid;gap:6px}
+.nf{display:grid;grid-template-columns:28px minmax(0,1fr);gap:10px;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:rgb(255 255 255 / .015);text-align:left;width:100%}
+.nf.new{border-color:rgb(255 0 60 / .35);background:rgb(255 0 60 / .05)}
+.nf .av{width:28px;height:28px;font-size:11px}
+.nf .av.auto{background:#2A3446;color:var(--muted)}
+.nf-top{display:flex;gap:6px;align-items:baseline;font-size:13px;min-width:0}
+.nf-top b{font-weight:600;white-space:nowrap}
+.nf-top span{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
+.nf-top small{font:400 11.5px var(--mono);color:var(--faint);white-space:nowrap}
+.nf-body{margin:4px 0 0;font-size:13px;color:var(--ink-2);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.nf-ep{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:7px;font-size:12px}
+.nf-ep button,.nf-ep a{color:var(--foam);text-decoration:none;font-weight:500;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nf-ep button:hover,.nf-ep a:hover{text-decoration:underline}
+.nf-ep .st{display:inline-flex;align-items:center;gap:5px;color:var(--muted)} .nf-ep .st i{width:6px;height:6px;border-radius:50%;background:var(--c)}
+.nf-ep .rp{margin-left:auto;border:1px solid var(--line-2);border-radius:7px;padding:3px 9px;color:var(--ink-2);text-decoration:none}
+.nf-ep .rp:hover{background:var(--hover);text-decoration:none}
+.nf .composer{margin-top:8px}
+.nf .composer textarea{min-height:64px}
+.nf-more{justify-self:center}
+.pn-list{display:grid;gap:6px}
+.pn{font-size:13px;color:var(--ink-2);border-left:2px solid var(--line-2);padding:2px 0 2px 10px}
+.pn b{font-weight:600;color:var(--ink)} .pn small{font:400 11.5px var(--mono);color:var(--faint);margin-left:6px}
 /* Live: ripples on dots changed elsewhere, and a feed beside the pressing list */
 .ripple{fill:none;stroke:var(--foam);stroke-width:2;opacity:.85;stroke-dasharray:3 3;pointer-events:none}
 @media (prefers-reduced-motion:no-preference){.ripple{stroke-dasharray:none;transform-box:fill-box;transform-origin:center;animation:ripple 2s ease-out 3 both}@keyframes ripple{from{transform:scale(1);opacity:.9}to{transform:scale(3.6);opacity:0}}}
@@ -227,6 +259,7 @@ svg.river{display:block;width:100%;min-width:900px;height:auto;touch-action:none
     </div>
     <label class="find"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" type="search" placeholder="Find a client or episode" aria-label="Find an episode"></label>
     <button class="gbtn" id="gates-btn" type="button" title="Walk through every overdue episode (G)">Clear the gates <b id="gates-n">–</b> <kbd>G</kbd></button>
+    <button class="bell" id="bell" type="button" title="Monday notifications (I)" aria-label="Monday notifications"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><b id="bell-n" hidden></b></button>
     <button class="add" id="add" type="button" title="Add a task (N)">+ Add task <kbd>N</kbd></button>
     <div class="sync"><i id="sync-dot"></i><span id="sync-t">Connecting</span><button class="btn-s" type="button" id="refresh">Sync</button></div>
   </header>
@@ -242,6 +275,7 @@ svg.river{display:block;width:100%;min-width:900px;height:auto;touch-action:none
 </div>
 <div class="scrim" id="scrim" hidden></div>
 <aside class="panel" id="panel" hidden aria-label="Episode"></aside>
+<aside class="panel inbox" id="inbox" hidden aria-label="Monday notifications"></aside>
 <div class="gates" id="gates" hidden></div>
 <div class="toast" id="toast" hidden role="status"></div>
 
@@ -545,6 +579,7 @@ function renderPanel() {
         <dt>Draft</dt><dd class="tnum">${short(it.draft)}</dd><dt>V1</dt><dd class="tnum">${short(it.v1)}</dd><dt>Final</dt><dd class="tnum">${short(it.final)}</dd><dt>Publishing</dt><dd class="tnum">${short(it.publishing)}</dd>
         ${it.units ? `<dt>Units</dt><dd class="tnum">${it.units}</dd>` : ""}</dl>
       ${renderPackage(it)}
+      ${episodeNotifs(it)}
       <div><p class="lbl">Move to</p><div class="moves">${MOVE_TO.map(s => `<button class="mv" type="button" data-stage="${esc(s)}" style="--c:${colorOf(s)}" ${s === it.stage || S.busy ? "disabled" : ""}><i></i>${esc(s)}</button>`).join("")}</div></div>
       ${it.upload || it.share || it.dropbox ? `<div><p class="lbl">Files</p><div class="links">${lk(it.upload, "Frame.io upload")}${lk(it.share, "Frame.io review")}${lk(it.dropbox, "Dropbox raws")}</div></div>` : ""}
       <div><p class="lbl">Note to editor</p>
@@ -652,6 +687,111 @@ function renderPackage(it) {
       <dl class="props">${row("Session", [b.studio, when].filter(Boolean).join(", "))}${b.order || b.nc ? `<dt>Order</dt><dd>${esc(b.order || "No ID")}${b.nc ? '<span class="tag">New client</span>' : ""}</dd>` : ""}
         ${row("Services", b.services)}${row("Add-ons", b.addons)}${row("Setup", b.setup)}${row("Seats", b.seats)}${row("Guests", b.guests)}${row("Requests", b.notes)}${row("File transfer", b.transfer)}</dl></div>`;
   }).join("");
+}
+
+/* Monday notifications: AG's real Monday inbox (mentions, replies, updates, automations) through the read-only GraphQL tool.
+   Monday's read flag can't be set from here, so the badge counts unread ones newer than the last time the bell was opened (per viewer). */
+const NOTIF_Q = "query { notifications(limit: 50) { id created_at title text read kind_name item { id name board { id } } board { id name } update { id text_body creator_id } } }";
+const NF_KIND = [["mention", "Mentions"], ["update", "Updates"], ["auto", "Automations"]];
+S.notifs = []; S.inbox = false; S.nfFilter = "all"; S.nfReply = null; S.nfSeeded = false; S.nfShow = 20;
+try { S.nfSeen = +localStorage.getItem("river.notifSeen") || 0; } catch (_) { S.nfSeen = 0; }
+S.nfPrevSeen = S.nfSeen;
+const ACTION_RE = /^(.+?)\s+(mentioned|wrote|replied|assigned|subscribed|added|invited|changed|created|moved|liked|reacted|commented|asked|updated|sent)\b/i;
+function normNotif(n) {
+  const kn = n.kind_name || "", t = Date.parse(n.created_at) || 0, title = n.title || "";
+  const kind = /automation/i.test(kn) || title === "Automations" ? "auto" : /mention/i.test(kn) ? "mention" : "update";
+  const m = title.match(ACTION_RE), who = kind === "auto" ? "Automation" : m ? m[1].trim() : title.split(" ").slice(0, 2).join(" ");
+  const action = kind === "auto" ? "" : m ? title.slice(m[1].length).trim().replace(/^Mentioned/, "mentioned").replace(/^Wrote/, "wrote").replace(/^Replied/, "replied") : "";
+  let body = (n.text || "").replace(/^you in (a reply|an update|a post)[^:]*:\s*/i, "").replace(/^Hey Abdullah,?\s*/i, "").trim();
+  if (!body && n.update) body = n.update.text_body || "";
+  body = body.replace(/@Abdullah Ghanem/g, "@you").replace(/\n{2,}/g, "\n");
+  const ed = EDITORS.find(([nm]) => firstName(nm).toLowerCase() === firstName(who).toLowerCase());
+  const item = n.item || null, boardId = (item && item.board && item.board.id) || (n.board && n.board.id) || "";
+  return { id: String(n.id), t, kind, who, action, body, read: !!n.read, edId: ed ? ed[1] : null,
+    itemId: item ? String(item.id) : null, itemName: item ? item.name : "", boardId: String(boardId), boardName: (n.board && n.board.name) || "",
+    updateId: n.update ? String(n.update.id) : null,
+    url: item ? "https://poddsterstudios-team.monday.com/boards/" + boardId + "/pulses/" + item.id : n.board ? "https://poddsterstudios-team.monday.com/boards/" + n.board.id : "" };
+}
+const isNew = n => !n.read && n.t > S.nfSeen;
+function onNotifs(ev) {
+  if (ev.type === "error") { S.nfErr = ev.error; renderBell(); renderInbox(); return; }
+  const p = ev.result.payload || {}, raw = p.notifications || (p.data && p.data.notifications) || [];
+  const next = raw.map(normNotif).sort((a, b) => b.t - a.t);
+  const known = new Set(S.notifs.map(n => n.id));
+  const fresh = S.nfSeeded ? next.filter(n => !known.has(n.id) && !n.read && n.kind !== "auto") : [];
+  S.notifs = next; S.nfErr = null;
+  if (!(ev.result.cache && ev.result.cache.revalidating)) S.nfSeeded = true;
+  if (fresh.length) {
+    const f = fresh[0];
+    fresh.forEach(n => { if (n.itemId && S.items.some(i => i.id === n.itemId)) S.ripples.set(n.itemId, Date.now()); });
+    const b = $("bell"); b.classList.remove("ping"); void b.offsetWidth; b.classList.add("ping");
+    toast(fresh.length > 1 ? fresh.length + " new on Monday, latest from " + firstName(f.who) : firstName(f.who) + " " + (f.kind === "mention" ? "mentioned you" : "posted") + (f.itemName ? " on " + shortItem(f.itemName) : ""), { act: { label: "View", fn: () => openInbox() } });
+    renderRiver(); setTimeout(() => renderRiver(), RIPPLE_MS + 100);
+  }
+  renderBell(); renderInbox(); if (S.sel) renderPanel();
+}
+const shortItem = n => n.replace(/\s*-\s*Session\s*/i, " · ").slice(0, 48);
+function renderBell() {
+  const b = $("bell-n"); if (!b) return;
+  const n = S.notifs.filter(isNew).length;
+  b.hidden = !n; b.textContent = n > 99 ? "99+" : n;
+  $("bell").title = (n ? n + " new on Monday" : "Monday notifications") + " (I)";
+}
+function nago(t) { const s = (Date.now() - t) / 1000; if (s < 45) return "now"; if (s < 3600) return Math.round(s / 60) + "m"; if (s < 86400) return Math.round(s / 3600) + "h";
+  const d = new Date(t); return s < 7 * 86400 ? d.toLocaleDateString("en-GB", { weekday: "short" }) : d.getDate() + " " + MON[d.getMonth()]; }
+function openInbox() { S.inbox = true; S.nfPrevSeen = S.nfSeen; S.nfSeen = Date.now(); try { localStorage.setItem("river.notifSeen", String(S.nfSeen)); } catch (_) {} S.nfShow = 20; renderBell(); renderInbox(); }
+function closeInbox() { S.inbox = false; S.nfReply = null; renderInbox(); const b = $("bell"); if (b) b.focus(); }
+function renderInbox() {
+  const el = $("inbox"); if (!el) return;
+  el.hidden = !S.inbox; if (!S.inbox) { el.innerHTML = ""; if (!S.sel && !S.adding) $("scrim").hidden = true; return; }
+  $("scrim").hidden = false;
+  const counts = { all: S.notifs.length }; NF_KIND.forEach(([k]) => counts[k] = S.notifs.filter(n => n.kind === k).length);
+  const list = S.notifs.filter(n => S.nfFilter === "all" || n.kind === S.nfFilter);
+  const head = `<div class="p-h"><span>Monday notifications</span>
+      <a class="ib" href="https://poddsterstudios-team.monday.com/" target="_blank" rel="noopener" aria-label="Open Monday" title="Open Monday"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>
+      <button class="ib" type="button" data-nf="close" aria-label="Close" title="Close (Esc)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>`;
+  let body;
+  if (S.nfErr && !S.notifs.length) { const m = errorCopy(S.nfErr); body = `<div class="banner"><b>${esc(m.title)}</b><span>${esc(m.body)}</span></div>`; }
+  else if (!S.nfSeeded && !S.notifs.length) body = `<p class="empty">Reading your Monday inbox…</p>`;
+  else if (!list.length) body = `<p class="empty">${S.nfFilter === "all" ? "No notifications yet." : "Nothing here in the last 50 notifications."}</p>`;
+  else body = `<div class="nf-list">${list.slice(0, S.nfShow).map(nfCard).join("")}</div>${list.length > S.nfShow ? `<button class="btn-s nf-more" type="button" data-nf="more">Show ${Math.min(20, list.length - S.nfShow)} more</button>` : ""}`;
+  el.innerHTML = head + `<div class="p-b"><div style="display:grid;gap:12px"><h2>Inbox</h2>
+      <div class="nf-filters" role="group" aria-label="Filter notifications">${[["all", "All"], ...NF_KIND].map(([k, l]) => `<button type="button" data-nff="${k}" aria-pressed="${S.nfFilter === k}">${l}<em>${counts[k] || 0}</em></button>`).join("")}</div></div>
+    ${body}<p class="lbl" style="margin:0">Your latest 50 from Monday, refreshed every minute. Reading them here doesn't mark them read in Monday.</p></div>`;
+}
+function nfCard(n) {
+  const ep = n.itemId ? S.items.find(i => i.id === n.itemId) : null, fresh = !n.read && n.t > S.nfPrevSeen;
+  const av = n.kind === "auto" ? `<span class="av auto" aria-hidden="true">⚙</span>` : `<span class="av" style="--ac:${avColor(n.who)}" aria-hidden="true">${esc(initials(n.who))}</span>`;
+  const canReply = n.kind !== "auto" && n.updateId && n.itemId, open = S.nfReply && S.nfReply.id === n.id;
+  const link = ep ? `<button type="button" data-nfo="${esc(ep.id)}" title="Open in River">${esc(shortItem(n.itemName))}</button><span class="st" style="--c:${colorOf(ep.stage)}"><i></i>${esc(ep.stage)}</span>`
+    : n.url ? `<a href="${esc(n.url)}" target="_blank" rel="noopener" title="Open in Monday">${esc(n.itemName ? shortItem(n.itemName) : n.boardName)}</a>${n.boardName && !/episode editing/i.test(n.boardName) ? `<span class="st">${esc(n.boardName)}</span>` : ""}` : "";
+  return `<div class="nf ${fresh ? "new" : ""}">${av}<div style="min-width:0">
+      <div class="nf-top"><b>${esc(n.kind === "auto" ? "Automation" : n.who)}</b><span>${esc(n.action)}</span><small>${nago(n.t)}</small></div>
+      ${n.body ? `<p class="nf-body">${esc(n.body)}</p>` : ""}
+      <div class="nf-ep">${link}${canReply && !open ? `<button class="rp" type="button" data-nfr="${esc(n.id)}">Reply</button>` : ""}</div>
+      ${open ? `<div class="composer"><textarea id="nf-text" placeholder="Reply to ${esc(firstName(n.who))} in the thread" aria-label="Reply">${esc(S.nfReply.text)}</textarea>
+        <div class="c-bar">${n.edId ? `<label><input type="checkbox" id="nf-mention" ${S.nfReply.mention ? "checked" : ""}> Mention ${esc(firstName(n.who))}</label>` : ""}
+          <button class="btn-s" type="button" data-nf="cancel">Cancel</button><button class="post" type="button" data-nf="send" ${S.nfReply.busy ? "disabled" : ""}>${S.nfReply.busy ? "Sending" : "Send reply"}</button></div></div>` : ""}
+    </div></div>`;
+}
+async function sendReply() {
+  const r = S.nfReply; if (!r || r.busy || !mcp) return;
+  const n = S.notifs.find(x => x.id === r.id), text = (r.text || "").trim();
+  if (!n) return; if (!text) { toast("Write the reply first.", { bad: true }); return; }
+  r.busy = true; renderInbox();
+  try {
+    const input = { itemId: Number(n.itemId), parentId: Number(n.updateId), body: esc(text).replace(/\n/g, "<br>") };
+    if (r.mention && n.edId) input.mentionsList = JSON.stringify([{ id: String(n.edId), type: "User" }]);
+    markWrote(n.itemId);
+    await mcp.callTool(SERVER, "create_update", input, { cache: false });
+    S.nfReply = null; toast("Reply sent to " + firstName(n.who) + " on " + shortItem(n.itemName));
+  } catch (e) { r.busy = false; toast(e && (e.code === "server_unavailable" || e.code === "upstream_error") ? "Monday didn't confirm the reply. Check the thread before sending again." : writeErr(e), { bad: true }); }
+  renderInbox();
+}
+function episodeNotifs(it) {
+  const list = S.notifs.filter(n => n.itemId === it.id && n.kind !== "auto").slice(0, 4);
+  if (!list.length) return "";
+  return `<div><p class="lbl">Latest on Monday</p><div class="pn-list">${list.map(n => `<div class="pn"><b>${esc(firstName(n.who))}</b> ${esc(n.body.slice(0, 160))}${n.body.length > 160 ? "…" : ""}<small>${nago(n.t)}</small></div>`).join("")}</div></div>`;
 }
 /* add task */
 S.adding = false; S.form = null; S.clients = null; S.createdNames = new Map(); S.dropEditor = null;
@@ -768,13 +908,14 @@ function renderLive() {
       return `<button class="lv ${Date.now() - e.at < RIPPLE_MS ? "fresh" : ""}" type="button" data-id="${esc(e.id)}" style="--c:${colorOf(it.stage)}"><i></i><span>${esc(feedText(e))}</span><small>${ago(e.at)}</small></button>`; }).join("")
       : `<p class="empty">When an editor or anyone else changes one of your episodes, it ripples on the river and shows up here.</p>`) + `</div>`;
 }
-function render() { renderSync(); renderLevel(); renderGateBtn(); renderTribs(); renderRiver(); renderPressing(); renderLive(); renderPanel(); renderGates(); }
+function render() { renderSync(); renderLevel(); renderGateBtn(); renderTribs(); renderRiver(); renderPressing(); renderLive(); renderPanel(); renderGates(); renderBell(); renderInbox(); }
 
 /* actions */
 let tt;
 function toast(text, o = {}) {
   const t = $("toast"); t.className = "toast" + (o.bad ? " bad" : "");
-  t.innerHTML = `<span>${esc(text)}</span>${o.undo ? `<button type="button" id="undo">Undo</button>` : ""}`;
+  t.innerHTML = `<span>${esc(text)}</span>${o.undo ? `<button type="button" id="undo">Undo</button>` : ""}${o.act ? `<button type="button" id="tact">${esc(o.act.label)}</button>` : ""}`;
+  if (o.act) $("tact").onclick = () => { t.hidden = true; o.act.fn(); };
   t.hidden = false; clearTimeout(tt); tt = setTimeout(() => t.hidden = true, o.undo ? 6000 : 3500);
   if (o.undo) $("undo").onclick = () => { t.hidden = true; o.undo(); };
 }
@@ -1008,10 +1149,22 @@ $("pressing").addEventListener("click", e => { const b = e.target.closest("[data
 $("tribs").addEventListener("click", e => { const b = e.target.closest("[data-ed]"); if (!b) return; S.editor = S.editor === b.dataset.ed ? null : b.dataset.ed; renderTribs(); renderRiver(); renderPressing(); });
 $("q").addEventListener("input", e => { S.q = e.target.value.trim(); renderRiver(); renderPressing(); });
 $("refresh").addEventListener("click", sync);
+$("bell").addEventListener("click", () => S.inbox ? closeInbox() : openInbox());
+$("inbox").addEventListener("click", e => {
+  const f = e.target.closest("[data-nff]"); if (f) { S.nfFilter = f.dataset.nff; S.nfShow = 20; renderInbox(); return; }
+  const o = e.target.closest("[data-nfo]"); if (o) { S.inbox = false; S.nfReply = null; renderInbox(); select(o.dataset.nfo); return; }
+  const r = e.target.closest("[data-nfr]"); if (r) { const n = S.notifs.find(x => x.id === r.dataset.nfr); S.nfReply = { id: r.dataset.nfr, text: "", mention: !!(n && n.edId), busy: false }; renderInbox(); setTimeout(() => { const t = $("nf-text"); if (t) t.focus(); }, 0); return; }
+  const a = e.target.closest("[data-nf]"); if (!a) return;
+  if (a.dataset.nf === "close") closeInbox(); else if (a.dataset.nf === "more") { S.nfShow += 20; renderInbox(); }
+  else if (a.dataset.nf === "cancel") { S.nfReply = null; renderInbox(); } else if (a.dataset.nf === "send") sendReply();
+});
+$("inbox").addEventListener("input", e => { if (e.target.id === "nf-text" && S.nfReply) S.nfReply.text = e.target.value; });
+$("inbox").addEventListener("change", e => { if (e.target.id === "nf-mention" && S.nfReply) S.nfReply.mention = e.target.checked; });
+$("inbox").addEventListener("keydown", e => { if (e.target.id === "nf-text" && (e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); sendReply(); } });
 document.querySelector(".names").addEventListener("click", e => { const b = e.target.closest("[data-names]"); if (!b) return; S.names = b.dataset.names; try { localStorage.setItem("river.names", S.names); } catch (_) {} renderNames(); renderRiver(); });
 function renderNames() { document.querySelectorAll("[data-names]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.names === S.names))); }
 renderNames();
-$("scrim").addEventListener("click", closePanel);
+$("scrim").addEventListener("click", () => { if (S.inbox) closeInbox(); else closePanel(); });
 $("add").addEventListener("click", openAdd);
 $("gates-btn").addEventListener("click", () => openGates());
 $("gates").addEventListener("click", e => { const b = e.target.closest("[data-g]"); if (b && !b.disabled) gateAct(b.dataset.g); else if (e.target.id === "gates") closeGates(); });
@@ -1041,6 +1194,7 @@ $("panel").addEventListener("input", e => {
 $("panel").addEventListener("change", e => { if (e.target.id === "corr") S.corr = e.target.checked; if (e.target.id === "mention") S.mention = e.target.checked; if (S.adding && e.target.id === "f-editor") { S.form.editor = e.target.value; renderForm(); } });
 const GATE_KEYS = { c: "corr", r: "client", d: "done", n: "nudge", s: "skip", arrowright: "skip" };
 document.addEventListener("keydown", e => {
+  if (S.inbox && e.key === "Escape") { e.preventDefault(); closeInbox(); return; }
   if (S.gates) {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.key === "Escape") { e.preventDefault(); closeGates(); return; }
@@ -1060,6 +1214,7 @@ document.addEventListener("keydown", e => {
   if (e.key === "Escape") { if (S.drag) { S.drag = null; S.dropZone = null; S.dropEditor = null; tip.hidden = true; renderRiver(); renderTribs(); } else if (S.sel || S.adding) closePanel(); }
   else if ((e.key === "n" || e.key === "N") && !S.adding) { e.preventDefault(); openAdd(); }
   else if (e.key === "/") { e.preventDefault(); $("q").focus(); }
+  else if ((e.key === "i" || e.key === "I") && !e.metaKey && !e.ctrlKey) { e.preventDefault(); S.inbox ? closeInbox() : openInbox(); }
   else if ((e.key === "g" || e.key === "G") && !e.metaKey && !e.ctrlKey) { e.preventDefault(); openGates(); }
   else if (e.key === "r" || e.key === "R") sync();
 });
@@ -1079,6 +1234,7 @@ async function start() {
   try { mcp = window.claude && window.claude.use ? await window.claude.use("mcp") : null; } catch (e) { mcp = null; }
   if (!mcp) { S.loading = false; S.error = { code: "no_mcp" }; render(); return; }
   mcp.watchTool(SERVER, "get_board_items_page", INPUT, onBoard, { refetchInterval: 45000, cache: { staleTime: 30000 } });
+  mcp.watchTool(SERVER, "all_api_read", { query: NOTIF_Q }, onNotifs, { refetchInterval: 60000, cache: { staleTime: 30000 } });
 }
 async function onBoard(ev) {
   if (ev.type === "error") {
