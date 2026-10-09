@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>River for Gmail</title>
+<style>
+  :root{color-scheme:dark}
+  body{margin:0;width:360px;background:#0A0F17;color:#EEF3FA;font:400 13.5px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  main{padding:18px;display:grid;gap:12px}
+  .hd{display:flex;align-items:center;gap:10px} .hd b{font-size:15px}
+  p{margin:0;color:#8693A8;font-size:12.5px}
+  ol{margin:0;padding-left:18px;color:#C9D3E2;font-size:12.5px;display:grid;gap:3px}
+  a{color:#BFE3FF}
+  input{width:100%;box-sizing:border-box;border:1px solid rgb(160 200 255 / .2);border-radius:9px;background:rgb(255 255 255 / .03);padding:9px 11px;color:#EEF3FA;font:inherit;outline:0}
+  input:focus{border-color:#FF003C}
+  .row{display:flex;gap:8px;align-items:center}
+  button{border:0;border-radius:8px;padding:8px 14px;font:inherit;font-weight:600;cursor:pointer;background:#FF003C;color:#fff}
+  button.s{background:none;border:1px solid rgb(160 200 255 / .2);color:#C9D3E2;font-weight:500}
+  #st{font-size:12.5px} .ok{color:#3EDC97} .bad{color:#FF6B82}
+</style></head>
+<body><main>
+  <div class="hd"><svg viewBox="0 0 40 40" width="26" height="26" aria-hidden="true"><rect width="40" height="40" rx="10" fill="#FF003C"/><rect x="12" y="8" width="16" height="18" rx="8" fill="none" stroke="#fff" stroke-width="3.6"/><path d="M13.8 22v11" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/></svg><b>River for Gmail</b></div>
+  <p>River reads and updates Monday with your personal API token. It stays in this Chrome profile and is only sent to api.monday.com.</p>
+  <ol>
+    <li>In Monday, click your profile picture, then <b>Developers</b>.</li>
+    <li>Open <b>My access tokens</b> and copy your token.</li>
+    <li>Paste it below and save.</li>
+  </ol>
+  <input id="tok" type="password" placeholder="Monday API token" autocomplete="off">
+  <div class="row"><button id="save">Save and test</button><button class="s" id="clear">Remove</button></div>
+  <div id="st" role="status"></div>
+</main><script src="options.js"></script></body></html>

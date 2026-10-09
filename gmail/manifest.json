@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "Poddster River for Gmail",
+  "short_name": "River",
+  "version": "1.0.0",
+  "description": "Open an email in Gmail and see its Monday episode: stage, editor, deadlines, files and latest notes. Move it or brief the editor without leaving the email.",
+  "permissions": ["storage"],
+  "host_permissions": ["https://api.monday.com/*"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [{
+    "matches": ["https://mail.google.com/*"],
+    "js": ["logic.js", "content.js"],
+    "run_at": "document_idle"
+  }],
+  "action": { "default_title": "River: Monday token", "default_popup": "options.html" },
+  "options_page": "options.html",
+  "icons": { "16": "icons/16.png", "48": "icons/48.png", "128": "icons/128.png" }
+}

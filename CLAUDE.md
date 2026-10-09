@@ -121,3 +121,17 @@ Value formats:
 - `archive/` holds the earlier four-view version (Orbit radar, Heartbeat from Gmail, Arrivals from Google Calendar with intake, and the first River). Reuse its code when a roadmap item needs Gmail or Calendar.
 
 See `ROADMAP.md` for the next ten upgrades.
+
+## River for Gmail (`gmail/`)
+
+A separate Chrome extension (Manifest V3). It does not change the River artifact.
+- **What it does:** shows a floating panel in Gmail with the Monday episode behind the open email.
+- **Monday access:** it calls the Monday API with AG's personal token (stored in `chrome.storage.local`, used only by `background.js`), because claude.ai connectors aren't available outside claude.ai.
+- **Matching** (`logic.js`, in order):
+  1. An episode named in the subject or body (`EP_RE`, "Name - Session dd.mm.yy").
+  2. External addresses looked up on PP Clients Only `text_mkxbach4` with `items_page_by_column_values`, then episodes by client name with `contains_text`.
+  3. The sender's name.
+- **Ranking:** episodes linked to the client first, then named, then open, then newest.
+- **Same rules as River:** Corrections fills the next empty date, editor notes mention the editor and set Corrections by default, `BL -` clients are locked until Unlock, and it never sends email.
+- **Tests:** `node gmail/tests/logic.test.js`, `node gmail/tests/ui.test.js`, `node gmail/tests/ext.test.js` (Playwright, with `NODE_PATH=$(npm root -g)`).
+- **Releasing:** rebuild the zip with `cd gmail && zip -r ../river-for-gmail.zip . -x 'tests/*'`.
