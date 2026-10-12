@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Poddster River",
+  "short_name": "River",
+  "version": "2.0.0",
+  "description": "Your Monday tasks on every site. Search them from any tab, and see the task behind the email, Frame.io or Dropbox page you're on.",
+  "permissions": ["storage", "scripting", "contextMenus"],
+  "host_permissions": ["https://api.monday.com/*", "<all_urls>"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [{
+    "matches": ["<all_urls>"],
+    "js": ["logic.js", "content.js"],
+    "run_at": "document_idle"
+  }],
+  "action": { "default_title": "River: search Monday tasks (Alt+Shift+R)" },
+  "commands": {
+    "toggle-river": { "suggested_key": { "default": "Alt+Shift+R", "mac": "Alt+Shift+R" }, "description": "Open or close River" }
+  },
+  "omnibox": { "keyword": "rv" },
+  "options_page": "options.html",
+  "icons": { "16": "icons/16.png", "48": "icons/48.png", "128": "icons/128.png" }
+}

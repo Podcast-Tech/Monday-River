@@ -39,7 +39,7 @@
       available: isoDate(t("date")), draft: isoDate(t("date4")), v1: isoDate(t("date_mkx87nb3")), final: isoDate(t("dup__of_1st_cut_deadline")), publishing: isoDate(t("date_mm02j5tr")),
       client: stripPrefix(clientRaw.split(",")[0]), clientRaw, clientIds: (rel.linked_item_ids || []).map(String), laura: /^BL\s*-/i.test(clientRaw),
       upload: lastUrl(t("link_mm22fna1")), share: lastUrl(t("link_mkxbtnjf")), dropbox: lastUrl(t("link_mkxbm8as")), units: parseFloat(t("numeric_mm1y5e6b")) || 0,
-      updates: (raw.updates || []).map(u => ({ id: String(u.id), body: u.text_body || "", at: u.created_at, by: String(u.creator_id || "") })) };
+      hasUpdates: Array.isArray(raw.updates), updates: (raw.updates || []).map(u => ({ id: String(u.id), body: u.text_body || "", at: u.created_at, by: String(u.creator_id || "") })) };
   }
   function nextDue(it) {
     if (!IN_EDIT.has(it.stage)) return null;
@@ -91,7 +91,39 @@
   }
   function ago(iso) { const s = (Date.now() - Date.parse(iso)) / 1000; if (!isFinite(s)) return ""; if (s < 60) return "now"; if (s < 3600) return Math.round(s / 60) + "m"; if (s < 86400) return Math.round(s / 3600) + "h"; const d = new Date(iso); return s < 7 * 86400 ? d.toLocaleDateString("en-GB", { weekday: "short" }) : d.getDate() + " " + MON[d.getMonth()]; }
 
+  /* Most urgent first: overdue (by how much), due today, due soon, then Client Review by how long it has waited, then finished work. */
+  function urgency(e) {
+    if (CLOSED.has(e.stage)) return 1e6 - dayNum((e.updated || "2000-01-01").slice(0, 10));
+    const late = isLate(e), d = daysTo(e);
+    if (e.stage === "Client Review") return late ? -500 - ageDays(e) : 300 - ageDays(e);
+    if (late) return -1000 + (d || 0);
+    return d === null ? 200 : d;
+  }
+  /* Instant search over a task list: every word must appear in the name, client, editor or stage. "late" and stage names work as words too. */
+  function matchLocal(eps, q, filter) {
+    const words = String(q || "").toLowerCase().split(/\s+/).filter(Boolean);
+    return eps.filter(e => {
+      if (filter === "open" && CLOSED.has(e.stage)) return false;
+      if (filter === "late" && !isLate(e)) return false;
+      if (filter === "done" && !CLOSED.has(e.stage)) return false;
+      const hay = (e.name + " " + e.client + " " + e.editor + " " + e.stage + (isLate(e) ? " late overdue" : "")).toLowerCase();
+      return words.every(w => hay.includes(w));
+    }).sort((a, b) => urgency(a) - urgency(b));
+  }
+  /* What a page says about a task: an episode name in its title or heading, or a Frame.io / Dropbox link that is one of the tasks' links. */
+  const linkKey = u => { try { const x = new URL(u); return (x.host.replace(/^www\./, "") + x.pathname).replace(/\/+$/, "").toLowerCase(); } catch (_) { return ""; } };
+  function pageContext(title, url, eps) {
+    const info = readEmail({ subject: title || "", people: [], text: "" });
+    const here = linkKey(url), byLink = here ? (eps || []).filter(e => [e.upload, e.share, e.dropbox].some(l => l && linkKey(l) && (here === linkKey(l) || here.startsWith(linkKey(l) + "/")))) : [];
+    return { episodes: info.episodes, byLink: byLink.map(e => e.id) };
+  }
+
+  const FIELDS = `id name url created_at updated_at group { title } column_values(ids: ${JSON.stringify(COLS)}) { id text ... on BoardRelationValue { linked_item_ids display_value } }`;
   const QUERIES = {
+    mine: `query { boards(ids: [${EPISODE_BOARD}]) { items_page(limit: 500, query_params: {rules: [{column_id: "people", compare_value: ["assigned_to_me"], operator: any_of}]}) { cursor items { ${FIELDS} } } } }`,
+    more: `query ($c: String!) { next_items_page(limit: 500, cursor: $c) { cursor items { ${FIELDS} } } }`,
+    item: `query ($ids: [ID!]) { items(ids: $ids) { ${FIELDS} updates(limit: 4) { id text_body created_at creator_id } } }`,
+    find: `query ($q: CompareValue!) { boards(ids: [${EPISODE_BOARD}]) { items_page(limit: 30, query_params: {rules: [{column_id: "name", compare_value: $q, operator: contains_text}], order_by: [{column_id: "__creation_log__", direction: desc}]}) { items { ${FIELDS} } } } }`,
     clients: `query ($v: [String]!) { items_page_by_column_values(board_id: ${CLIENTS_BOARD}, limit: 10, columns: [{column_id: "text_mkxbach4", column_values: $v}]) { items { id name column_values(ids: ["text_mkxbach4","text_mkxb379a","person"]) { id text } } } }`,
     episodes: `query ($q: CompareValue!) { boards(ids: [${EPISODE_BOARD}]) { items_page(limit: 12, query_params: {rules: [{column_id: "name", compare_value: $q, operator: contains_text}], order_by: [{column_id: "__creation_log__", direction: desc}]}) { items { id name url created_at updated_at group { title } column_values(ids: ${JSON.stringify(COLS)}) { id text ... on BoardRelationValue { linked_item_ids display_value } } updates(limit: 4) { id text_body created_at creator_id } } } } }`,
     users: `query ($ids: [ID!]) { users(ids: $ids) { id name } }`,
@@ -102,6 +134,6 @@
 
   const api = { EPISODE_BOARD, CLIENTS_BOARD, ME_ID, COLS, STAGES, MOVE_TO, COLOR, CLOSED, IN_EDIT, CORPORATE, DATE_COLS, EDITORS, PEOPLE, SKIP_DOMAINS,
     isoOf, todayISO, dayNum, short, addWorkdays, firstName, editorId, stripPrefix, normEpisode, nextDue, daysTo, ageDays, isLate, rel, correctionsPatch,
-    readEmail, searchTerms, rank, ago, QUERIES };
+    readEmail, searchTerms, rank, ago, urgency, matchLocal, linkKey, pageContext, QUERIES };
   if (typeof module !== "undefined" && module.exports) module.exports = api; else root.RiverLogic = api;
 })(typeof self !== "undefined" ? self : this);

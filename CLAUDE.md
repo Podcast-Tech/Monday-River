@@ -122,16 +122,30 @@ Value formats:
 
 See `ROADMAP.md` for the next ten upgrades.
 
-## River for Gmail (`gmail/`)
+## River for Chrome (`extension/`)
 
 A separate Chrome extension (Manifest V3). It does not change the River artifact.
-- **What it does:** shows a floating panel in Gmail with the Monday episode behind the open email.
+- **Where it runs:** a content script on `<all_urls>` (top frame only) shows a floating River panel. Chrome-protected pages open `river.html`, which hosts the same panel as a full page.
 - **Monday access:** it calls the Monday API with AG's personal token (stored in `chrome.storage.local`, used only by `background.js`), because claude.ai connectors aren't available outside claude.ai.
-- **Matching** (`logic.js`, in order):
-  1. An episode named in the subject or body (`EP_RE`, "Name - Session dd.mm.yy").
-  2. External addresses looked up on PP Clients Only `text_mkxbach4` with `items_page_by_column_values`, then episodes by client name with `contains_text`.
-  3. The sender's name.
-- **Ranking:** episodes linked to the client first, then named, then open, then newest.
-- **Same rules as River:** Corrections fills the next empty date, editor notes mention the editor and set Corrections by default, `BL -` clients are locked until Unlock, and it never sends email.
-- **Tests:** `node gmail/tests/logic.test.js`, `node gmail/tests/ui.test.js`, `node gmail/tests/ext.test.js` (Playwright, with `NODE_PATH=$(npm root -g)`).
-- **Releasing:** rebuild the zip with `cd gmail && zip -r ../river-for-gmail.zip . -x 'tests/*'`.
+- **Ways in:**
+  - The toolbar icon, or `Alt+Shift+R` (command `toggle-river`).
+  - The right-click "Find “%s” in River" menu.
+  - The address-bar keyword `rv`, with suggestions from `matchLocal()`.
+  - A small button bottom-right on every site. It can be hidden per site (`hidden`) or everywhere except Gmail (`everywhere: false`).
+- **Search:**
+  - **My tasks:** `QUERIES.mine` (people = `assigned_to_me`, limit 500, `next_items_page` for more) loads once per 90 s. `matchLocal()` filters it instantly: every word must be in the name, client, editor or stage, plus `late`. Filters are Open, Late, Done and All, sorted by `urgency()`.
+  - **Everyone:** server `contains_text` on name (`QUERIES.find`).
+  - **Details:** a task's updates load lazily with `QUERIES.item`.
+- **Context:**
+  - **Gmail**, in this order:
+    1. An episode named in the thread (`EP_RE`).
+    2. External addresses looked up on PP Clients Only `text_mkxbach4`.
+    3. The sender's name.
+  - **Other pages:** an episode named in the title or `h1`, or the page URL matching a task's Frame.io or Dropbox link (`pageContext()`, `linkKey()`).
+- **Same rules as River:**
+  - Corrections fills the next empty date.
+  - Editor notes mention the editor and set Corrections by default.
+  - `BL -` clients are locked until Unlock.
+  - It never sends email.
+- **Tests:** `node extension/tests/logic.test.js`, `node extension/tests/ui.test.js`, `node extension/tests/ext.test.js` (Playwright, with `NODE_PATH=$(npm root -g)`).
+- **Releasing:** bump `version` in the manifest, then `cd extension && zip -r ../river-for-chrome.zip . -x 'tests/*'`.
