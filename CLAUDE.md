@@ -122,6 +122,24 @@ Value formats:
 
 See `ROADMAP.md` for the next ten upgrades.
 
+## River Pocket (`pocket/`), the phone view
+
+A separate claude.ai artifact for the Claude phone app, published at https://claude.ai/artifact/ARn46SCqqBYiEFz3xyarvB. It doesn't change River's URL.
+- **Build:** `python3 pocket/build.py` writes `pocket/index.html` from `pocket/src/head.html` and `pocket/src/app.js`, plus River's Monday logic copied verbatim from `index.html`: the constants, `norm`, the date and lateness rules, `errorCopy`, the package, the notification parsing, `createTask`, `setStage` and `postNote`. After changing River's rules, rebuild Pocket and republish both.
+- **Screens:**
+  - The river as a tappable stage strip.
+  - Counters for Late, Due today and With clients.
+  - Search, every word matching.
+  - Filters: Needs you (late or due within 2 days, grouped), All open, Late, Due today, Client Review, Done and Everything.
+  - Full-screen sheets for a task, the inbox and Add task.
+- **Data:**
+  - The same `get_board_items_page` watch as River.
+  - `get_updates` (`objectType: "Item"`, `payload.updates[].creator.name`) for a task's latest notes.
+  - `all_api_read` with `NOTIF_Q` for the inbox, refreshed every 60 s.
+  - Google Calendar `list_events` for the package.
+- **Capabilities:** `{"mcp":{"servers":[{"server":"monday.com","tools":["get_board_items_page","change_item_column_values","create_update","create_item","get_updates","all_api_read"]},{"server":"Google Calendar","tools":["list_events"]}]}}`. Runtime contract 0.2.75.
+- **Test:** `NODE_PATH=$(npm root -g) node pocket/tests/phone.test.js` runs at iPhone 14 size with a mocked runtime.
+
 ## River for Chrome (`extension/`)
 
 A separate Chrome extension (Manifest V3). It does not change the River artifact.
