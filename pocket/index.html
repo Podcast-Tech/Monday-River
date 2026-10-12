@@ -1,0 +1,812 @@
+<title>River Pocket</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: one thumb-first column. Sticky header (bell) → the river as one tappable strip of stages → three "pressing" counters →
+   search → the task list, most urgent first. A task opens as a full-screen sheet from the bottom; so do the inbox and Add task.
+   Dark-only, like River. */
+:root{
+  color-scheme:dark;
+  --night:#05080D; --card:#0B111A; --raise:#111925; --hover:#162030; --line:rgb(160 200 255 / .09); --line-2:rgb(160 200 255 / .17);
+  --ink:#EEF3FA; --ink-2:#C9D3E2; --muted:#8693A8; --faint:#55617A;
+  --water:#3FA9FF; --foam:#BFE3FF; --sea:#9C8CFF;
+  --brand:#FF003C; --late:#FF5C76; --today:#F6B64A; --ok:#3EDC97;
+  --st-queue:#8693A8; --st-assigned:#C9D3E2; --st-process:#F6C94A; --st-review:#5EB2FF; --st-corr:#FF8F45; --st-client:#3EDC97; --st-done:#9C8CFF; --st-other:#A68CFF;
+  --f:"Geist",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{min-height:100%}
+body{margin:0;background:var(--night);background-image:radial-gradient(900px 420px at 50% -120px,#0E1C30 0%,transparent 70%);color:var(--ink);font:400 15px/1.45 var(--f);-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
+button,input,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:0;padding:0}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:8px}
+.tnum{font-variant-numeric:tabular-nums}
+.app{max-width:640px;margin:0 auto;padding-inline:16px;padding-block:0 120px;display:grid;gap:14px}
+
+/* header */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;display:flex;align-items:center;gap:12px;margin-inline:-16px;padding:12px 16px 10px;background:linear-gradient(180deg,var(--night) 70%,rgb(5 8 13 / 0))}
+.brand{display:flex;align-items:center;gap:10px;margin-right:auto;min-width:0}
+.brand b{display:block;font-size:18px;font-weight:600;letter-spacing:-.02em;line-height:1.1}
+.brand span{display:block;font-size:12.5px;color:var(--muted)}
+.sync{width:8px;height:8px;border-radius:50%;background:var(--faint)}
+.sync.on{background:var(--ok);box-shadow:0 0 8px var(--ok)} .sync.stale{background:var(--today)} .sync.off{background:var(--late)}
+.icon-btn{position:relative;width:42px;height:42px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--line-2);color:var(--ink-2);background:var(--card)}
+.icon-btn:active{background:var(--hover)}
+.icon-btn b{position:absolute;top:-3px;right:-4px;min-width:19px;height:19px;padding:0 5px;border-radius:999px;background:var(--brand);color:#fff;font:600 11px/19px var(--mono);text-align:center;box-shadow:0 0 0 2px var(--night)}
+
+/* the river strip */
+.river{display:grid;gap:8px}
+.strip{display:flex;gap:3px;height:58px;border-radius:16px;overflow:hidden;position:relative}
+.seg{position:relative;flex:var(--n) 1 0;min-width:44px;display:grid;align-content:center;justify-items:center;gap:1px;background:color-mix(in srgb,var(--c) 18%,#0B111A);color:var(--ink);overflow:hidden}
+.seg::before{content:"";position:absolute;inset:auto 0 0;height:3px;background:var(--c);opacity:.9}
+.seg b{font:600 17px/1 var(--f);letter-spacing:-.02em}
+.seg i{font-style:normal;font-size:10px;color:var(--ink-2);opacity:.75;white-space:nowrap}
+.seg em{position:absolute;top:3px;right:3px;min-width:14px;height:14px;padding:0 3px;border-radius:7px;background:var(--late);color:#fff;font:600 9px/14px var(--mono);font-style:normal}
+.seg[aria-pressed="true"]{background:color-mix(in srgb,var(--c) 34%,#0B111A);box-shadow:inset 0 0 0 2px var(--c)}
+.seg.sea{flex:0 0 50px;background:linear-gradient(90deg,#141433,#1D1A45)}
+.seg.sea::before{background:var(--sea)}
+.seg.sea b{color:var(--sea)}
+@media (prefers-reduced-motion:no-preference){.strip::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(100deg,transparent 20%,rgb(191 227 255 / .07) 40%,transparent 60%);background-size:260% 100%;animation:flow 6s linear infinite}@keyframes flow{from{background-position:130% 0}to{background-position:-130% 0}}}
+.legend{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
+
+/* pressing counters */
+.press{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.pc{display:grid;gap:2px;text-align:left;border:1px solid var(--line);background:var(--card);border-radius:14px;padding:10px 12px}
+.pc b{font:600 24px/1.1 var(--f);letter-spacing:-.03em}
+.pc span{font-size:12px;color:var(--muted)}
+.pc.late b{color:var(--late)} .pc.today b{color:var(--today)} .pc.cr b{color:var(--st-client)}
+.pc[aria-pressed="true"]{border-color:var(--ink);background:var(--raise)}
+
+/* search + filters */
+.find{position:sticky;top:calc(env(safe-area-inset-top,0px) + 64px);z-index:4;display:flex;align-items:center;gap:10px;border:1px solid var(--line-2);border-radius:999px;padding:10px 14px;background:var(--card);color:var(--muted);box-shadow:0 8px 20px -10px #000}
+.find:focus-within{border-color:rgb(255 0 60 / .6)}
+.find input{border:0;outline:0;background:transparent;width:100%;min-width:0;color:var(--ink);font-size:16px}
+.find input::placeholder{color:var(--faint)}
+.find .x{font-size:20px;line-height:1;color:var(--muted);padding:0 2px}
+.chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin-inline:-16px;padding-inline:16px}
+.chips::-webkit-scrollbar{display:none}
+.chips button{flex:none;border:1px solid var(--line-2);border-radius:999px;padding:6px 13px;font-size:13px;color:var(--muted);white-space:nowrap}
+.chips button[aria-pressed="true"]{background:var(--ink);color:var(--night);border-color:var(--ink);font-weight:500}
+
+/* list */
+.group{display:grid;gap:6px}
+.group h3{margin:6px 2px 2px;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;display:flex;gap:6px}
+.group h3 em{font-style:normal;color:var(--faint);font-family:var(--mono)}
+.row{display:grid;grid-template-columns:34px minmax(0,1fr);gap:12px;align-items:center;text-align:left;width:100%;border:1px solid var(--line);background:var(--card);border-radius:14px;padding:11px 12px;min-height:60px}
+.row:active{background:var(--hover)}
+.row.late{border-color:rgb(255 92 118 / .35)}
+.av{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font:600 12px var(--f);color:#05080D;background:var(--c);position:relative}
+.row.late .av::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:2px solid var(--late);opacity:.7}
+@media (prefers-reduced-motion:no-preference){.row.late .av::after{animation:pulse 2.2s ease-out infinite}@keyframes pulse{from{opacity:.8;transform:scale(1)}to{opacity:0;transform:scale(1.35)}}}
+.row .nm{font-weight:500;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.row .nm mark{background:rgb(255 0 60 / .28);color:#fff;border-radius:3px}
+.row .meta{display:flex;gap:6px;align-items:baseline;font-size:12.5px;color:var(--muted);margin-top:2px;min-width:0}
+.row .meta span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.row .meta em{font-style:normal;margin-left:auto;white-space:nowrap;color:var(--ink-2)}
+.late-t{color:var(--late)!important} .today-t{color:var(--today)!important}
+.empty{border:1px dashed var(--line-2);border-radius:14px;padding:18px;color:var(--muted);text-align:center}
+.empty b{display:block;color:var(--ink);font-weight:600;margin-bottom:2px}
+.banner{border:1px solid rgb(255 92 118 / .4);background:rgb(255 92 118 / .08);border-radius:14px;padding:12px 14px;display:grid;gap:2px}
+.banner span{color:var(--muted);font-size:14px}
+.skel{display:grid;gap:8px}.skel i{display:block;height:60px;border-radius:14px;background:linear-gradient(90deg,#0B111A,#131C29,#0B111A);background-size:200% 100%}
+@media (prefers-reduced-motion:no-preference){.skel i{animation:sh 1.2s linear infinite}@keyframes sh{to{background-position:-200% 0}}}
+
+/* add button */
+.fab{position:fixed;z-index:6;right:max(16px,calc(50% - 304px));bottom:calc(env(safe-area-inset-bottom,0px) + 20px);height:54px;padding:0 20px 0 16px;border-radius:999px;background:var(--brand);color:#fff;font-weight:600;display:flex;align-items:center;gap:8px;box-shadow:0 14px 30px -10px rgb(255 0 60 / .55),0 6px 16px -6px #000}
+.fab:active{background:#E00035}
+
+/* sheets */
+.sheet{position:fixed;inset:0;z-index:20;background:var(--night);display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px)}
+@media (prefers-reduced-motion:no-preference){.sheet.enter{animation:up .22s cubic-bezier(.2,.8,.2,1)}@keyframes up{from{transform:translateY(24px);opacity:.4}}}
+.sh-h{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line)}
+.sh-h .back{display:inline-flex;align-items:center;gap:4px;height:40px;padding:0 10px 0 4px;border-radius:10px;color:var(--ink-2);font-weight:500}
+.sh-h .back:active{background:var(--hover)}
+.sh-h span{flex:1;min-width:0;font-size:13px;color:var(--muted);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sh-h a,.sh-h .ib{width:40px;height:40px;border-radius:10px;display:grid;place-items:center;color:var(--muted)}
+.sh-b{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.sh-in{max-width:640px;margin:0 auto;padding-inline:16px;padding-block:18px calc(env(safe-area-inset-bottom,0px) + 40px);display:grid;gap:20px}
+.badge{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:500;border-radius:999px;padding:3px 11px;border:1px solid color-mix(in srgb,var(--c) 45%,transparent);background:color-mix(in srgb,var(--c) 13%,transparent);justify-self:start}
+.badge i{width:7px;height:7px;border-radius:50%;background:var(--c)}
+.chip{font-size:12px;color:var(--ink-2);border:1px solid var(--line-2);border-radius:999px;padding:2px 9px}
+h2{margin:0;font-size:22px;font-weight:600;letter-spacing:-.02em;line-height:1.25;text-wrap:balance;overflow-wrap:anywhere}
+.rel{margin:-12px 0 0;font-size:15px;color:var(--ink-2)}
+.props{display:grid;grid-template-columns:96px minmax(0,1fr);gap:8px 12px;margin:0;font-size:15px}
+.props dt{color:var(--muted)} .props dd{margin:0;min-width:0;overflow-wrap:anywhere;white-space:pre-line}
+.dates{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));border:1px solid var(--line-2);border-radius:14px;overflow:hidden}
+.dates div{display:grid;gap:2px;padding:9px 6px;text-align:center;border-left:1px solid var(--line)}
+.dates div:first-child{border-left:0}
+.dates span{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.dates b{font:600 14px var(--f);white-space:nowrap}
+.dates .empty-d b{color:var(--faint);font-weight:400}
+.dates .due{background:rgb(255 255 255 / .05)} .dates .due.late{background:rgb(255 92 118 / .14)} .dates .due.today{background:rgb(246 182 74 / .12)}
+.links{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+.lk{display:flex;align-items:center;justify-content:center;gap:6px;min-height:44px;border:1px solid var(--line-2);border-radius:12px;padding:8px 10px;font-size:14px;font-weight:500;color:var(--foam);text-decoration:none;text-align:center}
+.lk:active{background:var(--hover)}
+.lbl{margin:0 0 8px;font-size:12.5px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.lbl a,.lbl button{text-transform:none;letter-spacing:0;font-weight:500;color:var(--foam);text-decoration:none;font-size:13px}
+.moves{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.mv{display:flex;align-items:center;gap:9px;min-height:50px;border:1px solid var(--line-2);border-radius:12px;padding:10px 12px;font-size:15px;font-weight:500;text-align:left;background:var(--card)}
+.mv i{width:9px;height:9px;border-radius:50%;background:var(--c);flex:none}
+.mv:active:not([disabled]){background:color-mix(in srgb,var(--c) 16%,transparent);border-color:color-mix(in srgb,var(--c) 55%,transparent)}
+.mv[disabled]{opacity:.35}
+.mv.cur{opacity:1;border-color:var(--c);background:color-mix(in srgb,var(--c) 12%,transparent)}
+.composer{border:1px solid var(--line-2);border-radius:14px;background:var(--card)}
+.composer:focus-within{border-color:rgb(190 225 255 / .35)}
+.composer textarea{display:block;width:100%;border:0;outline:0;background:transparent;resize:vertical;min-height:104px;padding:12px 14px;line-height:1.5;font-size:16px}
+.composer textarea::placeholder{color:var(--faint)}
+.c-bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding:10px 10px 10px 14px;border-top:1px solid var(--line);font-size:13.5px;color:var(--ink-2)}
+.c-bar label{display:inline-flex;gap:7px;align-items:center}
+.c-bar input{accent-color:var(--brand);width:18px;height:18px;margin:0}
+.post{margin-left:auto;min-height:42px;background:var(--brand);color:#fff;border-radius:11px;padding:0 18px;font-weight:600}
+.post:active{background:#E00035} .post[disabled]{opacity:.5}
+.btn{min-height:42px;border:1px solid var(--line-2);border-radius:11px;padding:0 16px;font-weight:500;color:var(--ink-2)}
+.pkg{border:1px solid var(--line-2);border-radius:14px;padding:14px;display:grid;gap:10px;background:rgb(63 169 255 / .045)}
+.pkg .lbl{margin:0}
+.pkg .muted{margin:0;color:var(--muted);font-size:14px}
+.pkg .tag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:999px;border:1px solid currentColor;color:var(--sea);margin-left:6px}
+.ups{display:grid;gap:12px}
+.up{border-left:2px solid var(--line-2);padding:1px 0 1px 12px;font-size:14px}
+.up b{font-weight:600} .up small{margin-left:6px;color:var(--faint);font:400 12px var(--mono)}
+.up p{margin:3px 0 0;color:var(--ink-2);white-space:pre-line;overflow-wrap:anywhere}
+.lock{display:grid;gap:10px;border:1px dashed var(--line-2);border-radius:14px;padding:14px;color:var(--muted)}
+.lock .btn{justify-self:start}
+
+/* inbox */
+.nf{display:grid;grid-template-columns:34px minmax(0,1fr);gap:12px;border:1px solid var(--line);border-radius:14px;padding:12px;background:var(--card)}
+.nf.new{border-color:rgb(255 0 60 / .4);background:rgb(255 0 60 / .05)}
+.nf .av{color:#fff;background:var(--c)}
+.nf .av.auto{background:#24304A;color:var(--muted)}
+.nf-top{display:flex;gap:6px;align-items:baseline;font-size:14px;min-width:0}
+.nf-top b{font-weight:600;white-space:nowrap}
+.nf-top span{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.nf-top small{font:400 12px var(--mono);color:var(--faint)}
+.nf p{margin:4px 0 0;font-size:14px;color:var(--ink-2);display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.nf-ep{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:9px;font-size:13px}
+.nf-ep button.ep,.nf-ep a{color:var(--foam);font-weight:500;text-decoration:none;text-align:left}
+.nf-ep .rp{margin-left:auto;min-height:36px;border:1px solid var(--line-2);border-radius:10px;padding:0 13px;color:var(--ink-2)}
+.nf .composer{margin-top:10px}
+
+/* add task */
+.form{display:grid;gap:16px}
+.fld{display:grid;gap:6px;font-size:13px;color:var(--muted)}
+.fld input,.fld select{width:100%;min-height:48px;border:1px solid var(--line-2);border-radius:12px;background:var(--card);padding:10px 12px;color:var(--ink);outline:0;font-size:16px}
+.fld input:focus,.fld select:focus{border-color:rgb(255 0 60 / .6)}
+.fld select option{background:#0B111A}
+.row2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+.kinds{display:flex;flex-wrap:wrap;gap:8px}
+.kinds button{min-height:40px;border:1px solid var(--line-2);border-radius:999px;padding:0 15px;font-size:14px;color:var(--muted)}
+.kinds button[aria-pressed="true"]{border-color:var(--water);color:var(--ink);background:rgb(63 169 255 / .14)}
+.sum{border:1px solid var(--line);border-radius:14px;padding:12px 14px;font-size:14px;color:var(--ink-2);display:grid;gap:5px}
+.sum b{color:var(--ink);font-weight:500}
+.picks{display:grid;gap:4px;margin-top:-8px}
+.picks button{text-align:left;min-height:42px;border-radius:10px;padding:8px 12px;border:1px solid var(--line);background:var(--card);font-size:15px}
+.picks button small{color:var(--muted);margin-left:6px;font-size:12px}
+
+.toast{position:fixed;z-index:30;left:16px;right:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 86px);max-width:560px;margin:0 auto;display:flex;align-items:center;gap:12px;background:var(--ink);color:var(--night);padding:12px 12px 12px 16px;border-radius:14px;font-size:14px;box-shadow:0 16px 40px -12px #000}
+.toast button{color:var(--night);font-weight:600;min-height:34px;padding:0 12px;border-radius:9px;background:rgb(0 0 0 / .1)}
+.toast span{flex:1}
+.toast.bad{background:var(--late);color:#fff} .toast.bad button{color:#fff;background:rgb(255 255 255 / .2)}
+</style>
+
+<div class="app" id="app">
+  <header class="top">
+    <div class="brand">
+      <svg viewBox="0 0 40 40" width="34" height="34" aria-hidden="true"><rect width="40" height="40" rx="10" fill="#FF003C"/><rect x="12" y="8" width="16" height="18" rx="8" fill="none" stroke="#fff" stroke-width="3.6"/><path d="M13.8 22v11" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/></svg>
+      <div><b>River</b><span id="sub">Your episodes</span></div>
+    </div>
+    <i class="sync" id="sync" title="Sync status"></i>
+    <button class="icon-btn" id="refresh" type="button" aria-label="Sync now" title="Sync now"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 4v5h-5"/></svg></button>
+    <button class="icon-btn" id="bell" type="button" aria-label="Monday notifications"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><b id="bell-n" hidden></b></button>
+  </header>
+  <section class="river" id="river" aria-label="Your river by stage"></section>
+  <section class="press" id="press" aria-label="What needs you"></section>
+  <label class="find"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" type="search" placeholder="Client, editor or stage" autocomplete="off" enterkeyhint="search" aria-label="Search your tasks"><button class="x" id="qx" type="button" aria-label="Clear search" hidden>×</button></label>
+  <div class="chips" id="chips" role="group" aria-label="Show"></div>
+  <section id="list" aria-live="polite"></section>
+</div>
+<button class="fab" id="add" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Add task</button>
+<div class="sheet" id="sheet" hidden role="dialog" aria-modal="true"></div>
+<div class="toast" id="toast" hidden role="status"></div>
+
+<script>
+/* ===== Shared with River (index.html), copied by pocket/build.py — edit River, then rebuild ===== */
+const SERVER = "monday.com";
+const BOARD = 2472462203;
+const BOARD_URL = "https://poddsterstudios-team.monday.com/boards/" + BOARD;
+const COLS = ["status","person","date","date4","date_mkx87nb3","dup__of_1st_cut_deadline","status_1","board_relation_mkxb8cpz","link_mm22fna1","link_mkxbtnjf","link_mkxbm8as","numeric_mm1y5e6b","date_mm02j5tr"];
+const INPUT = { boardId: BOARD, includeColumns: true, includeGroup: false, columnIds: COLS, limit: 500,
+  filters: [{ columnId: "people", compareValue: ["assigned_to_me"], operator: "any_of" }] };
+const FLOW = ["Queue","Assigned","In Process","In Review","Corrections","Client Review"];
+const COLOR = { "Queue": "--st-queue", "Assigned": "--st-assigned", "In Process": "--st-process", "In Review": "--st-review", "Corrections": "--st-corr", "Client Review": "--st-client", "Done": "--st-done" };
+const CLOSED = new Set(["Done","Cancelled","No Client Response","Paid"]);
+const IN_EDIT = new Set(["Queue","Assigned","In Process","In Review","Corrections"]);
+const MOVE_TO = ["Assigned","In Process","In Review","Corrections","Client Review","Done"];
+const CORPORATE = /dmitrii|suvo|enbd/i;
+const EDITOR_IDS = { igor:"43400381", stipe:"61381904", georges:"36795459", stefan:"38981225", akssat:"88817643",
+  glody:"60723690", shrijit:"101677796", motasem:"107518052", mahmoud:"107176166", bashar:"103717656", ajin:"71556126" };
+
+const ME_ID = 49670201, CLIENTS_BOARD = 18330033684;
+const EDITORS = [["Igor Garčev",43400381],["Motasem Jammal",107518052],["Stipe Majić",61381904],["Georges Saliba",36795459],["Stefan Mikić",38981225],["Akssat",88817643],["Mahmoud",107176166],["Glody Kikonga",60723690],["Shrijit Chowdhury",101677796],["Bashar M. Najjar",103717656],["Ajin",71556126]];
+const KINDS = [["Episode",""],["Highlights"," (Highlights)"],["Reel"," Reel"],["Teaser"," (Teaser)"]];
+let mcp = null;
+/* IDs this page wrote recently, so a refresh doesn't report our own changes back as live activity. */
+const WROTE = new Map();
+const markWrote = id => WROTE.set(String(id), Date.now());
+const wroteRecently = id => Date.now() - (WROTE.get(String(id)) || 0) < 120000;
+const S = { items: [], storedAt: null, error: null, loading: true, q: "", sel: null, busy: false, draft: "", corr: true, mention: true, unlock: false };
+try { S.names = localStorage.getItem("river.names") === "urgent" ? "urgent" : "all"; } catch (_) { S.names = "all"; }
+
+const str = v => typeof v === "string" ? v : "";
+const isoDate = v => /^\d{4}-\d{2}-\d{2}$/.test(str(v)) ? v : null;
+const lastUrl = v => { const m = str(v).match(/https?:\/\/[^\s]+/g); return m ? m[m.length - 1] : null; };
+const clientName = v => Array.isArray(v) && v[0] && v[0].name ? v[0].name.replace(/^(AG|BL)\s*-\s*/i, "").trim() : "";
+function norm(raw) {
+  const c = raw.column_values || {};
+  return { id: String(raw.id), name: raw.name || "Untitled", url: raw.url || BOARD_URL, updated: raw.updated_at, created: raw.created_at,
+    stage: str(c.status) || "No status", editor: str(c.person), available: isoDate(c.date), draft: isoDate(c.date4),
+    v1: isoDate(c.date_mkx87nb3), final: isoDate(c.dup__of_1st_cut_deadline), publishing: isoDate(c.date_mm02j5tr), invoice: str(c.status_1),
+    client: clientName(c.board_relation_mkxb8cpz), upload: lastUrl(c.link_mm22fna1), share: lastUrl(c.link_mkxbtnjf),
+    dropbox: lastUrl(c.link_mkxbm8as), units: parseFloat(str(c.numeric_mm1y5e6b)) || 0 };
+}
+const isoOf = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+const todayISO = () => isoOf(new Date());
+const dayNum = iso => Math.round(Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)) / 864e5);
+const T = () => dayNum(todayISO());
+const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const short = iso => iso ? (+iso.slice(8, 10)) + " " + MON[+iso.slice(5, 7) - 1] : "Not set";
+const DATE_COLS = [["available","date","Available"],["draft","date4","Draft"],["v1","date_mkx87nb3","V1"],["final","dup__of_1st_cut_deadline","Final"],["publishing","date_mm02j5tr","Publishing"]];
+function addWorkdays(n) { const d = new Date(); while (n > 0) { d.setDate(d.getDate() + 1); if (d.getDay() !== 0 && d.getDay() !== 6) n--; } return isoOf(d); }
+const nextEmptyDate = it => DATE_COLS.find(([k]) => !it[k]) || null;
+/* Corrections rule: moving to Corrections fills the next empty deadline column with today + 2 working days, in the same Monday write. */
+function correctionsPatch(it) { const slot = nextEmptyDate(it); if (!slot) return { cv: {}, slot: null }; const iso = addWorkdays(2); return { cv: { [slot[1]]: { date: iso } }, slot, iso }; }
+function nextDue(it) {
+  if (!IN_EDIT.has(it.stage)) return null;
+  if (it.stage === "Corrections") return [it.v1, it.final].filter(Boolean).sort().pop() || it.draft;
+  return it.draft;
+}
+const daysTo = it => { const d = nextDue(it); return d ? dayNum(d) - T() : null; };
+function ageDays(it) { const last = [it.draft, it.v1, it.final].filter(Boolean).sort().pop() || (it.updated || "").slice(0, 10); return last ? T() - dayNum(last) : 0; }
+const isLate = it => it.stage === "Client Review" ? (!CORPORATE.test(it.name) && ageDays(it) > 7) : (daysTo(it) !== null && daysTo(it) < 0);
+function rel(it) {
+  if (it.stage === "Client Review") { const a = ageDays(it); return { cls: a > 7 && !CORPORATE.test(it.name) ? "late" : "", txt: a + (a === 1 ? " day" : " days") + " with the client" }; }
+  const d = daysTo(it); if (d === null) return { cls: "", txt: "No deadline" };
+  if (d < 0) return { cls: "late", txt: (-d) + (d === -1 ? " day late" : " days late") };
+  if (d === 0) return { cls: "today", txt: "Due today" };
+  return { cls: "", txt: d === 1 ? "Due tomorrow" : "Due in " + d + " days" };
+}
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const $ = id => document.getElementById(id);
+const colorOf = st => "var(" + (COLOR[st] || "--st-other") + ")";
+const firstName = n => ((n || "").split(", ")[0] || "").split(" ")[0];
+const label = it => it.client || it.name.split(/\s[-:]\s/)[0];
+const initials = n => { const p = (n || "").trim().split(/\s+/).filter(Boolean); return p.length ? (p[0][0] + (p[1] ? p[1][0] : "")).toUpperCase() : "–"; };
+const AVC = ["#7C6CF2","#2F9E7E","#D2693C","#3B82C4","#B5487A","#8A8F2C","#5A7BD8","#C2410C","#0E8A9B","#9B59B6"];
+const avColor = n => { let h = 0; for (const ch of n || "") h = (h * 31 + ch.charCodeAt(0)) >>> 0; return AVC[h % AVC.length]; };
+function seeded(id, k) { let h = 2166136261; const s = id + ":" + k; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return ((h >>> 0) % 10000) / 10000; }
+const active = () => S.items.filter(i => !CLOSED.has(i.stage));
+const inRiver = () => active().filter(i => FLOW.includes(i.stage));
+const editorsOf = it => it.editor ? it.editor.split(", ") : [];
+const shown = it => (!S.editor || editorsOf(it).includes(S.editor)) && (!S.q || (it.name + " " + it.client + " " + it.editor).toLowerCase().includes(S.q.toLowerCase()));
+function errorCopy(err) {
+  switch (err && err.code) {
+    case "no_mcp": return { title: "Open this in Claude", body: "River reads your board through the monday.com connector, which only works inside claude.ai or the Claude app." };
+    case "needs_reauth": return { title: "Reconnect monday.com", body: "Your Monday connection expired. Reconnect it in claude.ai Settings, Connectors, then sync." };
+    case "server_not_connected": return { title: "Add the monday.com connector", body: "Add monday.com in claude.ai Settings, Connectors, then reload." };
+    case "selection_required": return { title: "Choose a Monday account", body: "You have more than one monday.com connector. Pick one when Claude asks, then reload." };
+    case "not_in_manifest": case "not_granted": return { title: "Monday is switched off for this page", body: "Allow monday.com for this page when Claude asks, then reload." };
+    case "blocked_by_policy": case "approval_required": return { title: "Blocked by your organisation", body: "Your workspace policy doesn't allow this Monday action from here." };
+    case "server_unavailable": return { title: "Monday isn't answering", body: "Showing the last data loaded. Sync again in a moment." };
+    case "tool_error": return { title: "Monday refused the request", body: err.message || "Try again, or open the episode in Monday." };
+    default: return { title: "Couldn't reach Monday", body: (err && err.message) || "Sync to try again." };
+  }
+}
+/* package: the studio booking behind this episode, read from Google Calendar (production@ and studio@, then AG's own) */
+const GCAL = "Google Calendar", BOOK_CALS = ["production@poddster.com", "studio@poddster.com"];
+S.pkg = {};
+const lc = s => String(s || "").toLowerCase().trim();
+function parseDesc(desc) {
+  const out = {}; let key = null;
+  String(desc || "").replace(/<br\s*\/?>/gi, "\n").replace(/<\/(p|div|li)>/gi, "\n").replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&nbsp;/g, " ").split(/\n/).forEach(line => {
+    const m = line.match(/^\s*([A-Za-z][A-Za-z ?/&]+?):\s*(.*)$/);
+    if (m && m[1].length < 40) { key = m[1].trim().toLowerCase().replace(/\?$/, ""); out[key] = m[2].trim(); }
+    else if (!line.trim()) { if (key && out[key]) key = "extra"; }
+    else if (key) out[key] = (out[key] ? out[key] + "\n" : "") + line.trim().replace(/^[-•*]\s*/, "");
+  });
+  return out;
+}
+const dubaiISO = dt => { try { return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dubai", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(dt)); } catch (e) { return String(dt).slice(0, 10); } };
+const dubaiTime = dt => { try { return new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Dubai", hour: "2-digit", minute: "2-digit" }).format(new Date(dt)); } catch (e) { return ""; } };
+function toBooking(ev) {
+  const sum = ev.summary || "", d = parseDesc(ev.description);
+  let name = sum.split("|")[0].replace(/\(NC\)/i, "").trim();
+  if (/@/.test(name) && d.customer && !/@/.test(d.customer)) name = d.customer;
+  const start = ev.start && (ev.start.dateTime || ev.start.date), end = ev.end && (ev.end.dateTime || ev.end.date);
+  const org = (ev.organizer && (ev.organizer.displayName || ev.organizer.email)) || "";
+  const studio = /abu dhabi/i.test(sum + org) ? "Abu Dhabi" : /studio@|dmc/i.test(org) || /studio booking/i.test(sum) ? "DMC Studio 1" : /barsha/i.test(org) ? org : "Al Barsha";
+  return { id: ev.id, name, nc: /\(NC\)/i.test(sum), studio, start, end, date: start ? dubaiISO(start) : null,
+    time: start && ev.start.dateTime ? dubaiTime(start) + (end ? "–" + dubaiTime(end) : "") : "",
+    email: lc(d["client email"]), order: d["order id"] || "", customer: d.customer || "", seats: d.seats || "", setup: d.setup || "",
+    services: d.services || "", addons: d["additional services"] || "", notes: [d["any special requests or note"], d.extra].filter(Boolean).join("\n"),
+    guests: d.guests || "", transfer: d["file transfer"] || "", link: ev.htmlLink || "" };
+}
+function sessionDate(it) {
+  const m = it.name.match(/(\d{2})\.(\d{2})\.(\d{2})(?!\d)/);
+  if (m) { const iso = "20" + m[3] + "-" + m[2] + "-" + m[1]; if (!isNaN(Date.parse(iso))) return { iso, exact: true }; }
+  return it.available ? { iso: it.available, exact: false } : null;
+}
+const shiftISO = (iso, n) => { const d = new Date(iso + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+function bookingMatches(b, it) {
+  const want = lc(it.client || it.name.split(" - ")[0]); if (!want) return false;
+  const email = S.clientEmails && S.clientEmails[want];
+  if (email && b.email && email === b.email) return true;
+  return [b.name, b.customer].map(lc).filter(n => n.length > 2).some(n => n === want || n.includes(want) || want.includes(n)
+    || (n.split(/\s+/).length > 1 && want.split(/\s+/).length > 1 && n.split(/\s+/).pop() === want.split(/\s+/).pop() && n[0] === want[0]));
+}
+async function loadPackage(it, force) {
+  const cur = S.pkg[it.id]; if (!force && cur && cur.state !== "error") return;
+  const sd = sessionDate(it);
+  if (!mcp) { S.pkg[it.id] = { state: "error", err: { code: "no_mcp" } }; return renderPanel(); }
+  if (!sd) { S.pkg[it.id] = { state: "nodate" }; return renderPanel(); }
+  S.pkg[it.id] = { state: "loading", sd }; if (S.sel === it.id) renderPanel();
+  const from = shiftISO(sd.iso, sd.exact ? -1 : -14), to = shiftISO(sd.iso, sd.exact ? 1 : 1);
+  const input = c => ({ calendarId: c, fullText: "Booking", startTime: from + "T00:00:00+04:00", endTime: to + "T23:59:59+04:00", orderBy: "startTime", pageSize: 50, timeZone: "Asia/Dubai" });
+  const opts = force ? { cache: { refresh: true, staleTime: 0 } } : { cache: { staleTime: 300000 } };
+  const ask = cals => Promise.all(cals.map(c => mcp.callTool(GCAL, "list_events", input(c), opts).then(r => ({ ok: r }), e => ({ err: e }))));
+  const pick = res => { const seen = new Set(), list = [];
+    res.forEach(r => ((r.ok && r.ok.payload && r.ok.payload.events) || []).forEach(ev => {
+      if (!/booking/i.test(ev.summary || "") || ev.status === "cancelled" || seen.has(ev.id)) return; seen.add(ev.id);
+      const b = toBooking(ev); if (bookingMatches(b, it)) list.push(b);
+    }));
+    return list.sort((a, b) => Math.abs(dayNum(a.date || sd.iso) - dayNum(sd.iso)) - Math.abs(dayNum(b.date || sd.iso) - dayNum(sd.iso))); };
+  try {
+    await loadClientEmails();
+    let res = await ask(BOOK_CALS), list = pick(res);
+    if (!list.length) { const own = await ask(["primary"]); list = pick(own); if (res.every(r => r.err) && own.every(r => r.err)) throw res[0].err; }
+    S.pkg[it.id] = { state: list.length ? "ok" : "none", list: list.slice(0, 2), sd };
+  } catch (e) { S.pkg[it.id] = { state: "error", err: e, sd }; }
+  if (S.sel === it.id) renderPanel();
+}
+async function loadClientEmails() {
+  if (S.clientEmails) return;
+  S.clientEmails = {};
+  try {
+    const r = await mcp.callTool(SERVER, "get_board_items_page", { boardId: CLIENTS_BOARD, includeColumns: true, includeGroup: false, limit: 500, columnIds: ["text_mkxbach4"] }, { cache: { staleTime: 600000 } });
+    ((r.payload && r.payload.items) || []).forEach(x => { const em = lc(x.column_values && x.column_values.text_mkxbach4); if (em) S.clientEmails[lc((x.name || "").replace(/^(AG|BL)\s*-\s*/i, ""))] = em; });
+  } catch (e) { /* email match is a bonus; name match still works */ }
+}
+function calErr(err) {
+  switch (err && err.code) {
+    case "no_mcp": return "Open this in Claude to read the booking.";
+    case "needs_reauth": return "Your Google Calendar connection expired. Reconnect it in claude.ai Settings, Connectors.";
+    case "server_not_connected": return "Add the Google Calendar connector in claude.ai Settings, Connectors to see the package.";
+    case "not_in_manifest": case "not_granted": return "Allow Google Calendar for this page when Claude asks, then reopen the episode.";
+    case "blocked_by_policy": case "approval_required": return "Your workspace policy blocks Calendar from here.";
+    default: return "Couldn't reach Google Calendar. " + ((err && err.message) || "");
+  }
+}
+function renderPackage(it) {
+  const p = S.pkg[it.id] || { state: "loading" };
+  const head = (extra) => `<p class="lbl"><span>Package</span>${extra || ""}</p>`;
+  if (p.state === "loading") return `<div class="pkg">${head()}<p class="muted">Looking for the booking in the studio calendars…</p></div>`;
+  if (p.state === "nodate") return `<div class="pkg">${head()}<p class="muted">No session date in the task name, so the booking can't be matched.</p></div>`;
+  if (p.state === "error") return `<div class="pkg">${head(`<button class="lk" type="button" data-act="pkg-retry">Try again</button>`)}<p class="muted">${esc(calErr(p.err))}</p></div>`;
+  if (p.state === "none") return `<div class="pkg">${head(`<button class="lk" type="button" data-act="pkg-retry">Search again</button>`)}<p class="muted">No booking found for ${esc(it.client || "this client")} ${p.sd && p.sd.exact ? "around " + short(p.sd.iso) : "in the two weeks before Available"}.</p></div>`;
+  return p.list.map((b, i) => {
+    const row = (k, v) => v ? `<dt>${k}</dt><dd>${esc(v)}</dd>` : "";
+    const when = [b.date ? new Date(b.date + "T12:00:00Z").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }) : "", b.time].filter(Boolean).join(", ");
+    return `<div class="pkg">${head(b.link ? `<a href="${esc(b.link)}" target="_blank" rel="noopener">Open in Calendar</a>` : "")}
+      <dl class="props">${row("Session", [b.studio, when].filter(Boolean).join(", "))}${b.order || b.nc ? `<dt>Order</dt><dd>${esc(b.order || "No ID")}${b.nc ? '<span class="tag">New client</span>' : ""}</dd>` : ""}
+        ${row("Services", b.services)}${row("Add-ons", b.addons)}${row("Setup", b.setup)}${row("Seats", b.seats)}${row("Guests", b.guests)}${row("Requests", b.notes)}${row("File transfer", b.transfer)}</dl></div>`;
+  }).join("");
+}
+/* Monday notifications: AG's real Monday inbox (mentions, replies, updates, automations) through the read-only GraphQL tool.
+   Monday's read flag can't be set from here, so the badge counts unread ones newer than the last time the bell was opened (per viewer). */
+const NOTIF_Q = "query { notifications(limit: 50) { id created_at title text read kind_name item { id name board { id } } board { id name } update { id text_body creator_id } } }";
+const NF_KIND = [["mention", "Mentions"], ["update", "Updates"], ["auto", "Automations"]];
+S.notifs = []; S.inbox = false; S.nfFilter = "all"; S.nfReply = null; S.nfSeeded = false; S.nfShow = 20;
+try { S.nfSeen = +localStorage.getItem("river.notifSeen") || 0; } catch (_) { S.nfSeen = 0; }
+S.nfPrevSeen = S.nfSeen;
+const ACTION_RE = /^(.+?)\s+(mentioned|wrote|replied|assigned|subscribed|added|invited|changed|created|moved|liked|reacted|commented|asked|updated|sent)\b/i;
+function normNotif(n) {
+  const kn = n.kind_name || "", t = Date.parse(n.created_at) || 0, title = n.title || "";
+  const kind = /automation/i.test(kn) || title === "Automations" ? "auto" : /mention/i.test(kn) ? "mention" : "update";
+  const m = title.match(ACTION_RE), who = kind === "auto" ? "Automation" : m ? m[1].trim() : title.split(" ").slice(0, 2).join(" ");
+  const action = kind === "auto" ? "" : m ? title.slice(m[1].length).trim().replace(/^Mentioned/, "mentioned").replace(/^Wrote/, "wrote").replace(/^Replied/, "replied") : "";
+  let body = (n.text || "").replace(/^you in (a reply|an update|a post)[^:]*:\s*/i, "").replace(/^Hey Abdullah,?\s*/i, "").trim();
+  if (!body && n.update) body = n.update.text_body || "";
+  body = body.replace(/@Abdullah Ghanem/g, "@you").replace(/\n{2,}/g, "\n");
+  const ed = EDITORS.find(([nm]) => firstName(nm).toLowerCase() === firstName(who).toLowerCase());
+  const item = n.item || null, boardId = (item && item.board && item.board.id) || (n.board && n.board.id) || "";
+  return { id: String(n.id), t, kind, who, action, body, read: !!n.read, edId: ed ? ed[1] : null,
+    itemId: item ? String(item.id) : null, itemName: item ? item.name : "", boardId: String(boardId), boardName: (n.board && n.board.name) || "",
+    updateId: n.update ? String(n.update.id) : null,
+    url: item ? "https://poddsterstudios-team.monday.com/boards/" + boardId + "/pulses/" + item.id : n.board ? "https://poddsterstudios-team.monday.com/boards/" + n.board.id : "" };
+}
+const isNew = n => !n.read && n.t > S.nfSeen;
+const shortItem = n => n.replace(/\s*-\s*Session\s*/i, " · ").slice(0, 48);
+function nago(t) { const s = (Date.now() - t) / 1000; if (s < 45) return "now"; if (s < 3600) return Math.round(s / 60) + "m"; if (s < 86400) return Math.round(s / 3600) + "h";
+  const d = new Date(t); return s < 7 * 86400 ? d.toLocaleDateString("en-GB", { weekday: "short" }) : d.getDate() + " " + MON[d.getMonth()]; }
+/* add task */
+S.adding = false; S.form = null; S.clients = null; S.createdNames = new Map(); S.dropEditor = null;
+async function loadClients() {
+  if (S.clients || !mcp) return;
+  try {
+    const r = await mcp.callTool(SERVER, "get_board_items_page", { boardId: CLIENTS_BOARD, includeColumns: true, includeGroup: false, limit: 500, columnIds: ["person"] }, { cache: { staleTime: 300000 } });
+    S.clients = ((r.payload && r.payload.items) || []).map(x => ({ id: String(x.id), raw: x.name || "", name: (x.name || "").replace(/^(AG|BL)\s*-\s*/i, "").trim(), mine: /^AG\s*-/i.test(x.name || "") }))
+      .sort((a, b) => (b.mine - a.mine) || a.name.localeCompare(b.name));
+  } catch (e) { S.clients = []; S.clientsErr = e; }
+  if (S.adding) renderPanel();
+}
+function autoName(f) { const dmy = f.date ? f.date.slice(8, 10) + "." + f.date.slice(5, 7) + "." + f.date.slice(2, 4) : ""; return (f.client || "Client") + " - Session " + dmy + (KINDS.find(k => k[0] === f.kind) || KINDS[0])[1]; }
+async function createTask() {
+  const f = S.form; if (!f || f.busy || !mcp || !f.name.trim()) return;
+  f.busy = true; renderForm();
+  const ed = EDITORS.find(e => e[0] === f.editor), name = f.name.trim();
+  const cv = { people: { personsAndTeams: [{ id: ME_ID, kind: "person" }] }, date: { date: todayISO() }, date4: { date: addWorkdays(2) } };
+  if (f.clientId) cv.board_relation_mkxb8cpz = { item_ids: [Number(f.clientId)] };
+  if (ed) { cv.person = { personsAndTeams: [{ id: ed[1], kind: "person" }] }; cv.status = { label: "Assigned" }; }
+  if (f.units !== "" && !isNaN(parseFloat(f.units))) cv.numeric_mm1y5e6b = String(parseFloat(f.units));
+  try {
+    const r = await mcp.callTool(SERVER, "create_item", { boardId: BOARD, name, groupId: ed ? "new_group60072" : "topics", columnValues: JSON.stringify(cv) }, { cache: false });
+    const p = r.payload; const txt = typeof p === "string" ? p : JSON.stringify(p || "");
+    let id = (p && (p.id || p.item_id || p.itemId || (p.item && p.item.id))) || (txt.match(/"(?:item_)?id"\s*:\s*"?(\d{8,})/) || [])[1] || null;
+    if (!id) { try { const q = await mcp.callTool(SERVER, "get_board_items_page", { boardId: BOARD, searchTerm: name, limit: 5, includeColumns: false }, { cache: false }); const hit = ((q.payload && q.payload.items) || []).find(x => (x.name || "").trim().toLowerCase() === name.toLowerCase()); id = hit && hit.id; } catch (_) {} }
+    S.adding = false; S.form = null;
+    toast(name + " added" + (ed ? ", assigned to " + ed[0].split(" ")[0] : " to Queue") + ", Draft " + short(addWorkdays(2)));
+    mcp.invalidate(SERVER, "get_board_items_page").catch(() => {});
+    if (id) { S.pendingOpen = String(id); markWrote(id); }
+    S.createdNames.set(name.toLowerCase(), Date.now());
+  } catch (e) {
+    f.busy = false;
+    toast(e && (e.code === "server_unavailable" || e.code === "upstream_error") ? "Monday didn't confirm. Check the board before adding it again." : writeErr(e), { bad: true });
+  }
+  render();
+}
+/* actions */
+let tt;
+function toast(text, o = {}) {
+  const t = $("toast"); t.className = "toast" + (o.bad ? " bad" : "");
+  t.innerHTML = `<span>${esc(text)}</span>${o.undo ? `<button type="button" id="undo">Undo</button>` : ""}${o.act ? `<button type="button" id="tact">${esc(o.act.label)}</button>` : ""}`;
+  if (o.act) $("tact").onclick = () => { t.hidden = true; o.act.fn(); };
+  t.hidden = false; clearTimeout(tt); tt = setTimeout(() => t.hidden = true, o.undo ? 6000 : 3500);
+  if (o.undo) $("undo").onclick = () => { t.hidden = true; o.undo(); };
+}
+function writeErr(e) {
+  if (e && (e.code === "server_unavailable" || e.code === "upstream_error")) return "Monday didn't confirm the change. Sync to check before trying again.";
+  const m = errorCopy(e); return m.title + ". " + m.body;
+}
+async function setStage(it, lbl, isUndo, o = {}) {
+  if (!mcp || S.busy || !it || it.stage === lbl) return false;
+  const prev = it.stage, prevUpd = it.updated; S.busy = true;
+  const patch = lbl === "Corrections" && !isUndo ? correctionsPatch(it) : { cv: {}, slot: null };
+  const undoSlot = isUndo && it._autoDate ? it._autoDate : null;
+  const cv = Object.assign({ status: { label: lbl } }, patch.cv, undoSlot ? { [undoSlot[1]]: null } : {});
+  it.stage = lbl; if (lbl === "Done") it.updated = new Date().toISOString();
+  if (patch.slot) it[patch.slot[0]] = patch.iso; if (undoSlot) it[undoSlot[0]] = null;
+  markWrote(it.id); render();
+  let ok = false;
+  try {
+    await mcp.callTool(SERVER, "change_item_column_values", { boardId: BOARD, itemId: Number(it.id), columnValues: JSON.stringify(cv) }, { cache: false });
+    it._autoDate = patch.slot || null; markWrote(it.id);
+    const extra = patch.slot ? `, ${patch.slot[2]} set to ${short(patch.iso)}` : lbl === "Corrections" && !isUndo ? ", every deadline column is already filled" : "";
+    toast(isUndo ? "Back in " + lbl + (undoSlot ? ", " + undoSlot[2] + " cleared" : "") : lbl === "Done" ? label(it) + " reached the sea" : label(it) + " moved to " + lbl + extra, isUndo ? {} : { undo: () => setStage(it, prev, true).then(ok => { if (ok && o.onUndo) o.onUndo(); }) });
+    if (lbl === "Done" && S.sel === it.id) S.sel = null;
+    mcp.invalidate(SERVER, "get_board_items_page").catch(() => {});
+    ok = true;
+  } catch (e) { it.stage = prev; it.updated = prevUpd; if (patch.slot) it[patch.slot[0]] = null; if (undoSlot) it[undoSlot[0]] = undoSlot._iso || it[undoSlot[0]]; toast(writeErr(e), { bad: true }); }
+  finally { S.busy = false; render(); }
+  return ok;
+}
+/* Posts an editor note. With no options it posts the panel's draft; Clear the gates passes { it, text, corr, mention } for a canned nudge. */
+async function postNote(o = {}) {
+  const fromPanel = !o.it;
+  const it = o.it || S.items.find(i => i.id === S.sel), text = ((fromPanel ? S.draft : o.text) || "").trim();
+  const corr = fromPanel ? S.corr : !!o.corr, mention = fromPanel ? S.mention : o.mention !== false;
+  if (!it || !mcp || S.busy) return false;
+  if (!text) { toast("Write the note first.", { bad: true }); return false; }
+  S.busy = true; renderPanel(); renderGates();
+  let ok = false;
+  try {
+    const input = { itemId: Number(it.id), body: esc(text).replace(/\n/g, "<br>") };
+    const mid = mention ? EDITOR_IDS[firstName(it.editor).toLowerCase()] : null;
+    if (mid) input.mentionsList = JSON.stringify([{ id: mid, type: "User" }]);
+    markWrote(it.id);
+    await mcp.callTool(SERVER, "create_update", input, { cache: false });
+    let msg = o.msg || "Note posted";
+    if (corr) {
+      const patch = correctionsPatch(it);
+      await mcp.callTool(SERVER, "change_item_column_values", { boardId: BOARD, itemId: Number(it.id), columnValues: JSON.stringify(Object.assign({ status: { label: "Corrections" } }, patch.cv)) }, { cache: false });
+      if (patch.slot) it[patch.slot[0]] = patch.iso;
+      markWrote(it.id);
+      msg = (it.stage === "Corrections" ? "Note posted" : "Note posted, moved to Corrections") + (patch.slot ? `, ${patch.slot[2]} set to ${short(patch.iso)}` : ", every deadline column is already filled");
+      it.stage = "Corrections";
+    }
+    if (fromPanel) S.draft = "";
+    toast(msg); ok = true;
+    mcp.invalidate(SERVER, "get_board_items_page").catch(() => {});
+  } catch (e) { toast(writeErr(e), { bad: true }); }
+  finally { S.busy = false; render(); }
+  return ok;
+}
+
+/* ================= River Pocket: the phone view ================= */
+S.sheet = null; S.filter = "focus"; S.stage = null; S.ups = {}; S.justOpened = false; S.inboxFilter = "all";
+const ACTIVE = () => S.items.filter(i => !CLOSED.has(i.stage));
+function urgency(e) {
+  if (CLOSED.has(e.stage)) return 1e6 - dayNum((e.updated || "2000-01-01").slice(0, 10));
+  const late = isLate(e), d = daysTo(e);
+  if (e.stage === "Client Review") return late ? -500 - ageDays(e) : 300 - ageDays(e);
+  if (late) return -1000 + (d || 0);
+  return d === null ? 200 : d;
+}
+const words = () => S.q.toLowerCase().split(/\s+/).filter(Boolean);
+const hay = e => (e.name + " " + e.client + " " + e.editor + " " + e.stage + (isLate(e) ? " late overdue" : "")).toLowerCase();
+function visible() {
+  let list = S.items;
+  const f = S.q ? (["done", "all"].includes(S.filter) ? S.filter : "open") : S.filter;
+  if (f === "done") list = list.filter(e => CLOSED.has(e.stage));
+  else if (f !== "all") list = list.filter(e => !CLOSED.has(e.stage));
+  if (f === "late") list = list.filter(isLate);
+  if (f === "today") list = list.filter(e => daysTo(e) === 0);
+  if (f === "cr") list = list.filter(e => e.stage === "Client Review");
+  if (f === "focus" && !S.stage) list = list.filter(e => isLate(e) || (daysTo(e) !== null && daysTo(e) <= 2));
+  if (S.stage) list = list.filter(e => e.stage === S.stage);
+  const w = words(); if (w.length) list = list.filter(e => w.every(x => hay(e).includes(x)));
+  return list.slice().sort((a, b) => urgency(a) - urgency(b));
+}
+
+/* ---------- render ---------- */
+function render() { renderSync(); renderRiverStrip(); renderPress(); renderChips(); renderList(); renderBell(); renderSheet(); }
+const renderPanel = () => renderSheet(), renderGates = () => {}, renderForm = () => renderSheet(), renderInbox = () => renderSheet();
+function renderSync() {
+  const dot = $("sync"); dot.className = "sync";
+  $("sub").textContent = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+  if (S.error && !S.items.length) { dot.className = "sync off"; dot.title = "Not connected"; return; }
+  if (!S.storedAt) return;
+  const stale = Date.now() - S.storedAt > 5 * 60000; dot.className = "sync " + (stale ? "stale" : "on");
+  dot.title = (stale ? "Stale, synced " : "Synced ") + new Date(S.storedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+function renderRiverStrip() {
+  const el = $("river");
+  if (!S.items.length) { el.innerHTML = ""; return; }
+  const doneWk = S.items.filter(i => i.stage === "Done" && i.updated && Date.now() - Date.parse(i.updated) < 7 * 864e5).length;
+  el.innerHTML = `<div class="strip" role="group" aria-label="Filter by stage">${FLOW.map(st => { const g = S.items.filter(i => i.stage === st), late = g.filter(isLate).length;
+      return `<button class="seg" type="button" data-stage="${esc(st)}" style="--n:${(1 + Math.sqrt(g.length)).toFixed(2)};--c:${colorOf(st)}" aria-pressed="${S.stage === st}" aria-label="${esc(st)}: ${g.length}${late ? ", " + late + " late" : ""}"><b class="tnum">${g.length}</b><i>${esc(SHORT[st])}</i>${late ? `<em>${late}</em>` : ""}</button>`; }).join("")}
+    <div class="seg sea" aria-label="${doneWk} reached Done this week"><b class="tnum">${doneWk}</b><i>Done</i></div></div>
+    <div class="legend"><span>Start</span><span>${S.stage ? `Showing ${esc(S.stage)} · <button type="button" data-stage="" style="color:var(--foam)">show all</button>` : "Tap a stage to filter"}</span><span>Done this week</span></div>`;
+}
+const SHORT = { "Queue": "Queue", "Assigned": "Assign", "In Process": "Edit", "In Review": "Review", "Corrections": "Fixes", "Client Review": "Client" };
+function renderPress() {
+  const el = $("press"); if (!S.items.length) { el.innerHTML = ""; return; }
+  const a = ACTIVE(), late = a.filter(isLate).length, today = a.filter(e => daysTo(e) === 0).length, cr = a.filter(e => e.stage === "Client Review").length;
+  const c = (k, n, l, cls) => `<button class="pc ${cls}" type="button" data-filter="${k}" aria-pressed="${S.filter === k && !S.stage}"><b class="tnum">${n}</b><span>${l}</span></button>`;
+  el.innerHTML = c("late", late, "Late", "late") + c("today", today, "Due today", "today") + c("cr", cr, "With clients", "cr");
+}
+function renderChips() {
+  const opts = [["focus", "Needs you"], ["open", "All open"], ["late", "Late"], ["today", "Due today"], ["cr", "Client Review"], ["done", "Done"], ["all", "Everything"]];
+  $("chips").innerHTML = opts.map(([k, l]) => `<button type="button" data-filter="${k}" aria-pressed="${S.filter === k}">${l}</button>`).join("");
+  $("qx").hidden = !S.q;
+}
+function rowHtml(e) {
+  const r = rel(e), late = isLate(e);
+  return `<button class="row ${late ? "late" : ""}" type="button" data-id="${esc(e.id)}"><span class="av" style="--c:${colorOf(e.stage)}">${esc(initials(label(e)))}</span>
+    <span style="min-width:0"><span class="nm">${hl(e.name)}</span><span class="meta"><span>${esc(e.stage)}${e.editor ? " · " + esc(firstName(e.editor)) : ""}</span><em class="${r.cls === "late" ? "late-t" : r.cls === "today" ? "today-t" : ""}">${esc(r.txt)}</em></span></span></button>`;
+}
+function hl(name) { let out = esc(name); words().filter(w => w.length > 1).forEach(w => { out = out.replace(new RegExp("(" + esc(w).replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ")", "ig"), "<mark>$1</mark>"); }); return out; }
+function renderList() {
+  const el = $("list");
+  if (S.error && !S.items.length) { const m = errorCopy(S.error); el.innerHTML = `<div class="banner"><b>${esc(m.title)}</b><span>${esc(m.body)}</span></div>`; return; }
+  if (!S.items.length) { el.innerHTML = `<div class="skel"><i></i><i></i><i></i><i></i></div>`; return; }
+  const list = visible();
+  if (!list.length) {
+    el.innerHTML = `<div class="empty"><b>${S.q ? `Nothing matches “${esc(S.q)}”` : S.filter === "focus" ? "Nothing is pressing" : "No tasks here"}</b>${S.q ? "Try fewer words, or Everything." : S.filter === "focus" ? "No task is late or due in the next two days." : "Try another filter."}</div>`; return;
+  }
+  if (S.filter === "focus" && !S.q && !S.stage) {
+    const groups = [["Late", list.filter(isLate)], ["Due today", list.filter(e => !isLate(e) && daysTo(e) === 0)], ["Next two days", list.filter(e => !isLate(e) && daysTo(e) > 0)]];
+    el.innerHTML = `<div style="display:grid;gap:14px">${groups.filter(g => g[1].length).map(([t, g]) => `<div class="group"><h3>${t}<em>${g.length}</em></h3>${g.map(rowHtml).join("")}</div>`).join("")}</div>`;
+    return;
+  }
+  el.innerHTML = `<div class="group"><h3>${S.q ? "Results" : S.stage || "Tasks"}<em>${list.length}</em></h3>${list.slice(0, 120).map(rowHtml).join("")}${list.length > 120 ? `<p class="empty">Showing 120 of ${list.length}. Search to narrow it down.</p>` : ""}</div>`;
+}
+
+/* ---------- sheets: task, inbox, add ---------- */
+function openTask(id) { const it = S.items.find(i => i.id === id); if (!it) return; if (S.sel !== id) { S.draft = ""; S.corr = true; S.mention = true; S.unlock = false; } S.sel = id; S.sheet = "task"; S.justOpened = true; renderSheet(); loadPackage(it); loadUpdates(it); }
+function closeSheet() { S.sheet = null; S.sel = null; S.adding = false; S.form = null; S.nfReply = null; renderSheet(); }
+async function loadUpdates(it, force) {
+  if (!mcp || (!force && S.ups[it.id] && S.ups[it.id].state === "ok")) return;
+  S.ups[it.id] = { state: "loading", list: (S.ups[it.id] || {}).list || [] };
+  try {
+    const r = await mcp.callTool(SERVER, "get_updates", { objectType: "Item", objectId: String(it.id), limit: 4 }, force ? { cache: false } : { cache: { staleTime: 60000 } });
+    const p = r.payload || {}; S.ups[it.id] = { state: "ok", list: (p.updates || []).map(u => ({ id: u.id, body: u.text_body || "", at: Date.parse(u.created_at), by: (u.creator && u.creator.name) || "Someone" })) };
+  } catch (e) { S.ups[it.id] = { state: "error", err: e, list: [] }; }
+  if (S.sel === it.id) renderSheet();
+}
+const BACK = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>`;
+const OUT = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>`;
+function renderSheet() {
+  const el = $("sheet");
+  if (S.sheet === "task" && !S.items.find(i => i.id === S.sel)) S.sheet = null;
+  if (S.sheet === "add" && !S.form) S.sheet = null;
+  el.hidden = !S.sheet; document.body.style.overflow = S.sheet ? "hidden" : "";
+  if (!S.sheet) { el.innerHTML = ""; el.className = "sheet"; return; }
+  const keep = el.querySelector(".sh-b"), top = keep ? keep.scrollTop : 0;
+  const f = document.activeElement, fid = f && el.contains(f) ? f.id : null, ss = f && f.selectionStart, se = f && f.selectionEnd;
+  el.className = "sheet" + (S.justOpened ? " enter" : ""); S.justOpened = false;
+  el.innerHTML = S.sheet === "task" ? taskSheet() : S.sheet === "inbox" ? inboxSheet() : addSheet();
+  const b = el.querySelector(".sh-b"); if (b && keep) b.scrollTop = top;
+  if (fid) { const n = document.getElementById(fid); if (n) { n.focus({ preventScroll: true }); try { n.setSelectionRange(ss, se); } catch (_) {} } }
+}
+function head(title, right) { return `<div class="sh-h"><button class="back" type="button" data-act="close">${BACK}Back</button><span>${esc(title)}</span>${right || `<span style="flex:0 0 40px"></span>`}</div>`; }
+function taskSheet() {
+  const it = S.items.find(i => i.id === S.sel), r = rel(it), canMention = !!EDITOR_IDS[firstName(it.editor).toLowerCase()];
+  const laura = /^BL\s*-/i.test(it.clientRaw || ""), locked = laura && !S.unlock, nxt = nextEmptyDate(it);
+  const lk = (u, l) => u ? `<a class="lk" href="${esc(u)}" target="_blank" rel="noopener">${l}</a>` : "";
+  const ups = S.ups[it.id] || { state: "loading", list: [] };
+  const nfs = S.notifs.filter(n => n.itemId === it.id && n.kind !== "auto").slice(0, 3);
+  return head(it.client || "Episode", `<a href="${esc(it.url)}" target="_blank" rel="noopener" aria-label="Open in Monday" title="Open in Monday">${OUT}</a>`) + `<div class="sh-b"><div class="sh-in">
+    <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center"><span class="badge" style="--c:${colorOf(it.stage)}"><i></i>${esc(it.stage)}</span>${laura ? `<span class="chip">Laura's client</span>` : ""}</div>
+    <h2>${esc(it.name)}</h2>
+    <p class="rel ${r.cls === "late" ? "late-t" : r.cls === "today" ? "today-t" : ""}">${esc(r.txt)}</p>
+    <dl class="props"><dt>Client</dt><dd>${esc(it.client || "Not linked")}</dd><dt>Editor</dt><dd>${esc(it.editor || "No editor yet")}</dd>${it.units ? `<dt>Units</dt><dd class="tnum">${it.units}</dd>` : ""}</dl>
+    <div class="dates">${DATE_COLS.map(([k, , nm]) => `<div class="${it[k] ? "" : "empty-d"} ${it[k] && k !== "available" && nextDue(it) === it[k] ? "due " + r.cls : ""}"><span>${nm === "Publishing" ? "Publish" : nm === "Available" ? "Avail." : nm}</span><b class="tnum">${it[k] ? short(it[k]) : "–"}</b></div>`).join("")}</div>
+    ${it.upload || it.share || it.dropbox ? `<div class="links">${lk(it.share, "Frame.io review")}${lk(it.upload, "Frame.io upload")}${lk(it.dropbox, "Dropbox raws")}</div>` : ""}
+    ${locked ? `<div class="lock"><span>This is Laura's client, so River won't change it unless you unlock it.</span><button class="btn" type="button" data-act="unlock">Unlock</button></div>` : `
+    <div><p class="lbl">Move to</p><div class="moves">${MOVE_TO.map(s => `<button class="mv ${s === it.stage ? "cur" : ""}" type="button" data-move="${esc(s)}" style="--c:${colorOf(s)}" ${s === it.stage || S.busy ? "disabled" : ""}><i></i>${esc(s)}</button>`).join("")}</div></div>
+    <div><p class="lbl">Note to ${esc(firstName(it.editor) || "the editor")}</p>
+      <div class="composer"><textarea id="note" placeholder="C#1 Cut start “…” 12:04, Cut end “…” 12:31" aria-label="Note to the editor">${esc(S.draft)}</textarea>
+        <div class="c-bar"><label><input type="checkbox" id="corr" ${S.corr ? "checked" : ""}> Corrections${nxt ? ", " + nxt[2] + " " + short(addWorkdays(2)) : ""}</label>
+          <label><input type="checkbox" id="mention" ${canMention && S.mention ? "checked" : ""} ${canMention ? "" : "disabled"}> @${esc(firstName(it.editor) || "editor")}</label>
+          <button class="post" type="button" data-act="post" ${S.busy ? "disabled" : ""}>${S.busy ? "Posting" : "Post"}</button></div></div></div>`}
+    ${renderPackage(it).replace(/data-act="pkg-retry"/g, 'data-act="pkg-retry" type="button"')}
+    <div><p class="lbl"><span>Latest on Monday</span><button type="button" data-act="ups">Refresh</button></p>
+      ${ups.state === "loading" && !ups.list.length ? `<div class="skel"><i style="height:44px"></i></div>` : ups.state === "error" ? `<p class="empty">Couldn't load the notes. ${esc(writeErr(ups.err))}</p>` : ups.list.length ? `<div class="ups">${ups.list.map(u => `<div class="up"><b>${esc(u.by)}</b><small>${nago(u.at)}</small><p>${esc(u.body.length > 400 ? u.body.slice(0, 400) + "…" : u.body)}</p></div>`).join("")}</div>` : `<p class="empty">No notes on this task yet.</p>`}
+      ${nfs.length ? `<p class="lbl" style="margin-top:14px">Mentions you</p><div class="ups">${nfs.map(n => `<div class="up"><b>${esc(firstName(n.who))}</b><small>${nago(n.t)}</small><p>${esc(n.body.slice(0, 220))}</p></div>`).join("")}</div>` : ""}</div>
+  </div></div>`;
+}
+function inboxSheet() {
+  const list = S.notifs.filter(n => S.inboxFilter === "all" || n.kind === S.inboxFilter);
+  const body = S.nfErr && !S.notifs.length ? (m => `<div class="banner"><b>${esc(m.title)}</b><span>${esc(m.body)}</span></div>`)(errorCopy(S.nfErr))
+    : !S.nfSeeded && !S.notifs.length ? `<div class="skel"><i></i><i></i><i></i></div>`
+    : !list.length ? `<p class="empty">Nothing here in your latest 50.</p>` : list.slice(0, 40).map(nfCard).join("");
+  return head("Monday notifications") + `<div class="sh-b"><div class="sh-in">
+    <div class="chips" style="margin-inline:-16px">${[["all", "All"], ...NF_KIND].map(([k, l]) => `<button type="button" data-nff="${k}" aria-pressed="${S.inboxFilter === k}">${l} <span class="tnum" style="opacity:.6">${k === "all" ? S.notifs.length : S.notifs.filter(n => n.kind === k).length}</span></button>`).join("")}</div>
+    <div style="display:grid;gap:8px">${body}</div>
+    <p class="empty" style="border:0;padding:0">Reading these here doesn't mark them read in Monday.</p></div></div>`;
+}
+function nfCard(n) {
+  const ep = n.itemId ? S.items.find(i => i.id === n.itemId) : null, fresh = !n.read && n.t > S.nfPrevSeen, open = S.nfReply && S.nfReply.id === n.id;
+  const av = n.kind === "auto" ? `<span class="av auto" aria-hidden="true">⚙</span>` : `<span class="av" style="--c:${avColor(n.who)}" aria-hidden="true">${esc(initials(n.who))}</span>`;
+  const link = ep ? `<button class="ep" type="button" data-id="${esc(ep.id)}">${esc(shortItem(n.itemName))}</button>` : n.url ? `<a href="${esc(n.url)}" target="_blank" rel="noopener">${esc(n.itemName ? shortItem(n.itemName) : n.boardName)}</a>` : "";
+  return `<div class="nf ${fresh ? "new" : ""}">${av}<div style="min-width:0"><div class="nf-top"><b>${esc(n.kind === "auto" ? "Automation" : n.who)}</b><span>${esc(n.action)}</span><small>${nago(n.t)}</small></div>
+    ${n.body ? `<p>${esc(n.body)}</p>` : ""}<div class="nf-ep">${link}${n.kind !== "auto" && n.updateId && n.itemId && !open ? `<button class="rp" type="button" data-nfr="${esc(n.id)}">Reply</button>` : ""}</div>
+    ${open ? `<div class="composer"><textarea id="nf-text" placeholder="Reply to ${esc(firstName(n.who))}" aria-label="Reply">${esc(S.nfReply.text)}</textarea><div class="c-bar">${n.edId ? `<label><input type="checkbox" id="nf-mention" ${S.nfReply.mention ? "checked" : ""}> @${esc(firstName(n.who))}</label>` : ""}<button class="btn" type="button" data-act="nf-cancel">Cancel</button><button class="post" type="button" data-act="nf-send" ${S.nfReply.busy ? "disabled" : ""}>${S.nfReply.busy ? "Sending" : "Send"}</button></div></div>` : ""}</div></div>`;
+}
+function addSheet() {
+  const f = S.form, ed = EDITORS.find(e => e[0] === f.editor), q = f.client.trim().toLowerCase();
+  const picks = !f.clientId && q.length > 1 && S.clients ? S.clients.filter(c => c.name.toLowerCase().includes(q)).slice(0, 5) : [];
+  return head("New task") + `<div class="sh-b"><div class="sh-in"><h2>Add a task</h2><div class="form">
+    <label class="fld">Client<input id="f-client" value="${esc(f.client)}" placeholder="${S.clients ? "Start typing a client" : "Loading clients…"}" autocomplete="off"></label>
+    ${picks.length ? `<div class="picks">${picks.map(c => `<button type="button" data-pick="${esc(c.id)}">${esc(c.name)}<small>${c.mine ? "Your client" : "Laura's client"}</small></button>`).join("")}</div>` : ""}
+    <div class="fld">Type<div class="kinds">${KINDS.map(([k]) => `<button type="button" data-kind="${k}" aria-pressed="${f.kind === k}">${k}</button>`).join("")}</div></div>
+    <div class="row2"><label class="fld">Session date<input id="f-date" type="date" value="${esc(f.date)}"></label><label class="fld">Units<input id="f-units" type="number" inputmode="decimal" min="0" step="0.33" value="${esc(f.units)}" placeholder="1"></label></div>
+    <label class="fld">Task name<input id="f-name" value="${esc(f.name)}"></label>
+    <label class="fld">Editor<select id="f-editor"><option value="">No editor yet (stays in Queue)</option>${EDITORS.map(([n]) => `<option ${f.editor === n ? "selected" : ""}>${esc(n)}</option>`).join("")}</select></label>
+    <div class="sum"><span>Producer <b>you</b>${f.clientId ? `, linked to <b>${esc(f.client)}</b>` : f.client ? `, <span class="late-t">not on PP Clients Only, so it won't be linked</span>` : ""}</span>
+      <span>Available <b>${short(todayISO())}</b>, Draft <b>${short(addWorkdays(2))}</b> (two working days)</span><span>Status <b>${ed ? "Assigned to " + esc(firstName(ed[0])) : "Queue"}</b></span></div>
+    <button class="post" type="button" data-act="create" style="margin:0;min-height:52px" ${f.busy || !f.name.trim() ? "disabled" : ""}>${f.busy ? "Adding…" : "Add task"}</button></div></div></div>`;
+}
+function openAddSheet() { S.adding = true; S.form = { client: "", clientId: null, kind: "Episode", date: todayISO(), name: "", custom: false, editor: "", units: "", busy: false }; S.form.name = autoName(S.form); S.sheet = "add"; S.justOpened = true; renderSheet(); loadClients(); }
+function openInbox() { S.sheet = "inbox"; S.justOpened = true; S.nfPrevSeen = S.nfSeen; S.nfSeen = Date.now(); try { localStorage.setItem("river.notifSeen", String(S.nfSeen)); } catch (_) {} renderBell(); renderSheet(); }
+async function sendReply() {
+  const r = S.nfReply; if (!r || r.busy || !mcp) return;
+  const n = S.notifs.find(x => x.id === r.id), text = (r.text || "").trim();
+  if (!n) return; if (!text) { toast("Write the reply first.", { bad: true }); return; }
+  r.busy = true; renderSheet();
+  try {
+    const input = { itemId: Number(n.itemId), parentId: Number(n.updateId), body: esc(text).replace(/\n/g, "<br>") };
+    if (r.mention && n.edId) input.mentionsList = JSON.stringify([{ id: String(n.edId), type: "User" }]);
+    markWrote(n.itemId); await mcp.callTool(SERVER, "create_update", input, { cache: false });
+    S.nfReply = null; toast("Reply sent to " + firstName(n.who));
+  } catch (e) { r.busy = false; toast(e && (e.code === "server_unavailable" || e.code === "upstream_error") ? "Monday didn't confirm the reply. Check the thread before sending again." : writeErr(e), { bad: true }); }
+  renderSheet();
+}
+function onNotifs(ev) {
+  if (ev.type === "error") { S.nfErr = ev.error; renderBell(); if (S.sheet === "inbox") renderSheet(); return; }
+  const p = ev.result.payload || {}, raw = p.notifications || (p.data && p.data.notifications) || [];
+  const next = raw.map(normNotif).sort((a, b) => b.t - a.t), known = new Set(S.notifs.map(n => n.id));
+  const fresh = S.nfSeeded ? next.filter(n => !known.has(n.id) && !n.read && n.kind !== "auto") : [];
+  S.notifs = next; S.nfErr = null;
+  if (!(ev.result.cache && ev.result.cache.revalidating)) S.nfSeeded = true;
+  if (fresh.length) { const f = fresh[0]; toast(fresh.length > 1 ? fresh.length + " new on Monday" : firstName(f.who) + " " + (f.kind === "mention" ? "mentioned you" : "posted") + (f.itemName ? " on " + shortItem(f.itemName) : ""), { act: { label: "View", fn: openInbox } }); }
+  renderBell(); if (S.sheet === "inbox" || S.sheet === "task") renderSheet();
+}
+function renderBell() { const b = $("bell-n"); const n = S.notifs.filter(isNew).length; b.hidden = !n; b.textContent = n > 99 ? "99+" : n; $("bell").setAttribute("aria-label", n ? n + " new Monday notifications" : "Monday notifications"); }
+
+/* ---------- events ---------- */
+document.addEventListener("click", e => {
+  const t = e.target;
+  const stg = t.closest("[data-stage]"); if (stg && !t.closest("#sheet")) { S.stage = stg.dataset.stage && S.stage !== stg.dataset.stage ? stg.dataset.stage : null; if (S.stage && S.filter === "focus") S.filter = "open"; render(); return; }
+  const fl = t.closest("[data-filter]"); if (fl) { S.filter = fl.dataset.filter; S.stage = null; render(); return; }
+  const row = t.closest("[data-id]"); if (row) { openTask(row.dataset.id); return; }
+  const mv = t.closest("[data-move]"); if (mv && !mv.disabled) { setStage(S.items.find(i => i.id === S.sel), mv.dataset.move); return; }
+  const nff = t.closest("[data-nff]"); if (nff) { S.inboxFilter = nff.dataset.nff; renderSheet(); return; }
+  const nfr = t.closest("[data-nfr]"); if (nfr) { const n = S.notifs.find(x => x.id === nfr.dataset.nfr); S.nfReply = { id: nfr.dataset.nfr, text: "", mention: !!(n && n.edId), busy: false }; renderSheet(); setTimeout(() => { const x = $("nf-text"); if (x) x.focus(); }, 0); return; }
+  const kind = t.closest("[data-kind]"); if (kind && S.form) { S.form.kind = kind.dataset.kind; if (!S.form.custom) S.form.name = autoName(S.form); renderSheet(); return; }
+  const pick = t.closest("[data-pick]"); if (pick && S.form) { const c = S.clients.find(x => x.id === pick.dataset.pick); S.form.client = c.name; S.form.clientId = c.id; if (!S.form.custom) S.form.name = autoName(S.form); renderSheet(); return; }
+  const a = t.closest("[data-act]"); if (!a) return;
+  const it = S.items.find(i => i.id === S.sel), k = a.dataset.act;
+  if (k === "close") closeSheet();
+  else if (k === "post") postNote();
+  else if (k === "unlock") { S.unlock = true; renderSheet(); }
+  else if (k === "pkg-retry" && it) loadPackage(it, true);
+  else if (k === "ups" && it) { loadUpdates(it, true); renderSheet(); }
+  else if (k === "nf-cancel") { S.nfReply = null; renderSheet(); }
+  else if (k === "nf-send") sendReply();
+  else if (k === "create") createTask().then(() => { if (!S.form) S.sheet = null; render(); });
+});
+document.addEventListener("input", e => {
+  const id = e.target.id;
+  if (id === "q") { S.q = e.target.value.trim(); renderChips(); renderList(); return; }
+  if (id === "note") { S.draft = e.target.value; return; }
+  if (id === "nf-text" && S.nfReply) { S.nfReply.text = e.target.value; return; }
+  if (!S.form) return;
+  const f = S.form;
+  if (id === "f-name") { f.name = e.target.value; f.custom = true; const b = document.querySelector('[data-act="create"]'); if (b) b.disabled = !f.name.trim(); return; }
+  if (id === "f-units") { f.units = e.target.value; return; }
+  if (id === "f-editor") { f.editor = e.target.value; renderSheet(); return; }
+  if (id === "f-client") { f.client = e.target.value; const c = (S.clients || []).find(x => x.name.toLowerCase() === f.client.trim().toLowerCase()); f.clientId = c ? c.id : null; }
+  if (id === "f-date") f.date = e.target.value;
+  if (!f.custom) f.name = autoName(Object.assign({}, f, { client: f.client.trim() }));
+  renderSheet();
+});
+document.addEventListener("change", e => {
+  if (e.target.id === "corr") S.corr = e.target.checked;
+  if (e.target.id === "mention") S.mention = e.target.checked;
+  if (e.target.id === "nf-mention" && S.nfReply) S.nfReply.mention = e.target.checked;
+  if (e.target.id === "f-editor" && S.form) { S.form.editor = e.target.value; renderSheet(); }
+});
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && S.sheet) { e.preventDefault(); closeSheet(); }
+  if (e.target.id === "note" && (e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); postNote(); }
+});
+$("qx").addEventListener("click", () => { S.q = ""; $("q").value = ""; renderChips(); renderList(); $("q").focus(); });
+$("bell").addEventListener("click", openInbox);
+$("add").addEventListener("click", openAddSheet);
+$("refresh").addEventListener("click", () => { if (!mcp) return; mcp.invalidate(SERVER, "get_board_items_page").catch(() => {}); mcp.invalidate(SERVER, "all_api_read").catch(() => {}); toast("Syncing with Monday"); });
+
+/* ---------- data ---------- */
+async function loadMore(cursor, acc, depth) {
+  if (!cursor || depth > 3) return acc;
+  try {
+    const r = await mcp.callTool(SERVER, "get_board_items_page", { boardId: BOARD, includeColumns: true, includeGroup: false, columnIds: COLS, limit: 500, cursor }, { cache: { staleTime: 30000 } });
+    const p = r.payload || {}; acc.push(...(p.items || []));
+    return loadMore(p.pagination && p.pagination.has_more ? p.pagination.nextCursor : null, acc, depth + 1);
+  } catch (e) { return acc; }
+}
+async function onBoard(ev) {
+  if (ev.type === "error") {
+    if (["needs_reauth","server_not_connected","selection_required","not_in_manifest","not_granted","blocked_by_policy","approval_required","capability_disabled"].includes(ev.error && ev.error.code)) S.items = [];
+    S.error = ev.error; S.loading = false; render(); return;
+  }
+  const p = ev.result.payload || {}; let raw = p.items || [];
+  if (p.pagination && p.pagination.has_more) raw = await loadMore(p.pagination.nextCursor, raw.slice(), 1);
+  const keepLocal = new Map(S.items.map(i => [i.id, i]));
+  S.items = raw.map(r => { const n = norm(r); n.clientRaw = (r.column_values && Array.isArray(r.column_values.board_relation_mkxb8cpz) && r.column_values.board_relation_mkxb8cpz[0] && r.column_values.board_relation_mkxb8cpz[0].name) || ""; const o = keepLocal.get(n.id); if (o && o._autoDate) n._autoDate = o._autoDate; return n; });
+  S.storedAt = ev.result.cache ? ev.result.cache.storedAt : Date.now(); S.error = null; S.loading = !!(ev.result.cache && ev.result.cache.revalidating);
+  if (S.pendingOpen && S.items.some(i => i.id === S.pendingOpen)) { const id = S.pendingOpen; S.pendingOpen = null; render(); openTask(id); return; }
+  render();
+}
+async function start() {
+  setInterval(renderSync, 30000);
+  render();
+  try { mcp = window.claude && window.claude.use ? await window.claude.use("mcp") : null; } catch (e) { mcp = null; }
+  if (!mcp) { S.loading = false; S.error = { code: "no_mcp" }; render(); return; }
+  mcp.watchTool(SERVER, "get_board_items_page", INPUT, onBoard, { refetchInterval: 45000, cache: { staleTime: 30000 } });
+  mcp.watchTool(SERVER, "all_api_read", { query: NOTIF_Q }, onNotifs, { refetchInterval: 60000, cache: { staleTime: 30000 } });
+}
+start();
+</script>
