@@ -122,6 +122,30 @@ Value formats:
 
 See `ROADMAP.md` for the next ten upgrades.
 
+## River Studio (`studio/`), the strategic floor
+
+A separate claude.ai artifact (desktop-first, stacks at phone width), published at https://claude.ai/artifact/3tFmFu2c5Xo3SKZuiSSou7. It doesn't change River.
+- **Build:** `python3 studio/build.py` writes `studio/index.html` from `studio/src/head.html`, `studio/src/body.html` and `studio/src/app.js`, plus River's logic, episode panel and panel CSS copied verbatim from `index.html`. After changing River's rules, rebuild Studio and republish.
+- **Rooms:**
+  - **Green room:** the Queue, sorted by days waiting. Drag a guest onto a suite, a free editor or a console channel to reassign it, using River's `reassign()`; from Queue it also sets Assigned.
+  - **Edit suites:** one per editor, busiest first. Each has an ON AIR lamp (lit when something is In Process), units against weekly capacity, and a 21-day timeline (`WIN_BACK` 7). A clip runs from Available to `nextDue()`, the playhead marks today, and late clips are hatched red.
+  - **Screening room:** Client Review seats coloured by `ageDays()`. `CORPORATE` clients sit in a separate VIP row.
+- **Master control:**
+  - **Mixing console:** the fader shows units in edit against capacity, the meter counts late episodes, and − and + set capacity.
+  - **On-air board:** for the next 10 working days, deadlines due plus booked sessions arriving the next working day, against team capacity per day (total weekly capacity ÷ 5).
+  - **Bottleneck meter:** units per stage and average wait. Wait is days since Available for edit stages, and `ageDays()` for Client Review.
+- **Capacity:**
+  - It means the units per week each editor can take on AG's work. The default is `DEFAULT_CAP` = 3.
+  - It is stored in the artifact `db` at `settings/capacity` as `{caps: {firstname: n}, updatedAt}`, with localStorage as the fallback.
+- **Booking units** (`bookingUnits()`, an estimate):
+  - Pro or Professional Edit is 1 unit.
+  - "Reels" in the package is 1 unit.
+  - Add-on reels or highlights count as n ÷ 3 units.
+  - Recording or Live Mix only is 0 units.
+  - `bookingOwner()` matches the booking to PP Clients Only: `BL -` bookings are listed but not counted, and unmatched clients count as new.
+- **Capabilities:** `{"mcp":{"servers":[{"server":"monday.com","tools":["get_board_items_page","change_item_column_values","create_update","all_api_read"]},{"server":"Google Calendar","tools":["list_events"]}]},"db":{}}`. Runtime contract 0.2.75.
+- **Test:** `NODE_PATH=$(npm root -g) node studio/tests/studio.test.js` mocks the runtime, Monday, Calendar and the db.
+
 ## River Pocket (`pocket/`), the phone view
 
 A separate claude.ai artifact for the Claude phone app, published at https://claude.ai/artifact/ARn46SCqqBYiEFz3xyarvB. It doesn't change River's URL.

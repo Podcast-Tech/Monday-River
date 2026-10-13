@@ -2,3 +2,4 @@ tests/.page.js
 .DS_Store
 extension/tests/shots/
 pocket/tests/shots/
+studio/tests/shots/

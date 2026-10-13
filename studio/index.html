@@ -1,0 +1,926 @@
+<title>River Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: the studio drawn as a floor plan on blueprint. Top row of rooms: Green room (Queue) · Edit suites (one per editor, each with
+   a 3-week timeline and a playhead on today) · Screening room (Client Review, VIP row for corporate clients). Below: Master control,
+   with the mixing console (editor load vs capacity, drag-to-reassign), the On-air board (sessions booked → units arriving vs capacity)
+   and the bottleneck meter. Dark-only, like River. */
+:root{
+  color-scheme:dark;
+  --night:#06080C; --floor:#090C12; --card:#0E131B; --hover:#151D2A; --line:rgb(160 200 255 / .08); --line-2:rgb(160 200 255 / .16); --wall:rgb(170 205 255 / .28);
+  --ink:#EEF3FA; --ink-2:#C9D3E2; --muted:#8693A8; --faint:#55617A;
+  --water:#3FA9FF; --foam:#BFE3FF; --sea:#9C8CFF;
+  --brand:#FF003C; --late:#FF4D6A; --today:#F6B64A; --ok:#3EDC97;
+  --st-queue:#8693A8; --st-assigned:#C9D3E2; --st-process:#F6C94A; --st-review:#5EB2FF; --st-corr:#FF8F45; --st-client:#3EDC97; --st-done:#9C8CFF; --st-other:#A68CFF;
+  --f:"Geist",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{min-height:100%}
+body{margin:0;color:var(--ink);font:400 14px/1.45 var(--f);-webkit-font-smoothing:antialiased;background-color:var(--night);
+  background-image:linear-gradient(rgb(120 170 255 / .035) 1px,transparent 1px),linear-gradient(90deg,rgb(120 170 255 / .035) 1px,transparent 1px),radial-gradient(1400px 700px at 50% -10%,#0F1A2B 0%,transparent 70%);
+  background-size:28px 28px,28px 28px,auto}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:0;padding:0}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:6px}
+.tnum{font-variant-numeric:tabular-nums}
+.mono{font-family:var(--mono)}
+.app{max-width:1560px;margin:0 auto;padding-inline:20px;padding-block:18px 60px;display:grid;gap:18px}
+
+/* header */
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:12px 22px}
+.brand{display:flex;align-items:center;gap:12px;margin-right:auto;min-width:0}
+.brand h1{margin:0;font-size:20px;font-weight:600;letter-spacing:-.02em;line-height:1.1}
+.brand span{display:block;font-size:12.5px;color:var(--muted)}
+.onair{display:inline-flex;align-items:center;gap:8px;font:600 12px var(--mono);letter-spacing:.14em;padding:6px 12px;border-radius:6px;border:1px solid rgb(255 0 60 / .25);color:rgb(255 120 140 / .45);background:#14070B}
+.onair.lit{color:#fff;background:#B00029;border-color:#FF003C;box-shadow:0 0 18px rgb(255 0 60 / .55),inset 0 0 8px rgb(255 255 255 / .2)}
+.stats{display:flex;gap:18px;flex-wrap:wrap}
+.stat{display:grid;line-height:1.15}
+.stat b{font:600 20px var(--f);letter-spacing:-.02em}
+.stat span{font-size:11.5px;color:var(--muted)}
+.stat.bad b{color:var(--late)}
+.sync{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted)}
+.sync i{width:7px;height:7px;border-radius:50%;background:var(--faint)}
+.sync i.on{background:var(--ok);box-shadow:0 0 8px var(--ok)} .sync i.stale{background:var(--today)} .sync i.off{background:var(--late)}
+.btn-s{border:1px solid var(--line-2);border-radius:999px;padding:5px 13px;font-size:12.5px;font-weight:500;color:var(--ink-2)}
+.btn-s:hover{background:var(--hover)}
+
+/* floor plan */
+.floor{display:grid;grid-template-columns:minmax(210px,.8fr) minmax(0,3.2fr) minmax(250px,1.1fr);gap:0;border:3px solid var(--wall);border-radius:6px;background:rgb(9 12 18 / .85);position:relative}
+@media (max-width:1100px){.floor{grid-template-columns:minmax(0,1fr)}}
+.room{position:relative;padding:14px 14px 16px;min-width:0;display:grid;gap:10px;align-content:start}
+.room + .room{border-left:3px solid var(--wall)}
+@media (max-width:1100px){.room + .room{border-left:0;border-top:3px solid var(--wall)}}
+/* a doorway: a gap in the wall with its swing arc */
+.room.door::before{content:"";position:absolute;left:-3px;top:46px;width:3px;height:44px;background:var(--floor)}
+.room.door::after{content:"";position:absolute;left:0;top:46px;width:44px;height:44px;border:1px dashed rgb(170 205 255 / .25);border-left:0;border-bottom:0;border-radius:0 44px 0 0}
+@media (max-width:1100px){.room.door::before,.room.door::after{display:none}}
+.plaque{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.plaque b{font:600 11px var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--ink-2)}
+.plaque span{font-size:12px;color:var(--muted)}
+.plaque em{margin-left:auto;font:500 11px var(--mono);font-style:normal;color:var(--faint)}
+.hint{font-size:12px;color:var(--faint)}
+
+/* green room */
+.couch{display:grid;gap:6px}
+.guest{display:grid;grid-template-columns:28px minmax(0,1fr);gap:8px;align-items:center;text-align:left;border:1px solid var(--line-2);border-radius:10px;padding:7px 9px;background:var(--card);cursor:grab}
+.guest:hover{background:var(--hover)}
+.guest .av{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font:600 10.5px var(--f);color:#05080D;background:var(--st-queue)}
+.guest b{display:block;font-weight:500;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.guest small{display:block;font-size:11.5px;color:var(--muted)}
+.guest.wait small{color:var(--today)} .guest.long small{color:var(--late)}
+
+/* edit suites */
+.suites{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:10px}
+.suite{border:2px solid var(--line-2);border-radius:8px;background:var(--card);display:grid;min-width:0;overflow:hidden;transition:border-color .15s,box-shadow .15s}
+.suite.drop{border-color:var(--water);box-shadow:0 0 0 3px rgb(63 169 255 / .2)}
+.s-h{display:flex;align-items:center;gap:9px;padding:8px 10px;border-bottom:1px solid var(--line);
+  background-image:repeating-linear-gradient(90deg,rgb(255 255 255 / .025) 0 6px,transparent 6px 12px),linear-gradient(180deg,#121926,#0E131B)}
+.lamp{font:600 9px var(--mono);letter-spacing:.12em;padding:2px 6px;border-radius:3px;color:rgb(255 120 140 / .35);border:1px solid rgb(255 0 60 / .2);background:#12070A}
+.lamp.lit{color:#fff;background:#B00029;border-color:#FF003C;box-shadow:0 0 10px rgb(255 0 60 / .6)}
+@media (prefers-reduced-motion:no-preference){.lamp.lit{animation:hum 3s ease-in-out infinite}@keyframes hum{50%{box-shadow:0 0 4px rgb(255 0 60 / .4)}}}
+.s-h .nm{font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s-h .no{font:500 10.5px var(--mono);color:var(--faint);letter-spacing:.1em}
+.s-h .ld{margin-left:auto;display:flex;align-items:center;gap:7px;font:500 11.5px var(--mono);color:var(--muted);white-space:nowrap}
+.bar{width:54px;height:6px;border-radius:3px;background:var(--line-2);overflow:hidden}
+.bar i{display:block;height:100%;border-radius:3px}
+.tl{position:relative;padding:6px 10px 8px}
+.tl-days{position:relative;height:16px;font:500 9.5px var(--mono);color:var(--faint)}
+.tl-days span{position:absolute;top:0;transform:translateX(-50%);white-space:nowrap}
+.tl-rows{position:relative;display:grid;gap:3px}
+.tl-grid{position:absolute;inset:16px 10px 8px;pointer-events:none;background-image:linear-gradient(90deg,rgb(160 200 255 / .06) 1px,transparent 1px);background-size:calc(100% / 21) 100%}
+.tl-wk{position:absolute;top:16px;bottom:8px;background:rgb(255 255 255 / .022)}
+.ph{position:absolute;top:12px;bottom:4px;width:2px;background:var(--brand);box-shadow:0 0 8px rgb(255 0 60 / .7);z-index:2;pointer-events:none}
+.ph::before{content:"";position:absolute;top:-4px;left:-4px;border:5px solid transparent;border-top-color:var(--brand)}
+.clip{position:relative;height:22px;z-index:1}
+.clip button{position:absolute;top:0;height:22px;min-width:10px;border-radius:4px;padding:0 6px;font-size:11.5px;font-weight:500;text-align:left;color:#05080D;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:grab;
+  background:linear-gradient(180deg,color-mix(in srgb,var(--c) 92%,#fff),var(--c));border:1px solid rgb(0 0 0 / .35);box-shadow:inset 0 -6px 8px -6px rgb(0 0 0 / .4)}
+.clip button:hover{filter:brightness(1.1)}
+.clip.late button{background:repeating-linear-gradient(135deg,var(--late) 0 6px,#E23A57 6px 12px);color:#fff}
+.clip.today button{box-shadow:0 0 0 2px var(--today)}
+.s-f{display:flex;gap:10px;flex-wrap:wrap;padding:6px 10px 9px;border-top:1px solid var(--line);font-size:11.5px;color:var(--muted)}
+.s-f b{color:var(--ink-2);font-weight:500}
+.s-f .late-t{color:var(--late)}
+.corridor{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.corridor > span{font:600 10.5px var(--mono);letter-spacing:.14em;color:var(--faint);margin-right:4px}
+.free{border:1px dashed var(--line-2);border-radius:999px;padding:4px 11px;font-size:12px;color:var(--muted)}
+.free.drop{border-color:var(--water);color:var(--ink);background:rgb(63 169 255 / .12)}
+
+/* screening room */
+.screen{height:10px;border-radius:3px;background:linear-gradient(90deg,transparent,rgb(191 227 255 / .5),transparent);box-shadow:0 6px 22px rgb(191 227 255 / .25);margin:2px 12px 4px}
+.seats{display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:6px}
+.seat{display:grid;justify-items:center;gap:1px;padding:6px 2px 5px;border-radius:9px 9px 5px 5px;border:1px solid var(--line-2);background:var(--card);border-bottom:3px solid var(--c)}
+.seat:hover{background:var(--hover)}
+.seat b{font:600 11px var(--f)}
+.seat small{font:500 10.5px var(--mono);color:var(--c)}
+.vip{display:grid;gap:6px;border-top:1px dashed var(--line-2);padding-top:10px}
+.vip .plaque b{color:var(--sea)}
+
+/* master control */
+.master{border:3px solid var(--wall);border-radius:6px;background:linear-gradient(180deg,#0B0F16,#080B10);display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:0}
+@media (max-width:1100px){.master{grid-template-columns:minmax(0,1fr)}}
+.master > section{padding:14px 16px 16px;min-width:0;display:grid;gap:12px;align-content:start}
+.master > section + section{border-left:3px solid var(--wall)}
+@media (max-width:1100px){.master > section + section{border-left:0;border-top:3px solid var(--wall)}}
+.console{display:flex;flex-wrap:wrap;gap:6px}
+.strip{flex:0 0 78px;display:grid;grid-template-rows:auto 168px auto auto;gap:7px;justify-items:center;padding:9px 6px 8px;border-radius:7px;border:1px solid var(--line-2);
+  background:linear-gradient(180deg,#151B26,#0D1219 60%,#0B0F15)}
+.strip.drop{border-color:var(--water);box-shadow:0 0 0 3px rgb(63 169 255 / .22)}
+.strip .ch{font:600 10px var(--mono);color:var(--faint);letter-spacing:.1em}
+.track{position:relative;width:100%;display:flex;justify-content:center;gap:9px}
+.meter{width:8px;display:flex;flex-direction:column-reverse;gap:2px}
+.meter i{flex:1;border-radius:1px;background:#1B2330}
+.meter i.on{background:var(--ok)} .meter i.on.amber{background:var(--today)} .meter i.on.red{background:var(--late);box-shadow:0 0 5px rgb(255 77 106 / .6)}
+.rail{position:relative;width:6px;border-radius:3px;background:#05070A;box-shadow:inset 0 0 0 1px rgb(255 255 255 / .06)}
+.rail .cap{position:absolute;left:-7px;right:-7px;height:1px;background:rgb(255 255 255 / .35)}
+.rail .cap::after{content:"cap";position:absolute;left:24px;top:-6px;font:500 8.5px var(--mono);color:var(--faint)}
+.knob{position:absolute;left:50%;width:30px;height:16px;margin-left:-15px;margin-top:-8px;border-radius:3px;background:linear-gradient(180deg,#D9DFE8,#8E98A8);box-shadow:0 2px 4px rgb(0 0 0 / .6),inset 0 1px 0 #fff;transition:top .5s cubic-bezier(.2,.8,.2,1)}
+.knob::after{content:"";position:absolute;left:3px;right:3px;top:7px;height:2px;background:#333B48}
+.knob.over{background:linear-gradient(180deg,#FFB3C0,#E23A57)}
+.strip .lv{font:600 13px var(--f)}
+.strip .lv small{display:block;font:400 10px var(--mono);color:var(--muted);text-align:center}
+.strip .nm{font-size:11.5px;font-weight:600;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center}
+.capin{display:flex;align-items:center;gap:3px;font:500 10.5px var(--mono);color:var(--muted)}
+.capin button{width:18px;height:18px;border-radius:4px;border:1px solid var(--line-2);line-height:1;color:var(--ink-2)}
+.capin button:hover{background:var(--hover)}
+.board{display:grid;gap:8px}
+.days{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:6px;align-items:end;height:150px;padding-top:8px;position:relative}
+.day{position:relative;height:100%;display:flex;flex-direction:column;justify-content:flex-end;gap:2px;align-items:stretch}
+.day .b{border-radius:3px 3px 0 0;min-height:0}
+.day .b.in{background:var(--water)} .day .b.new{background:repeating-linear-gradient(135deg,var(--foam) 0 4px,#7FB8E6 4px 8px)} .day .b.due{background:var(--st-corr)}
+.day .capline{position:absolute;left:-3px;right:-3px;height:2px;background:var(--ink);opacity:.55}
+.day.over .capline{background:var(--late);opacity:1;box-shadow:0 0 6px var(--late)}
+.dlabels{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:6px;font:500 10.5px var(--mono);color:var(--muted);text-align:center}
+.dlabels .over{color:var(--late)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.verdict{font-size:13.5px;color:var(--ink-2);border-left:3px solid var(--line-2);padding:2px 0 2px 10px}
+.verdict.bad{border-color:var(--late)} .verdict.ok{border-color:var(--ok)}
+.verdict b{color:var(--ink)}
+.necks{display:grid;gap:6px}
+.neck{display:grid;grid-template-columns:110px minmax(0,1fr) 92px;gap:10px;align-items:center;font-size:12.5px}
+.neck span{color:var(--ink-2)}
+.neck .nb{height:14px;border-radius:3px;background:#121925;overflow:hidden}
+.neck .nb i{display:block;height:100%;background:var(--c);opacity:.85}
+.neck em{font:500 11px var(--mono);font-style:normal;color:var(--muted);text-align:right}
+.neck.worst span{color:var(--ink);font-weight:600}
+.neck.worst .nb{box-shadow:0 0 0 1px var(--late)}
+.bks{display:grid;gap:4px;max-height:180px;overflow:auto}
+.bk{display:grid;grid-template-columns:62px minmax(0,1fr) auto;gap:8px;font-size:12.5px;align-items:baseline;padding:3px 0;border-bottom:1px solid var(--line)}
+.bk time{font:500 11px var(--mono);color:var(--muted)}
+.bk span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bk em{font:500 11px var(--mono);font-style:normal;color:var(--foam)}
+.bk.laura{opacity:.5}
+.empty{color:var(--muted);font-size:13px}
+.banner{border:1px solid rgb(255 77 106 / .4);background:rgb(255 77 106 / .08);border-radius:10px;padding:10px 14px;display:grid;gap:2px}
+.banner span{color:var(--muted)}
+.skel{height:120px;border-radius:8px;background:linear-gradient(90deg,#0E131B,#151D2A,#0E131B);background-size:200% 100%}
+@media (prefers-reduced-motion:no-preference){.skel{animation:sh 1.3s linear infinite}@keyframes sh{to{background-position:-200% 0}}}
+.dragging{opacity:.5}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+/* ===== River's episode panel (copied by studio/build.py) ===== */
+.scrim{position:fixed;inset:0;z-index:20;background:rgb(2 4 8 / .5)}
+.panel{position:fixed;z-index:21;top:0;right:0;bottom:0;width:min(440px,100%);background:#0A0F17;border-left:1px solid var(--line-2);display:flex;flex-direction:column;box-shadow:-30px 0 60px -20px #000}
+.p-h{display:flex;align-items:center;gap:8px;padding:calc(env(safe-area-inset-top,0px) + 14px) 16px 14px 20px;border-bottom:1px solid var(--line)}
+.p-h span{flex:1;min-width:0;font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ib{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;color:var(--muted);flex:none}
+.ib:hover{background:var(--hover);color:var(--ink)}
+.p-b{overflow-y:auto;padding:20px 20px calc(env(safe-area-inset-bottom,0px) + 28px);display:grid;gap:22px;align-content:start}
+.p-b h2{margin:0;font-size:20px;font-weight:600;letter-spacing:-.015em;line-height:1.3;text-wrap:balance}
+.badge{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:500;border-radius:999px;padding:3px 10px;border:1px solid color-mix(in srgb,var(--c) 45%,transparent);background:color-mix(in srgb,var(--c) 12%,transparent);justify-self:start}
+.badge i{width:7px;height:7px;border-radius:50%;background:var(--c)}
+.props{display:grid;grid-template-columns:90px minmax(0,1fr);gap:7px 10px;font-size:13.5px;margin:0}
+.props dt{color:var(--muted)} .props dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.props .late{color:var(--late)} .props .today{color:var(--today)}
+.lbl{font-size:12.5px;color:var(--muted);font-weight:500;margin:0 0 8px}
+.pkg{border:1px solid var(--line, rgba(255,255,255,.08));border-radius:12px;padding:12px 14px;display:grid;gap:10px;background:rgba(63,169,255,.04)}
+.pkg .lbl{margin:0;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.pkg .lbl a{color:var(--water, #BFE3FF);font-weight:500;text-decoration:none} .pkg .lbl a:hover{text-decoration:underline}
+.pkg dd{white-space:pre-line} .pkg .muted{color:var(--muted);font-size:13px;margin:0}
+.pkg .tag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:999px;border:1px solid currentColor;color:#9C8CFF;margin-left:6px;vertical-align:1px}
+.pkg + .pkg{margin-top:-4px}
+.moves{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.mv{display:flex;align-items:center;gap:7px;border:1px solid var(--line-2);border-radius:9px;padding:8px 9px;font-size:12.5px;font-weight:500;text-align:left;min-height:40px}
+.mv i{width:7px;height:7px;border-radius:50%;background:var(--c);flex:none}
+.mv:hover:not([disabled]){background:color-mix(in srgb,var(--c) 14%,transparent);border-color:color-mix(in srgb,var(--c) 50%,transparent)}
+.mv[disabled]{opacity:.35;cursor:default}
+.links{display:flex;flex-wrap:wrap;gap:6px}
+.lk{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line-2);border-radius:8px;padding:6px 10px;font-size:12.5px;font-weight:500;color:var(--ink-2);text-decoration:none}
+.lk:hover{background:var(--hover);color:var(--ink)}
+.composer{border:1px solid var(--line-2);border-radius:12px;display:grid;background:rgb(255 255 255 / .02)}
+.composer:focus-within{border-color:rgb(190 225 255 / .3)}
+.composer textarea{border:0;outline:0;background:transparent;resize:vertical;min-height:90px;padding:10px 12px;line-height:1.5}
+.composer textarea::placeholder{color:var(--faint)}
+.c-bar{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:8px 8px 8px 12px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+.c-bar label{display:inline-flex;gap:5px;align-items:center}
+.c-bar input{accent-color:var(--brand)}
+.post{margin-left:auto;background:var(--brand);color:#fff;border-radius:8px;padding:7px 13px;font-weight:500;font-size:12.5px}
+.post:hover{background:#E00035}
+.post[disabled]{opacity:.5}
+.add{display:inline-flex;align-items:center;gap:7px;background:var(--brand);color:#fff;border-radius:999px;padding:7px 15px;font-weight:600;font-size:13px}
+.add:hover{background:#E00035}
+.add kbd{font:500 11px var(--mono);border:1px solid rgb(255 255 255 / .4);border-radius:5px;padding:0 5px}
+.form{display:grid;gap:14px}
+.fld{display:grid;gap:5px;font-size:12.5px;color:var(--muted)}
+.fld input,.fld select{border:1px solid var(--line-2);border-radius:9px;background:rgb(255 255 255 / .03);padding:9px 11px;color:var(--ink);outline:0;font-size:14px;width:100%}
+.fld input:focus,.fld select:focus{border-color:rgb(190 225 255 / .35)}
+.fld select option{background:#0A0F17}
+.row2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+.kinds{display:flex;flex-wrap:wrap;gap:6px}
+.kinds button{border:1px solid var(--line-2);border-radius:999px;padding:5px 12px;font-size:12.5px;color:var(--muted)}
+.kinds button[aria-pressed="true"]{border-color:var(--water);color:var(--ink);background:rgb(63 169 255 / .12)}
+.sum{border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:13px;color:var(--ink-2);display:grid;gap:4px}
+.sum b{color:var(--ink);font-weight:500}
+.f-acts{display:flex;gap:8px;align-items:center}
+.f-acts .post{margin-left:0}
+.toast{position:fixed;z-index:30;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);transform:translateX(-50%);display:flex;align-items:center;gap:12px;background:var(--ink);color:var(--night);padding:9px 10px 9px 14px;border-radius:10px;font-size:13px;max-width:calc(100% - 32px)}
+.toast button{color:var(--night);font-weight:600;padding:2px 8px;border-radius:6px;background:rgb(0 0 0 / .1)}
+.toast.bad{background:var(--late);color:#fff}
+/* Monday notifications: bell + inbox drawer */
+.bell{position:relative;width:36px;height:36px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--line-2);color:var(--ink-2)}
+.bell:hover{background:var(--hover);color:var(--ink)}
+.bell b{position:absolute;top:-4px;right:-5px;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--brand);color:#fff;font:600 11px/18px var(--mono);text-align:center;box-shadow:0 0 0 2px var(--night)}
+@media (prefers-reduced-motion:no-preference){.bell.ping svg{animation:ring .9s ease-in-out 2}@keyframes ring{20%{transform:rotate(14deg)}40%{transform:rotate(-12deg)}60%{transform:rotate(7deg)}80%{transform:rotate(-4deg)}}}
+.inbox{z-index:22}
+.nf-filters{display:flex;flex-wrap:wrap;gap:6px}
+.nf-filters button{border:1px solid var(--line-2);border-radius:999px;padding:4px 11px;font-size:12.5px;color:var(--muted)}
+.nf-filters button[aria-pressed="true"]{background:var(--ink);color:var(--night);border-color:var(--ink);font-weight:500}
+.nf-filters em{font-style:normal;font-family:var(--mono);font-size:11px;margin-left:4px;opacity:.75}
+.nf-list{display:grid;gap:6px}
+.nf{display:grid;grid-template-columns:28px minmax(0,1fr);gap:10px;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:rgb(255 255 255 / .015);text-align:left;width:100%}
+.nf.new{border-color:rgb(255 0 60 / .35);background:rgb(255 0 60 / .05)}
+.nf .av{width:28px;height:28px;font-size:11px}
+.nf .av.auto{background:#2A3446;color:var(--muted)}
+.nf-top{display:flex;gap:6px;align-items:baseline;font-size:13px;min-width:0}
+.nf-top b{font-weight:600;white-space:nowrap}
+.nf-top span{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
+.nf-top small{font:400 11.5px var(--mono);color:var(--faint);white-space:nowrap}
+.nf-body{margin:4px 0 0;font-size:13px;color:var(--ink-2);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.nf-ep{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:7px;font-size:12px}
+.nf-ep button,.nf-ep a{color:var(--foam);text-decoration:none;font-weight:500;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nf-ep button:hover,.nf-ep a:hover{text-decoration:underline}
+.nf-ep .st{display:inline-flex;align-items:center;gap:5px;color:var(--muted)} .nf-ep .st i{width:6px;height:6px;border-radius:50%;background:var(--c)}
+.nf-ep .rp{margin-left:auto;border:1px solid var(--line-2);border-radius:7px;padding:3px 9px;color:var(--ink-2);text-decoration:none}
+.nf-ep .rp:hover{background:var(--hover);text-decoration:none}
+.nf .composer{margin-top:8px}
+.nf .composer textarea{min-height:64px}
+.nf-more{justify-self:center}
+.pn-list{display:grid;gap:6px}
+.pn{font-size:13px;color:var(--ink-2);border-left:2px solid var(--line-2);padding:2px 0 2px 10px}
+.pn b{font-weight:600;color:var(--ink)} .pn small{font:400 11.5px var(--mono);color:var(--faint);margin-left:6px}
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <svg viewBox="0 0 40 40" width="34" height="34" aria-hidden="true"><rect width="40" height="40" rx="10" fill="#FF003C"/><rect x="12" y="8" width="16" height="18" rx="8" fill="none" stroke="#fff" stroke-width="3.6"/><path d="M13.8 22v11" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/></svg>
+      <div><h1>River Studio</h1><span id="sub">Poddster post-production floor</span></div>
+    </div>
+    <span class="onair" id="onair">ON AIR</span>
+    <div class="stats" id="stats"></div>
+    <div class="sync"><i id="sync-dot"></i><span id="sync-t">Connecting</span><button class="btn-s" type="button" id="refresh">Sync</button></div>
+  </header>
+  <div id="banner"></div>
+  <div class="floor" id="floor">
+    <section class="room" id="green" aria-label="Green room"></section>
+    <section class="room door" id="suites" aria-label="Edit suites"></section>
+    <section class="room door" id="screening" aria-label="Screening room"></section>
+  </div>
+  <div class="master">
+    <section id="console-room" aria-label="Mixing console"></section>
+    <section aria-label="On-air board and bottlenecks"><div id="board"></div><div id="necks"></div></section>
+  </div>
+</div>
+<div class="scrim" id="scrim" hidden></div>
+<aside class="panel" id="panel" hidden aria-label="Episode"></aside>
+<div class="toast" id="toast" hidden role="status"></div>
+
+<script>
+/* ===== Shared with River (index.html), copied by studio/build.py — edit River, then rebuild ===== */
+const SERVER = "monday.com";
+const BOARD = 2472462203;
+const BOARD_URL = "https://poddsterstudios-team.monday.com/boards/" + BOARD;
+const COLS = ["status","person","date","date4","date_mkx87nb3","dup__of_1st_cut_deadline","status_1","board_relation_mkxb8cpz","link_mm22fna1","link_mkxbtnjf","link_mkxbm8as","numeric_mm1y5e6b","date_mm02j5tr"];
+const INPUT = { boardId: BOARD, includeColumns: true, includeGroup: false, columnIds: COLS, limit: 500,
+  filters: [{ columnId: "people", compareValue: ["assigned_to_me"], operator: "any_of" }] };
+const FLOW = ["Queue","Assigned","In Process","In Review","Corrections","Client Review"];
+const COLOR = { "Queue": "--st-queue", "Assigned": "--st-assigned", "In Process": "--st-process", "In Review": "--st-review", "Corrections": "--st-corr", "Client Review": "--st-client", "Done": "--st-done" };
+const CLOSED = new Set(["Done","Cancelled","No Client Response","Paid"]);
+const IN_EDIT = new Set(["Queue","Assigned","In Process","In Review","Corrections"]);
+const MOVE_TO = ["Assigned","In Process","In Review","Corrections","Client Review","Done"];
+const CORPORATE = /dmitrii|suvo|enbd/i;
+const EDITOR_IDS = { igor:"43400381", stipe:"61381904", georges:"36795459", stefan:"38981225", akssat:"88817643",
+  glody:"60723690", shrijit:"101677796", motasem:"107518052", mahmoud:"107176166", bashar:"103717656", ajin:"71556126" };
+
+const ME_ID = 49670201, CLIENTS_BOARD = 18330033684;
+const EDITORS = [["Igor Garčev",43400381],["Motasem Jammal",107518052],["Stipe Majić",61381904],["Georges Saliba",36795459],["Stefan Mikić",38981225],["Akssat",88817643],["Mahmoud",107176166],["Glody Kikonga",60723690],["Shrijit Chowdhury",101677796],["Bashar M. Najjar",103717656],["Ajin",71556126]];
+const KINDS = [["Episode",""],["Highlights"," (Highlights)"],["Reel"," Reel"],["Teaser"," (Teaser)"]];
+let mcp = null;
+/* IDs this page wrote recently, so a refresh doesn't report our own changes back as live activity. */
+const WROTE = new Map();
+const markWrote = id => WROTE.set(String(id), Date.now());
+const wroteRecently = id => Date.now() - (WROTE.get(String(id)) || 0) < 120000;
+const S = { items: [], storedAt: null, error: null, loading: true, sel: null, busy: false, draft: "", corr: true, mention: true };
+try { S.names = localStorage.getItem("river.names") === "urgent" ? "urgent" : "all"; } catch (_) { S.names = "all"; }
+
+const str = v => typeof v === "string" ? v : "";
+const isoDate = v => /^\d{4}-\d{2}-\d{2}$/.test(str(v)) ? v : null;
+const lastUrl = v => { const m = str(v).match(/https?:\/\/[^\s]+/g); return m ? m[m.length - 1] : null; };
+const clientName = v => Array.isArray(v) && v[0] && v[0].name ? v[0].name.replace(/^(AG|BL)\s*-\s*/i, "").trim() : "";
+function norm(raw) {
+  const c = raw.column_values || {};
+  return { id: String(raw.id), name: raw.name || "Untitled", url: raw.url || BOARD_URL, updated: raw.updated_at, created: raw.created_at,
+    stage: str(c.status) || "No status", editor: str(c.person), available: isoDate(c.date), draft: isoDate(c.date4),
+    v1: isoDate(c.date_mkx87nb3), final: isoDate(c.dup__of_1st_cut_deadline), publishing: isoDate(c.date_mm02j5tr), invoice: str(c.status_1),
+    client: clientName(c.board_relation_mkxb8cpz), upload: lastUrl(c.link_mm22fna1), share: lastUrl(c.link_mkxbtnjf),
+    dropbox: lastUrl(c.link_mkxbm8as), units: parseFloat(str(c.numeric_mm1y5e6b)) || 0 };
+}
+const isoOf = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+const todayISO = () => isoOf(new Date());
+const dayNum = iso => Math.round(Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)) / 864e5);
+const T = () => dayNum(todayISO());
+const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const short = iso => iso ? (+iso.slice(8, 10)) + " " + MON[+iso.slice(5, 7) - 1] : "Not set";
+const DATE_COLS = [["available","date","Available"],["draft","date4","Draft"],["v1","date_mkx87nb3","V1"],["final","dup__of_1st_cut_deadline","Final"],["publishing","date_mm02j5tr","Publishing"]];
+function addWorkdays(n) { const d = new Date(); while (n > 0) { d.setDate(d.getDate() + 1); if (d.getDay() !== 0 && d.getDay() !== 6) n--; } return isoOf(d); }
+const nextEmptyDate = it => DATE_COLS.find(([k]) => !it[k]) || null;
+/* Corrections rule: moving to Corrections fills the next empty deadline column with today + 2 working days, in the same Monday write. */
+function correctionsPatch(it) { const slot = nextEmptyDate(it); if (!slot) return { cv: {}, slot: null }; const iso = addWorkdays(2); return { cv: { [slot[1]]: { date: iso } }, slot, iso }; }
+function nextDue(it) {
+  if (!IN_EDIT.has(it.stage)) return null;
+  if (it.stage === "Corrections") return [it.v1, it.final].filter(Boolean).sort().pop() || it.draft;
+  return it.draft;
+}
+const daysTo = it => { const d = nextDue(it); return d ? dayNum(d) - T() : null; };
+function ageDays(it) { const last = [it.draft, it.v1, it.final].filter(Boolean).sort().pop() || (it.updated || "").slice(0, 10); return last ? T() - dayNum(last) : 0; }
+const isLate = it => it.stage === "Client Review" ? (!CORPORATE.test(it.name) && ageDays(it) > 7) : (daysTo(it) !== null && daysTo(it) < 0);
+function rel(it) {
+  if (it.stage === "Client Review") { const a = ageDays(it); return { cls: a > 7 && !CORPORATE.test(it.name) ? "late" : "", txt: a + (a === 1 ? " day" : " days") + " with the client" }; }
+  const d = daysTo(it); if (d === null) return { cls: "", txt: "No deadline" };
+  if (d < 0) return { cls: "late", txt: (-d) + (d === -1 ? " day late" : " days late") };
+  if (d === 0) return { cls: "today", txt: "Due today" };
+  return { cls: "", txt: d === 1 ? "Due tomorrow" : "Due in " + d + " days" };
+}
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const $ = id => document.getElementById(id);
+const colorOf = st => "var(" + (COLOR[st] || "--st-other") + ")";
+const firstName = n => ((n || "").split(", ")[0] || "").split(" ")[0];
+const label = it => it.client || it.name.split(/\s[-:]\s/)[0];
+const initials = n => { const p = (n || "").trim().split(/\s+/).filter(Boolean); return p.length ? (p[0][0] + (p[1] ? p[1][0] : "")).toUpperCase() : "–"; };
+const AVC = ["#7C6CF2","#2F9E7E","#D2693C","#3B82C4","#B5487A","#8A8F2C","#5A7BD8","#C2410C","#0E8A9B","#9B59B6"];
+const avColor = n => { let h = 0; for (const ch of n || "") h = (h * 31 + ch.charCodeAt(0)) >>> 0; return AVC[h % AVC.length]; };
+function seeded(id, k) { let h = 2166136261; const s = id + ":" + k; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return ((h >>> 0) % 10000) / 10000; }
+const active = () => S.items.filter(i => !CLOSED.has(i.stage));
+const inRiver = () => active().filter(i => FLOW.includes(i.stage));
+const editorsOf = it => it.editor ? it.editor.split(", ") : [];
+const shown = it => (!S.editor || editorsOf(it).includes(S.editor)) && (!S.q || (it.name + " " + it.client + " " + it.editor).toLowerCase().includes(S.q.toLowerCase()));
+const editorId = n => EDITOR_IDS[firstName(n).toLowerCase()] || null;
+const fmtU = u => String(Math.round(u * 100) / 100);
+function errorCopy(err) {
+  switch (err && err.code) {
+    case "no_mcp": return { title: "Open this in Claude", body: "River reads your board through the monday.com connector, which only works inside claude.ai or the Claude app." };
+    case "needs_reauth": return { title: "Reconnect monday.com", body: "Your Monday connection expired. Reconnect it in claude.ai Settings, Connectors, then sync." };
+    case "server_not_connected": return { title: "Add the monday.com connector", body: "Add monday.com in claude.ai Settings, Connectors, then reload." };
+    case "selection_required": return { title: "Choose a Monday account", body: "You have more than one monday.com connector. Pick one when Claude asks, then reload." };
+    case "not_in_manifest": case "not_granted": return { title: "Monday is switched off for this page", body: "Allow monday.com for this page when Claude asks, then reload." };
+    case "blocked_by_policy": case "approval_required": return { title: "Blocked by your organisation", body: "Your workspace policy doesn't allow this Monday action from here." };
+    case "server_unavailable": return { title: "Monday isn't answering", body: "Showing the last data loaded. Sync again in a moment." };
+    case "tool_error": return { title: "Monday refused the request", body: err.message || "Try again, or open the episode in Monday." };
+    default: return { title: "Couldn't reach Monday", body: (err && err.message) || "Sync to try again." };
+  }
+}
+/* panel */
+function renderPanel() {
+  const it = S.items.find(i => i.id === S.sel);
+  $("panel").hidden = !it && !S.adding; $("scrim").hidden = !it && !S.adding;
+  if (S.adding && S.form) return renderForm();
+  if (!it) return;
+  if (!S.pkg[it.id]) setTimeout(() => loadPackage(it), 0);
+  const r = rel(it), canMention = !!EDITOR_IDS[firstName(it.editor).toLowerCase()];
+  const lk = (u, l) => u ? `<a class="lk" href="${esc(u)}" target="_blank" rel="noopener">${l}</a>` : "";
+  $("panel").innerHTML = `
+    <div class="p-h"><span>${esc(it.client || "Episode")}</span>
+      <a class="ib" href="${esc(it.url)}" target="_blank" rel="noopener" aria-label="Open in Monday" title="Open in Monday"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>
+      <button class="ib" type="button" data-act="close" aria-label="Close" title="Close (Esc)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <div class="p-b">
+      <div style="display:grid;gap:10px"><span class="badge" style="--c:${colorOf(it.stage)}"><i></i>${esc(it.stage)}</span><h2>${esc(it.name)}</h2></div>
+      <dl class="props"><dt>Status</dt><dd class="${r.cls}">${esc(r.txt)}</dd><dt>Editor</dt><dd>${esc(it.editor || "No editor yet")}</dd>
+        <dt>Draft</dt><dd class="tnum">${short(it.draft)}</dd><dt>V1</dt><dd class="tnum">${short(it.v1)}</dd><dt>Final</dt><dd class="tnum">${short(it.final)}</dd><dt>Publishing</dt><dd class="tnum">${short(it.publishing)}</dd>
+        ${it.units ? `<dt>Units</dt><dd class="tnum">${it.units}</dd>` : ""}</dl>
+      ${renderPackage(it)}
+      ${episodeNotifs(it)}
+      <div><p class="lbl">Move to</p><div class="moves">${MOVE_TO.map(s => `<button class="mv" type="button" data-stage="${esc(s)}" style="--c:${colorOf(s)}" ${s === it.stage || S.busy ? "disabled" : ""}><i></i>${esc(s)}</button>`).join("")}</div></div>
+      ${it.upload || it.share || it.dropbox ? `<div><p class="lbl">Files</p><div class="links">${lk(it.upload, "Frame.io upload")}${lk(it.share, "Frame.io review")}${lk(it.dropbox, "Dropbox raws")}</div></div>` : ""}
+      <div><p class="lbl">Note to editor</p>
+        <div class="composer"><textarea id="note" placeholder="C#1 Cut start: “…” 12:04, Cut end: “…” 12:31" aria-label="Note to editor">${esc(S.draft)}</textarea>
+          <div class="c-bar"><label title="Also fills the next empty deadline with 2 working days from today"><input type="checkbox" id="corr" ${S.corr ? "checked" : ""}> Set to Corrections${nextEmptyDate(it) ? ", " + nextEmptyDate(it)[2] + " " + short(addWorkdays(2)) : ""}</label>
+            <label><input type="checkbox" id="mention" ${canMention && S.mention ? "checked" : ""} ${canMention ? "" : "disabled"}> Mention ${esc(firstName(it.editor) || "editor")}</label>
+            <button class="post" type="button" data-act="post" ${S.busy ? "disabled" : ""}>${S.busy ? "Posting" : "Post note"}</button></div></div></div>
+    </div>`;
+}
+/* package: the studio booking behind this episode, read from Google Calendar (production@ and studio@, then AG's own) */
+const GCAL = "Google Calendar", BOOK_CALS = ["production@poddster.com", "studio@poddster.com"];
+S.pkg = {};
+const lc = s => String(s || "").toLowerCase().trim();
+function parseDesc(desc) {
+  const out = {}; let key = null;
+  String(desc || "").replace(/<br\s*\/?>/gi, "\n").replace(/<\/(p|div|li)>/gi, "\n").replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&nbsp;/g, " ").split(/\n/).forEach(line => {
+    const m = line.match(/^\s*([A-Za-z][A-Za-z ?/&]+?):\s*(.*)$/);
+    if (m && m[1].length < 40) { key = m[1].trim().toLowerCase().replace(/\?$/, ""); out[key] = m[2].trim(); }
+    else if (!line.trim()) { if (key && out[key]) key = "extra"; }
+    else if (key) out[key] = (out[key] ? out[key] + "\n" : "") + line.trim().replace(/^[-•*]\s*/, "");
+  });
+  return out;
+}
+const dubaiISO = dt => { try { return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dubai", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(dt)); } catch (e) { return String(dt).slice(0, 10); } };
+const dubaiTime = dt => { try { return new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Dubai", hour: "2-digit", minute: "2-digit" }).format(new Date(dt)); } catch (e) { return ""; } };
+function toBooking(ev) {
+  const sum = ev.summary || "", d = parseDesc(ev.description);
+  let name = sum.split("|")[0].replace(/\(NC\)/i, "").trim();
+  if (/@/.test(name) && d.customer && !/@/.test(d.customer)) name = d.customer;
+  const start = ev.start && (ev.start.dateTime || ev.start.date), end = ev.end && (ev.end.dateTime || ev.end.date);
+  const org = (ev.organizer && (ev.organizer.displayName || ev.organizer.email)) || "";
+  const studio = /abu dhabi/i.test(sum + org) ? "Abu Dhabi" : /studio@|dmc/i.test(org) || /studio booking/i.test(sum) ? "DMC Studio 1" : /barsha/i.test(org) ? org : "Al Barsha";
+  return { id: ev.id, name, nc: /\(NC\)/i.test(sum), studio, start, end, date: start ? dubaiISO(start) : null,
+    time: start && ev.start.dateTime ? dubaiTime(start) + (end ? "–" + dubaiTime(end) : "") : "",
+    email: lc(d["client email"]), order: d["order id"] || "", customer: d.customer || "", seats: d.seats || "", setup: d.setup || "",
+    services: d.services || "", addons: d["additional services"] || "", notes: [d["any special requests or note"], d.extra].filter(Boolean).join("\n"),
+    guests: d.guests || "", transfer: d["file transfer"] || "", link: ev.htmlLink || "" };
+}
+function sessionDate(it) {
+  const m = it.name.match(/(\d{2})\.(\d{2})\.(\d{2})(?!\d)/);
+  if (m) { const iso = "20" + m[3] + "-" + m[2] + "-" + m[1]; if (!isNaN(Date.parse(iso))) return { iso, exact: true }; }
+  return it.available ? { iso: it.available, exact: false } : null;
+}
+const shiftISO = (iso, n) => { const d = new Date(iso + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+function bookingMatches(b, it) {
+  const want = lc(it.client || it.name.split(" - ")[0]); if (!want) return false;
+  const email = S.clientEmails && S.clientEmails[want];
+  if (email && b.email && email === b.email) return true;
+  return [b.name, b.customer].map(lc).filter(n => n.length > 2).some(n => n === want || n.includes(want) || want.includes(n)
+    || (n.split(/\s+/).length > 1 && want.split(/\s+/).length > 1 && n.split(/\s+/).pop() === want.split(/\s+/).pop() && n[0] === want[0]));
+}
+async function loadPackage(it, force) {
+  const cur = S.pkg[it.id]; if (!force && cur && cur.state !== "error") return;
+  const sd = sessionDate(it);
+  if (!mcp) { S.pkg[it.id] = { state: "error", err: { code: "no_mcp" } }; return renderPanel(); }
+  if (!sd) { S.pkg[it.id] = { state: "nodate" }; return renderPanel(); }
+  S.pkg[it.id] = { state: "loading", sd }; if (S.sel === it.id) renderPanel();
+  const from = shiftISO(sd.iso, sd.exact ? -1 : -14), to = shiftISO(sd.iso, sd.exact ? 1 : 1);
+  const input = c => ({ calendarId: c, fullText: "Booking", startTime: from + "T00:00:00+04:00", endTime: to + "T23:59:59+04:00", orderBy: "startTime", pageSize: 50, timeZone: "Asia/Dubai" });
+  const opts = force ? { cache: { refresh: true, staleTime: 0 } } : { cache: { staleTime: 300000 } };
+  const ask = cals => Promise.all(cals.map(c => mcp.callTool(GCAL, "list_events", input(c), opts).then(r => ({ ok: r }), e => ({ err: e }))));
+  const pick = res => { const seen = new Set(), list = [];
+    res.forEach(r => ((r.ok && r.ok.payload && r.ok.payload.events) || []).forEach(ev => {
+      if (!/booking/i.test(ev.summary || "") || ev.status === "cancelled" || seen.has(ev.id)) return; seen.add(ev.id);
+      const b = toBooking(ev); if (bookingMatches(b, it)) list.push(b);
+    }));
+    return list.sort((a, b) => Math.abs(dayNum(a.date || sd.iso) - dayNum(sd.iso)) - Math.abs(dayNum(b.date || sd.iso) - dayNum(sd.iso))); };
+  try {
+    await loadClientEmails();
+    let res = await ask(BOOK_CALS), list = pick(res);
+    if (!list.length) { const own = await ask(["primary"]); list = pick(own); if (res.every(r => r.err) && own.every(r => r.err)) throw res[0].err; }
+    S.pkg[it.id] = { state: list.length ? "ok" : "none", list: list.slice(0, 2), sd };
+  } catch (e) { S.pkg[it.id] = { state: "error", err: e, sd }; }
+  if (S.sel === it.id) renderPanel();
+}
+async function loadClientEmails() {
+  if (S.clientEmails) return;
+  S.clientEmails = {};
+  try {
+    const r = await mcp.callTool(SERVER, "get_board_items_page", { boardId: CLIENTS_BOARD, includeColumns: true, includeGroup: false, limit: 500, columnIds: ["text_mkxbach4"] }, { cache: { staleTime: 600000 } });
+    ((r.payload && r.payload.items) || []).forEach(x => { const em = lc(x.column_values && x.column_values.text_mkxbach4); if (em) S.clientEmails[lc((x.name || "").replace(/^(AG|BL)\s*-\s*/i, ""))] = em; });
+  } catch (e) { /* email match is a bonus; name match still works */ }
+}
+function calErr(err) {
+  switch (err && err.code) {
+    case "no_mcp": return "Open this in Claude to read the booking.";
+    case "needs_reauth": return "Your Google Calendar connection expired. Reconnect it in claude.ai Settings, Connectors.";
+    case "server_not_connected": return "Add the Google Calendar connector in claude.ai Settings, Connectors to see the package.";
+    case "not_in_manifest": case "not_granted": return "Allow Google Calendar for this page when Claude asks, then reopen the episode.";
+    case "blocked_by_policy": case "approval_required": return "Your workspace policy blocks Calendar from here.";
+    default: return "Couldn't reach Google Calendar. " + ((err && err.message) || "");
+  }
+}
+function renderPackage(it) {
+  const p = S.pkg[it.id] || { state: "loading" };
+  const head = (extra) => `<p class="lbl"><span>Package</span>${extra || ""}</p>`;
+  if (p.state === "loading") return `<div class="pkg">${head()}<p class="muted">Looking for the booking in the studio calendars…</p></div>`;
+  if (p.state === "nodate") return `<div class="pkg">${head()}<p class="muted">No session date in the task name, so the booking can't be matched.</p></div>`;
+  if (p.state === "error") return `<div class="pkg">${head(`<button class="lk" type="button" data-act="pkg-retry">Try again</button>`)}<p class="muted">${esc(calErr(p.err))}</p></div>`;
+  if (p.state === "none") return `<div class="pkg">${head(`<button class="lk" type="button" data-act="pkg-retry">Search again</button>`)}<p class="muted">No booking found for ${esc(it.client || "this client")} ${p.sd && p.sd.exact ? "around " + short(p.sd.iso) : "in the two weeks before Available"}.</p></div>`;
+  return p.list.map((b, i) => {
+    const row = (k, v) => v ? `<dt>${k}</dt><dd>${esc(v)}</dd>` : "";
+    const when = [b.date ? new Date(b.date + "T12:00:00Z").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }) : "", b.time].filter(Boolean).join(", ");
+    return `<div class="pkg">${head(b.link ? `<a href="${esc(b.link)}" target="_blank" rel="noopener">Open in Calendar</a>` : "")}
+      <dl class="props">${row("Session", [b.studio, when].filter(Boolean).join(", "))}${b.order || b.nc ? `<dt>Order</dt><dd>${esc(b.order || "No ID")}${b.nc ? '<span class="tag">New client</span>' : ""}</dd>` : ""}
+        ${row("Services", b.services)}${row("Add-ons", b.addons)}${row("Setup", b.setup)}${row("Seats", b.seats)}${row("Guests", b.guests)}${row("Requests", b.notes)}${row("File transfer", b.transfer)}</dl></div>`;
+  }).join("");
+}
+/* Monday notifications: AG's real Monday inbox (mentions, replies, updates, automations) through the read-only GraphQL tool.
+   Monday's read flag can't be set from here, so the badge counts unread ones newer than the last time the bell was opened (per viewer). */
+const NOTIF_Q = "query { notifications(limit: 50) { id created_at title text read kind_name item { id name board { id } } board { id name } update { id text_body creator_id } } }";
+const NF_KIND = [["mention", "Mentions"], ["update", "Updates"], ["auto", "Automations"]];
+S.notifs = []; S.inbox = false; S.nfFilter = "all"; S.nfReply = null; S.nfSeeded = false; S.nfShow = 20;
+try { S.nfSeen = +localStorage.getItem("river.notifSeen") || 0; } catch (_) { S.nfSeen = 0; }
+S.nfPrevSeen = S.nfSeen;
+const ACTION_RE = /^(.+?)\s+(mentioned|wrote|replied|assigned|subscribed|added|invited|changed|created|moved|liked|reacted|commented|asked|updated|sent)\b/i;
+function normNotif(n) {
+  const kn = n.kind_name || "", t = Date.parse(n.created_at) || 0, title = n.title || "";
+  const kind = /automation/i.test(kn) || title === "Automations" ? "auto" : /mention/i.test(kn) ? "mention" : "update";
+  const m = title.match(ACTION_RE), who = kind === "auto" ? "Automation" : m ? m[1].trim() : title.split(" ").slice(0, 2).join(" ");
+  const action = kind === "auto" ? "" : m ? title.slice(m[1].length).trim().replace(/^Mentioned/, "mentioned").replace(/^Wrote/, "wrote").replace(/^Replied/, "replied") : "";
+  let body = (n.text || "").replace(/^you in (a reply|an update|a post)[^:]*:\s*/i, "").replace(/^Hey Abdullah,?\s*/i, "").trim();
+  if (!body && n.update) body = n.update.text_body || "";
+  body = body.replace(/@Abdullah Ghanem/g, "@you").replace(/\n{2,}/g, "\n");
+  const ed = EDITORS.find(([nm]) => firstName(nm).toLowerCase() === firstName(who).toLowerCase());
+  const item = n.item || null, boardId = (item && item.board && item.board.id) || (n.board && n.board.id) || "";
+  return { id: String(n.id), t, kind, who, action, body, read: !!n.read, edId: ed ? ed[1] : null,
+    itemId: item ? String(item.id) : null, itemName: item ? item.name : "", boardId: String(boardId), boardName: (n.board && n.board.name) || "",
+    updateId: n.update ? String(n.update.id) : null,
+    url: item ? "https://poddsterstudios-team.monday.com/boards/" + boardId + "/pulses/" + item.id : n.board ? "https://poddsterstudios-team.monday.com/boards/" + n.board.id : "" };
+}
+const isNew = n => !n.read && n.t > S.nfSeen;
+const shortItem = n => n.replace(/\s*-\s*Session\s*/i, " · ").slice(0, 48);
+function nago(t) { const s = (Date.now() - t) / 1000; if (s < 45) return "now"; if (s < 3600) return Math.round(s / 60) + "m"; if (s < 86400) return Math.round(s / 3600) + "h";
+  const d = new Date(t); return s < 7 * 86400 ? d.toLocaleDateString("en-GB", { weekday: "short" }) : d.getDate() + " " + MON[d.getMonth()]; }
+function episodeNotifs(it) {
+  const list = S.notifs.filter(n => n.itemId === it.id && n.kind !== "auto").slice(0, 4);
+  if (!list.length) return "";
+  return `<div><p class="lbl">Latest on Monday</p><div class="pn-list">${list.map(n => `<div class="pn"><b>${esc(firstName(n.who))}</b> ${esc(n.body.slice(0, 160))}${n.body.length > 160 ? "…" : ""}<small>${nago(n.t)}</small></div>`).join("")}</div></div>`;
+}
+/* add task */
+S.adding = false; S.form = null; S.clients = null; S.createdNames = new Map(); S.dropEditor = null;
+async function loadClients() {
+  if (S.clients || !mcp) return;
+  try {
+    const r = await mcp.callTool(SERVER, "get_board_items_page", { boardId: CLIENTS_BOARD, includeColumns: true, includeGroup: false, limit: 500, columnIds: ["person"] }, { cache: { staleTime: 300000 } });
+    S.clients = ((r.payload && r.payload.items) || []).map(x => ({ id: String(x.id), raw: x.name || "", name: (x.name || "").replace(/^(AG|BL)\s*-\s*/i, "").trim(), mine: /^AG\s*-/i.test(x.name || "") }))
+      .sort((a, b) => (b.mine - a.mine) || a.name.localeCompare(b.name));
+  } catch (e) { S.clients = []; S.clientsErr = e; }
+  if (S.adding) renderPanel();
+}
+function autoName(f) { const dmy = f.date ? f.date.slice(8, 10) + "." + f.date.slice(5, 7) + "." + f.date.slice(2, 4) : ""; return (f.client || "Client") + " - Session " + dmy + (KINDS.find(k => k[0] === f.kind) || KINDS[0])[1]; }
+/* actions */
+let tt;
+function toast(text, o = {}) {
+  const t = $("toast"); t.className = "toast" + (o.bad ? " bad" : "");
+  t.innerHTML = `<span>${esc(text)}</span>${o.undo ? `<button type="button" id="undo">Undo</button>` : ""}${o.act ? `<button type="button" id="tact">${esc(o.act.label)}</button>` : ""}`;
+  if (o.act) $("tact").onclick = () => { t.hidden = true; o.act.fn(); };
+  t.hidden = false; clearTimeout(tt); tt = setTimeout(() => t.hidden = true, o.undo ? 6000 : 3500);
+  if (o.undo) $("undo").onclick = () => { t.hidden = true; o.undo(); };
+}
+function writeErr(e) {
+  if (e && (e.code === "server_unavailable" || e.code === "upstream_error")) return "Monday didn't confirm the change. Sync to check before trying again.";
+  const m = errorCopy(e); return m.title + ". " + m.body;
+}
+async function setStage(it, lbl, isUndo, o = {}) {
+  if (!mcp || S.busy || !it || it.stage === lbl) return false;
+  const prev = it.stage, prevUpd = it.updated; S.busy = true;
+  const patch = lbl === "Corrections" && !isUndo ? correctionsPatch(it) : { cv: {}, slot: null };
+  const undoSlot = isUndo && it._autoDate ? it._autoDate : null;
+  const cv = Object.assign({ status: { label: lbl } }, patch.cv, undoSlot ? { [undoSlot[1]]: null } : {});
+  it.stage = lbl; if (lbl === "Done") it.updated = new Date().toISOString();
+  if (patch.slot) it[patch.slot[0]] = patch.iso; if (undoSlot) it[undoSlot[0]] = null;
+  markWrote(it.id); render();
+  let ok = false;
+  try {
+    await mcp.callTool(SERVER, "change_item_column_values", { boardId: BOARD, itemId: Number(it.id), columnValues: JSON.stringify(cv) }, { cache: false });
+    it._autoDate = patch.slot || null; markWrote(it.id);
+    const extra = patch.slot ? `, ${patch.slot[2]} set to ${short(patch.iso)}` : lbl === "Corrections" && !isUndo ? ", every deadline column is already filled" : "";
+    toast(isUndo ? "Back in " + lbl + (undoSlot ? ", " + undoSlot[2] + " cleared" : "") : lbl === "Done" ? label(it) + " reached the sea" : label(it) + " moved to " + lbl + extra, isUndo ? {} : { undo: () => setStage(it, prev, true).then(ok => { if (ok && o.onUndo) o.onUndo(); }) });
+    if (lbl === "Done" && S.sel === it.id) S.sel = null;
+    mcp.invalidate(SERVER, "get_board_items_page").catch(() => {});
+    ok = true;
+  } catch (e) { it.stage = prev; it.updated = prevUpd; if (patch.slot) it[patch.slot[0]] = null; if (undoSlot) it[undoSlot[0]] = undoSlot._iso || it[undoSlot[0]]; toast(writeErr(e), { bad: true }); }
+  finally { S.busy = false; render(); }
+  return ok;
+}
+/* Drag to reassign: writes the editor to person and, from Queue, sets Assigned in the same write. Further along, only the editor changes. Undo restores the previous editor. */
+async function reassign(it, name, undo) {
+  if (!mcp || S.busy || !it) return false;
+  const id = undo ? null : editorId(name), first = firstName(name);
+  if (!undo && !id) { toast(first + " isn't in River's editor list, so assign them in Monday.", { bad: true }); return false; }
+  if (!undo && editorsOf(it).length === 1 && editorId(it.editor) === id) { toast(label(it) + " is already with " + first); return false; }
+  const prev = { editor: it.editor, stage: it.stage }, prevIds = editorsOf(it).map(editorId), canUndo = prevIds.every(Boolean);
+  const cv = { person: undo ? undo.person : { personsAndTeams: [{ id: Number(id), kind: "person" }] } };
+  const toAssigned = !undo && it.stage === "Queue";
+  if (toAssigned) cv.status = { label: "Assigned" };
+  if (undo && undo.stage !== it.stage) cv.status = { label: undo.stage };
+  it.editor = undo ? undo.editor : (EDITORS.find(e => String(e[1]) === id) || [name])[0];
+  it.stage = undo ? undo.stage : toAssigned ? "Assigned" : it.stage;
+  S.busy = true; markWrote(it.id); render();
+  let ok = false;
+  try {
+    await mcp.callTool(SERVER, "change_item_column_values", { boardId: BOARD, itemId: Number(it.id), columnValues: JSON.stringify(cv) }, { cache: false });
+    markWrote(it.id); ok = true;
+    if (undo) toast(prev.editor === undo.editor ? "Back as it was" : undo.editor ? "Back with " + firstName(undo.editor) + (cv.status ? ", in " + undo.stage : "") : "Editor cleared" + (cv.status ? ", back in " + undo.stage : ""));
+    else {
+      const back = { editor: prev.editor, stage: prev.stage, person: prevIds.length ? { personsAndTeams: prevIds.map(x => ({ id: Number(x), kind: "person" })) } : null };
+      toast(label(it) + " given to " + first + (toAssigned ? ", now Assigned" : "") + (canUndo ? "" : ". Undo is off: the previous editor isn't in River's list"), canUndo ? { undo: () => reassign(it, back.editor, back) } : {});
+    }
+    mcp.invalidate(SERVER, "get_board_items_page").catch(() => {});
+  } catch (e) { it.editor = prev.editor; it.stage = prev.stage; toast(writeErr(e), { bad: true }); }
+  finally { S.busy = false; render(); }
+  return ok;
+}
+/* Posts an editor note. With no options it posts the panel's draft; Clear the gates passes { it, text, corr, mention } for a canned nudge. */
+async function postNote(o = {}) {
+  const fromPanel = !o.it;
+  const it = o.it || S.items.find(i => i.id === S.sel), text = ((fromPanel ? S.draft : o.text) || "").trim();
+  const corr = fromPanel ? S.corr : !!o.corr, mention = fromPanel ? S.mention : o.mention !== false;
+  if (!it || !mcp || S.busy) return false;
+  if (!text) { toast("Write the note first.", { bad: true }); return false; }
+  S.busy = true; renderPanel(); renderGates();
+  let ok = false;
+  try {
+    const input = { itemId: Number(it.id), body: esc(text).replace(/\n/g, "<br>") };
+    const mid = mention ? EDITOR_IDS[firstName(it.editor).toLowerCase()] : null;
+    if (mid) input.mentionsList = JSON.stringify([{ id: mid, type: "User" }]);
+    markWrote(it.id);
+    await mcp.callTool(SERVER, "create_update", input, { cache: false });
+    let msg = o.msg || "Note posted";
+    if (corr) {
+      const patch = correctionsPatch(it);
+      await mcp.callTool(SERVER, "change_item_column_values", { boardId: BOARD, itemId: Number(it.id), columnValues: JSON.stringify(Object.assign({ status: { label: "Corrections" } }, patch.cv)) }, { cache: false });
+      if (patch.slot) it[patch.slot[0]] = patch.iso;
+      markWrote(it.id);
+      msg = (it.stage === "Corrections" ? "Note posted" : "Note posted, moved to Corrections") + (patch.slot ? `, ${patch.slot[2]} set to ${short(patch.iso)}` : ", every deadline column is already filled");
+      it.stage = "Corrections";
+    }
+    if (fromPanel) S.draft = "";
+    toast(msg); ok = true;
+    mcp.invalidate(SERVER, "get_board_items_page").catch(() => {});
+  } catch (e) { toast(writeErr(e), { bad: true }); }
+  finally { S.busy = false; render(); }
+  return ok;
+}
+
+/* ================= River Studio: the strategic floor ================= */
+const DEFAULT_CAP = 3;               // units per week an editor can take on AG's work, until AG sets it
+const WIN_BACK = 7, WIN_DAYS = 21;   // edit-suite timelines: a week back, two weeks ahead
+S.cap = {}; S.bookings = null; S.bkErr = null; S.notifs = S.notifs || [];
+let db = null;
+const EDIT_STAGES = ["Assigned", "In Process", "In Review", "Corrections"];
+const units = it => it.units || 1;
+const ini = it => { const w = label(it).split(/[\s\-–(),:]+/).filter(x => /^[A-Za-zÀ-ž]/.test(x)); return ((w[0] || "?")[0] + (w[1] ? w[1][0] : "")).toUpperCase(); };
+const capOf = n => S.cap[firstName(n).toLowerCase()] || DEFAULT_CAP;
+const editorFull = n => (EDITORS.find(([e]) => firstName(e).toLowerCase() === firstName(n).toLowerCase()) || [n])[0];
+
+/* ---------- what's in each room ---------- */
+function suites() {
+  const m = new Map(), at = n => { const k = editorFull(n); if (!m.has(k)) m.set(k, { name: k, edit: [], cr: [], late: 0, u: 0 }); return m.get(k); };
+  active().forEach(it => editorsOf(it).forEach(e => { const s = at(e);
+    if (EDIT_STAGES.includes(it.stage)) { s.edit.push(it); s.u += units(it); if (isLate(it)) s.late++; }
+    else if (it.stage === "Client Review") s.cr.push(it); }));
+  return [...m.values()].sort((a, b) => b.u - a.u || b.edit.length - a.edit.length || a.name.localeCompare(b.name));
+}
+const guests = () => active().filter(i => i.stage === "Queue").map(i => ({ it: i, wait: Math.max(0, T() - dayNum(i.available || (i.created || todayISO()).slice(0, 10))) })).sort((a, b) => b.wait - a.wait);
+const screening = () => active().filter(i => i.stage === "Client Review").sort((a, b) => ageDays(b) - ageDays(a));
+const workdaysAhead = n => { const out = [], d = new Date(); while (out.length < n) { if (d.getDay() !== 0 && d.getDay() !== 6) out.push(isoOf(d)); d.setDate(d.getDate() + 1); } return out; };
+const nextWorkday = iso => { const d = new Date(iso + "T12:00:00"); do { d.setDate(d.getDate() + 1); } while (d.getDay() === 0 || d.getDay() === 6); return isoOf(d); };
+const dayLabel = iso => new Date(iso + "T12:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric" });
+
+/* ---------- header ---------- */
+function renderTop() {
+  const a = active(), late = a.filter(isLate).length, today = a.filter(i => daysTo(i) === 0).length;
+  const done = S.items.filter(i => i.stage === "Done" && i.updated && Date.now() - Date.parse(i.updated) < 7 * 864e5).length;
+  $("onair").className = "onair" + (a.some(i => i.stage === "In Process") ? " lit" : "");
+  $("onair").title = a.filter(i => i.stage === "In Process").length + " episodes being edited right now";
+  $("stats").innerHTML = S.items.length ? [["In the building", a.filter(i => FLOW.includes(i.stage)).length, ""], ["Late", late, late ? "bad" : ""], ["Due today", today, ""], ["Done this week", done, ""]]
+    .map(([l, n, c]) => `<div class="stat ${c}"><b class="tnum">${n}</b><span>${l}</span></div>`).join("") : "";
+  $("sub").textContent = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" }) + " · your episodes";
+  const dot = $("sync-dot"), t = $("sync-t"); dot.className = "";
+  if (S.error && !S.items.length) { dot.className = "off"; t.textContent = "Not connected"; }
+  else if (!S.storedAt) t.textContent = "Syncing";
+  else { const stale = Date.now() - S.storedAt > 5 * 60000; dot.className = stale ? "stale" : "on"; t.textContent = (stale ? "Stale, synced " : "Synced ") + new Date(S.storedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
+  $("banner").innerHTML = S.error && !S.items.length ? (m => `<div class="banner"><b>${esc(m.title)}</b><span>${esc(m.body)}</span></div>`)(errorCopy(S.error)) : "";
+}
+
+/* ---------- green room (Queue) ---------- */
+function renderGreen() {
+  const g = guests();
+  $("green").innerHTML = `<div class="plaque"><b>Green room</b><span>Queue</span><em class="tnum">${g.length}</em></div>
+    ${!S.items.length ? `<div class="skel"></div>` : g.length ? `<div class="couch">${g.map(({ it, wait }) => `<button class="guest ${wait >= 2 ? "long" : wait >= 1 ? "wait" : ""}" type="button" draggable="true" data-ep="${esc(it.id)}" title="${esc(it.name)}">
+      <span class="av">${esc(ini(it))}</span><span style="min-width:0"><b>${esc(it.name)}</b><small>${wait ? "Waiting " + wait + (wait === 1 ? " day" : " days") : "Arrived today"}${it.units > 1 ? " · " + it.units + " units" : ""}</small></span></button>`).join("")}</div>
+      <p class="hint">Drag a guest into an edit suite or onto a console channel to give it to that editor.</p>` : `<p class="empty">Nobody waiting. Every episode has an editor.</p>`}`;
+}
+
+/* ---------- edit suites ---------- */
+function renderSuites() {
+  if (!S.items.length) { $("suites").innerHTML = `<div class="plaque"><b>Edit suites</b></div><div class="skel"></div>`; return; }
+  const list = suites(), start = T() - WIN_BACK, pct = iso => Math.max(0, Math.min(100, (dayNum(iso) - start) / WIN_DAYS * 100));
+  const busy = new Set(list.map(s => firstName(s.name).toLowerCase())), idle = EDITORS.filter(([n]) => !busy.has(firstName(n).toLowerCase()));
+  const ticks = [-7, 0, 7, 14].map(k => { const d = new Date(); d.setDate(d.getDate() + k); return { x: (WIN_BACK + k) / WIN_DAYS * 100, l: k === 0 ? "Today" : d.getDate() + " " + MON[d.getMonth()] }; });
+  const wk = (() => { const d = new Date(), dow = (d.getDay() + 6) % 7, a = -dow, b = a + 7; return { l: (WIN_BACK + a) / WIN_DAYS * 100, w: 7 / WIN_DAYS * 100 }; })();
+  $("suites").innerHTML = `<div class="plaque"><b>Edit suites</b><span>Each clip runs from Available to its next deadline. The red line is today.</span><em class="tnum">${list.length} in use</em></div>
+    <div class="suites">${list.map((s, k) => {
+      const ratio = s.u / capOf(s.name), col = ratio > 1.2 ? "var(--late)" : ratio > .8 ? "var(--today)" : "var(--ok)";
+      const rows = s.edit.slice().sort((a, b) => (daysTo(a) ?? 99) - (daysTo(b) ?? 99)), shown = rows.slice(0, 6);
+      return `<article class="suite" data-drop="${esc(s.name)}" aria-label="${esc(s.name)}'s suite">
+        <div class="s-h"><span class="lamp ${s.edit.some(i => i.stage === "In Process") ? "lit" : ""}">ON AIR</span><span class="no">SUITE ${String(k + 1).padStart(2, "0")}</span><span class="nm">${esc(s.name)}</span>
+          <span class="ld" title="${fmtU(s.u)} units in edit against ${capOf(s.name)} a week">${fmtU(s.u)}u / ${capOf(s.name)}<span class="bar"><i style="width:${Math.min(100, ratio * 100).toFixed(0)}%;background:${col}"></i></span></span></div>
+        <div class="tl"><div class="tl-days">${ticks.map((t, i) => `<span style="left:${t.x}%;${i === 0 ? "transform:none" : i === ticks.length - 1 ? "transform:translateX(-100%)" : ""}">${t.l}</span>`).join("")}</div>
+          <div class="tl-wk" style="left:calc(10px + (100% - 20px) * ${wk.l / 100});width:calc((100% - 20px) * ${wk.w / 100})"></div>
+          <div class="tl-grid"></div>
+          <div class="ph" style="left:calc(10px + (100% - 20px) * ${WIN_BACK / WIN_DAYS})"></div>
+          <div class="tl-rows">${shown.length ? shown.map(it => {
+            const a = it.available || (it.created || todayISO()).slice(0, 10), due = nextDue(it) || isoOf(new Date(Date.now() + 864e5));
+            let l = pct(a), r = pct(due) + 100 / WIN_DAYS; if (r - l < 9) l = Math.max(0, r - 9);
+            const late = isLate(it), today = daysTo(it) === 0;
+            return `<div class="clip ${late ? "late" : today ? "today" : ""}"><button type="button" draggable="true" data-ep="${esc(it.id)}" style="left:${l}%;width:${Math.max(9, r - l)}%;--c:${colorOf(it.stage)}" title="${esc(it.name)} · ${esc(it.stage)} · ${esc(rel(it).txt)}">${esc(label(it))}</button></div>`; }).join("")
+            : `<p class="empty" style="margin:4px 0">Nothing in edit. ${s.cr.length} with clients.</p>`}</div></div>
+        <div class="s-f"><span><b>${s.edit.length}</b> in edit</span>${s.late ? `<span class="late-t"><b>${s.late}</b> late</span>` : ""}<span><b>${s.cr.length}</b> with clients</span>${rows.length > 6 ? `<span>+${rows.length - 6} more not shown</span>` : ""}</div>
+      </article>`; }).join("")}</div>
+    ${idle.length ? `<div class="corridor"><span>FREE</span>${idle.map(([n]) => `<span class="free" data-drop="${esc(n)}">${esc(n)}</span>`).join("")}</div>` : ""}`;
+}
+
+/* ---------- screening room (Client Review) ---------- */
+function renderScreening() {
+  const all = screening(), vip = all.filter(i => CORPORATE.test(i.name)), seats = all.filter(i => !CORPORATE.test(i.name));
+  const seat = it => { const a = ageDays(it), c = CORPORATE.test(it.name) ? "var(--sea)" : a > 7 ? "var(--late)" : a >= 4 ? "var(--today)" : "var(--ok)";
+    return `<button class="seat" type="button" data-ep="${esc(it.id)}" style="--c:${c}" title="${esc(it.name)} · ${a} ${a === 1 ? "day" : "days"} with the client"><b>${esc(ini(it))}</b><small class="tnum">${a}d</small></button>`; };
+  const quiet = seats.filter(isLate).length;
+  $("screening").innerHTML = `<div class="plaque"><b>Screening room</b><span>Client Review</span><em class="tnum">${all.length}</em></div>
+    ${!S.items.length ? `<div class="skel"></div>` : `<div class="screen" aria-hidden="true"></div>
+    ${seats.length ? `<div class="seats">${seats.map(seat).join("")}</div>` : `<p class="empty">No client is reviewing right now.</p>`}
+    <p class="hint">${quiet ? `<span style="color:var(--late)">${quiet} quiet for more than 7 days.</span> ` : ""}Days since the latest deadline. Green under 4, amber 4–7, red after a week.</p>
+    ${vip.length ? `<div class="vip"><div class="plaque"><b>VIP row</b><span>Corporate, open-ended review</span><em class="tnum">${vip.length}</em></div><div class="seats">${vip.map(seat).join("")}</div></div>` : ""}`}`;
+}
+
+/* ---------- master control: the console ---------- */
+function renderConsole() {
+  const list = suites(), seen = new Set(list.map(s => firstName(s.name).toLowerCase()));
+  const strips = list.concat(EDITORS.filter(([n]) => !seen.has(firstName(n).toLowerCase())).map(([n]) => ({ name: n, edit: [], cr: [], late: 0, u: 0 })));
+  const totalU = list.reduce((a, s) => a + s.u, 0), totalCap = strips.reduce((a, s) => a + capOf(s.name), 0);
+  $("console-room").innerHTML = `<div class="plaque"><b>Master control</b><span>Mixing console: units in edit against what each editor can take from you per week</span><em class="tnum">${fmtU(totalU)} / ${totalCap} units</em></div>
+    ${!S.items.length ? `<div class="skel"></div>` : `<div class="console">${strips.map((s, k) => {
+      const ratio = s.u / capOf(s.name), top = 100 - Math.min(2, ratio) / 2 * 100, leds = Array.from({ length: 10 }, (_, i) => i < Math.min(10, s.late));
+      return `<div class="strip" data-drop="${esc(s.name)}" title="${esc(s.name)}: ${fmtU(s.u)} units in edit, ${s.late} late, ${s.cr.length} with clients">
+        <span class="ch">CH ${String(k + 1).padStart(2, "0")}</span>
+        <div class="track"><div class="meter" aria-label="${s.late} late">${leds.map(on => `<i class="${on ? "on red" : ""}"></i>`).join("")}</div>
+          <div class="rail"><span class="cap" style="top:50%"></span><span class="knob ${ratio > 1 ? "over" : ""}" style="top:${top.toFixed(1)}%"></span></div></div>
+        <span class="lv tnum">${fmtU(s.u)}u<small>${ratio ? Math.round(ratio * 100) + "%" : "free"}</small></span>
+        <span class="nm">${esc(firstName(s.name))}</span>
+        <span class="capin"><button type="button" data-cap="${esc(s.name)}" data-d="-1" aria-label="Less capacity for ${esc(firstName(s.name))}">−</button><span class="tnum" title="Units per week">${capOf(s.name)}/wk</span><button type="button" data-cap="${esc(s.name)}" data-d="1" aria-label="More capacity for ${esc(firstName(s.name))}">+</button></span>
+      </div>`; }).join("")}</div>
+    <p class="hint">The fader shows load: the line marks 100% of the editor's weekly capacity, and the red meter counts late episodes. Set capacity with − and +. Drop an episode on a channel to give it to that editor.</p>`}`;
+}
+
+/* ---------- master control: on-air board + bottlenecks ---------- */
+function bookingUnits(b) {
+  const s = (b.services + " " + b.addons).toLowerCase(); let u = 0;
+  if (/(pro(fessional)?\s*edit|full edit|editing)/.test(s)) u += 1;
+  if (/\breels?\b/.test(b.services.toLowerCase()) && !/\(\d+\)/.test(b.services)) u += 1;
+  (b.addons.match(/(reel|highlight|clip|short)s?[^()\n]*\((\d+)\)/gi) || []).forEach(m => { const n = +(m.match(/\((\d+)\)/) || [])[1] || 0; u += n / 3; });
+  return Math.round(u * 100) / 100;
+}
+function bookingOwner(b) {
+  if (!S.clients) return "new";
+  const n = lc(b.customer || b.name), c = S.clients.find(c => { const x = lc(c.name); return x.length > 2 && (x === n || n.includes(x) || x.includes(n)); });
+  return c ? (c.mine ? "yours" : "laura") : "new";
+}
+async function loadBookings() {
+  if (!mcp) return;
+  const from = todayISO(), to = isoOf(new Date(Date.now() + 16 * 864e5));
+  const input = c => ({ calendarId: c, fullText: "Booking", startTime: from + "T00:00:00+04:00", endTime: to + "T23:59:59+04:00", orderBy: "startTime", pageSize: 250, timeZone: "Asia/Dubai" });
+  const res = await Promise.all(BOOK_CALS.map(c => mcp.callTool(GCAL, "list_events", input(c), { cache: { staleTime: 600000 } }).then(r => ({ ok: r }), e => ({ err: e }))));
+  if (res.every(r => r.err)) { S.bkErr = res[0].err; S.bookings = []; renderBoard(); return; }
+  await loadClients();
+  const seen = new Set(), list = [];
+  res.forEach(r => ((r.ok && r.ok.payload && r.ok.payload.events) || []).forEach(ev => {
+    if (!/booking/i.test(ev.summary || "") || ev.status === "cancelled" || seen.has(ev.id)) return; seen.add(ev.id);
+    const b = toBooking(ev); if (!b.date) return; const k = lc(b.name) + "|" + b.start; if (seen.has(k)) return; seen.add(k);
+    b.units = bookingUnits(b); b.owner = bookingOwner(b); b.arrives = nextWorkday(b.date); list.push(b);
+  }));
+  S.bookings = list.sort((a, b) => String(a.start).localeCompare(String(b.start))); S.bkErr = null; renderBoard();
+}
+function renderBoard() {
+  const el = $("board"), days = workdaysAhead(10);
+  if (!S.items.length) { el.innerHTML = `<div class="plaque"><b>On-air board</b></div><div class="skel"></div>`; return; }
+  const capDay = EDITORS.reduce((a, [n]) => a + capOf(n), 0) / 5;
+  const due = d => active().filter(i => EDIT_STAGES.includes(i.stage) && nextDue(i) === d).reduce((a, i) => a + units(i), 0);
+  const inc = (d, who) => (S.bookings || []).filter(b => b.arrives === d && who.includes(b.owner)).reduce((a, b) => a + b.units, 0);
+  const cols = days.map(d => ({ d, due: due(d), yours: inc(d, ["yours"]), nw: inc(d, ["new"]) })).map(c => Object.assign(c, { tot: c.due + c.yours + c.nw, over: c.due + c.yours + c.nw > capDay }));
+  const max = Math.max(capDay * 1.25, ...cols.map(c => c.tot), 1), h = v => (v / max * 100).toFixed(1) + "%";
+  const over = cols.filter(c => c.over);
+  const verdict = S.bookings === null ? `<p class="verdict">Reading the studio calendars…</p>`
+    : S.bkErr ? `<p class="verdict bad">${esc(calErr(S.bkErr))} Deadlines still show.</p>`
+    : over.length ? `<p class="verdict bad"><b>${over.length} ${over.length === 1 ? "day goes" : "days go"} over capacity.</b> ${over.slice(0, 3).map(c => `${dayLabel(c.d)}: ${fmtU(c.tot)} units landing against ${fmtU(capDay)}`).join("; ")}.</p>`
+    : `<p class="verdict ok"><b>Within capacity for the next two working weeks.</b> The busiest day is ${dayLabel(cols.reduce((a, c) => c.tot > a.tot ? c : a).d)}.</p>`;
+  const bks = (S.bookings || []).filter(b => b.date >= todayISO());
+  el.innerHTML = `<div class="board"><div class="plaque"><b>On-air board</b><span>Work landing per working day: deadlines due, plus booked sessions arriving the next working day</span></div>
+    <div class="days" role="img" aria-label="Units landing per day against team capacity">${cols.map(c => `<div class="day ${c.over ? "over" : ""}" title="${dayLabel(c.d)}: ${fmtU(c.due)} due, ${fmtU(c.yours)} arriving from your sessions, ${fmtU(c.nw)} from new clients · capacity ${fmtU(capDay)}">
+      <span class="capline" style="bottom:${h(capDay)}"></span>${c.nw ? `<i class="b new" style="height:${h(c.nw)}"></i>` : ""}${c.yours ? `<i class="b in" style="height:${h(c.yours)}"></i>` : ""}${c.due ? `<i class="b due" style="height:${h(c.due)}"></i>` : ""}</div>`).join("")}</div>
+    <div class="dlabels">${cols.map(c => `<span class="${c.over ? "over" : ""}">${dayLabel(c.d)}</span>`).join("")}</div>
+    <div class="legend"><span><i style="background:var(--st-corr)"></i>Deadlines due</span><span><i style="background:var(--water)"></i>Your sessions arriving</span><span><i style="background:repeating-linear-gradient(135deg,var(--foam) 0 3px,#7FB8E6 3px 6px)"></i>New clients arriving</span><span><i style="background:var(--ink);height:2px;vertical-align:3px"></i>Team capacity per day (${fmtU(capDay)})</span></div>
+    ${verdict}
+    ${bks.length ? `<div class="bks" aria-label="Booked sessions">${bks.map(b => `<div class="bk ${b.owner === "laura" ? "laura" : ""}"><time>${dayLabel(b.date)}</time><span title="${esc(b.services)}${b.addons ? " + " + esc(b.addons.replace(/\n/g, ", ")) : ""}">${esc(b.name)}${b.nc ? " · new" : ""}${b.owner === "laura" ? " · Laura's" : ""} <span style="color:var(--muted)">· ${esc(b.studio)}</span></span><em>${b.units ? "≈" + fmtU(b.units) + "u" : "rec only"}</em></div>`).join("")}</div>
+      <p class="hint">Units are estimated from the booked package: a Pro Edit is 1 unit, three reels or highlights are 1 unit. Laura's sessions are listed but not counted.</p>` : S.bookings ? `<p class="empty">No studio bookings in the next two weeks.</p>` : ""}</div>`;
+}
+function renderNecks() {
+  if (!S.items.length) { $("necks").innerHTML = ""; return; }
+  const rows = FLOW.map(st => { const g = active().filter(i => i.stage === st), u = g.reduce((a, i) => a + units(i), 0);
+    const wait = g.length ? g.reduce((a, i) => a + (st === "Client Review" ? ageDays(i) : Math.max(0, T() - dayNum(i.available || (i.created || todayISO()).slice(0, 10)))), 0) / g.length : 0;
+    return { st, n: g.length, u, wait, score: u * Math.max(1, wait) }; });
+  const worst = rows.reduce((a, r) => r.score > a.score ? r : a, rows[0]), max = Math.max(1, ...rows.map(r => r.u));
+  $("necks").innerHTML = `<div class="board" style="margin-top:14px"><div class="plaque"><b>Bottleneck meter</b><span>Units in each stage and how long they've waited on average</span></div>
+    <div class="necks">${rows.map(r => `<div class="neck ${r === worst && r.n ? "worst" : ""}"><span>${esc(r.st)}</span><div class="nb"><i style="width:${(r.u / max * 100).toFixed(0)}%;--c:${colorOf(r.st)}"></i></div><em class="tnum">${r.n} · ${r.wait.toFixed(1)}d</em></div>`).join("")}</div>
+    ${worst.n ? `<p class="verdict ${worst.wait > 7 ? "bad" : ""}"><b>Most work is held in ${esc(worst.st)}:</b> ${worst.n} episodes, ${fmtU(worst.u)} units, ${worst.wait.toFixed(1)} days on average${worst.st === "Client Review" ? " since the last deadline" : " since Available"}.</p>` : ""}</div>`;
+}
+
+/* ---------- render + panel ---------- */
+function render() { renderTop(); renderGreen(); renderSuites(); renderScreening(); renderConsole(); renderBoard(); renderNecks(); renderPanel(); }
+const renderGates = () => {};
+function openEp(id) { const it = S.items.find(i => i.id === id); if (!it) return; if (S.sel !== id) { S.draft = ""; S.corr = true; S.mention = true; } S.sel = id; renderPanel(); loadPackage(it); }
+function closeEp() { S.sel = null; renderPanel(); }
+function sync() { if (!mcp) return; mcp.invalidate(SERVER, "get_board_items_page").catch(() => {}); S.bookings = null; renderBoard(); loadBookings(); }
+
+/* ---------- capacity, kept in the artifact's database ---------- */
+async function loadCaps() {
+  try { db = window.claude && window.claude.use ? await window.claude.use("db") : null; } catch (_) { db = null; }
+  if (db) { try { const s = await db.doc("settings/capacity").get(); if (s.exists) S.cap = (s.data() || {}).caps || {}; } catch (_) {} }
+  else { try { S.cap = JSON.parse(localStorage.getItem("studio.cap") || "{}"); } catch (_) {} }
+  render();
+}
+let capT;
+function bumpCap(name, d) {
+  const k = firstName(name).toLowerCase(); S.cap[k] = Math.max(1, Math.min(20, capOf(name) + d)); render();
+  clearTimeout(capT); capT = setTimeout(async () => {
+    if (db) { try { await db.doc("settings/capacity").set({ caps: S.cap, updatedAt: new Date().toISOString() }); } catch (e) { toast("Couldn't save capacity: " + (e.message || e.code || "try again"), { bad: true }); } }
+    else { try { localStorage.setItem("studio.cap", JSON.stringify(S.cap)); } catch (_) {} }
+  }, 600);
+}
+
+/* ---------- events ---------- */
+document.addEventListener("click", e => {
+  const cap = e.target.closest("[data-cap]"); if (cap) { bumpCap(cap.dataset.cap, +cap.dataset.d); return; }
+  if (e.target.closest("#panel")) {
+    const it = S.items.find(i => i.id === S.sel); if (!it) return;
+    const st = e.target.closest("[data-stage]"); if (st && !st.disabled) { setStage(it, st.dataset.stage); return; }
+    const a = e.target.closest("[data-act]"); if (!a) return;
+    if (a.dataset.act === "close") closeEp(); else if (a.dataset.act === "post") postNote(); else if (a.dataset.act === "pkg-retry") loadPackage(it, true);
+    return;
+  }
+  const ep = e.target.closest("[data-ep]"); if (ep) openEp(ep.dataset.ep);
+});
+$("scrim").addEventListener("click", closeEp);
+$("refresh").addEventListener("click", sync);
+document.addEventListener("input", e => { if (e.target.id === "note") S.draft = e.target.value; });
+document.addEventListener("change", e => { if (e.target.id === "corr") S.corr = e.target.checked; if (e.target.id === "mention") S.mention = e.target.checked; });
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && S.sel) { e.preventDefault(); closeEp(); }
+  if (e.target.id === "note" && (e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); postNote(); }
+});
+/* Drag an episode (guest or clip) onto a suite, a free editor or a console channel to reassign it. */
+let dragId = null;
+document.addEventListener("dragstart", e => { const ep = e.target.closest && e.target.closest("[data-ep][draggable]"); if (!ep) return; dragId = ep.dataset.ep; ep.classList.add("dragging"); try { e.dataTransfer.setData("text/plain", dragId); e.dataTransfer.effectAllowed = "move"; } catch (_) {} });
+document.addEventListener("dragend", () => { dragId = null; document.querySelectorAll(".dragging,.drop").forEach(n => n.classList.remove("dragging", "drop")); });
+document.addEventListener("dragover", e => { const t = e.target.closest && e.target.closest("[data-drop]"); if (!t || !dragId) return; e.preventDefault(); document.querySelectorAll(".drop").forEach(n => n !== t && n.classList.remove("drop")); t.classList.add("drop"); });
+document.addEventListener("dragleave", e => { const t = e.target.closest && e.target.closest("[data-drop]"); if (t && !t.contains(e.relatedTarget)) t.classList.remove("drop"); });
+document.addEventListener("drop", e => {
+  const t = e.target.closest && e.target.closest("[data-drop]"); if (!t) return; e.preventDefault(); t.classList.remove("drop");
+  const id = dragId || (e.dataTransfer && e.dataTransfer.getData("text/plain")), it = S.items.find(i => i.id === id); dragId = null;
+  if (it) reassign(it, t.dataset.drop);
+});
+
+/* ---------- data ---------- */
+async function loadMore(cursor, acc, depth) {
+  if (!cursor || depth > 3) return acc;
+  try {
+    const r = await mcp.callTool(SERVER, "get_board_items_page", { boardId: BOARD, includeColumns: true, includeGroup: false, columnIds: COLS, limit: 500, cursor }, { cache: { staleTime: 30000 } });
+    const p = r.payload || {}; acc.push(...(p.items || []));
+    return loadMore(p.pagination && p.pagination.has_more ? p.pagination.nextCursor : null, acc, depth + 1);
+  } catch (e) { return acc; }
+}
+async function onBoard(ev) {
+  if (ev.type === "error") {
+    if (["needs_reauth","server_not_connected","selection_required","not_in_manifest","not_granted","blocked_by_policy","approval_required","capability_disabled"].includes(ev.error && ev.error.code)) S.items = [];
+    S.error = ev.error; S.loading = false; render(); return;
+  }
+  const p = ev.result.payload || {}; let raw = p.items || [];
+  if (p.pagination && p.pagination.has_more) raw = await loadMore(p.pagination.nextCursor, raw.slice(), 1);
+  S.items = raw.map(norm); S.storedAt = ev.result.cache ? ev.result.cache.storedAt : Date.now(); S.error = null;
+  render();
+}
+function onNotifsStudio(ev) {
+  if (ev.type === "error") return;
+  const p = ev.result.payload || {}; S.notifs = (p.notifications || (p.data && p.data.notifications) || []).map(normNotif).sort((a, b) => b.t - a.t);
+  if (S.sel) renderPanel();
+}
+async function start() {
+  setInterval(renderTop, 30000);
+  render();
+  try { mcp = window.claude && window.claude.use ? await window.claude.use("mcp") : null; } catch (e) { mcp = null; }
+  if (!mcp) { S.loading = false; S.error = { code: "no_mcp" }; render(); return; }
+  mcp.watchTool(SERVER, "get_board_items_page", INPUT, onBoard, { refetchInterval: 45000, cache: { staleTime: 30000 } });
+  mcp.watchTool(SERVER, "all_api_read", { query: NOTIF_Q }, onNotifsStudio, { refetchInterval: 120000, cache: { staleTime: 60000 } });
+  loadCaps(); loadBookings();
+  setInterval(loadBookings, 15 * 60000);
+}
+start();
+</script>
