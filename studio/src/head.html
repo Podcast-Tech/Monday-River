@@ -232,3 +232,9 @@ a{color:inherit}
 .bk.past{opacity:.45}
 .bk.now span{color:#FFD0D8}
 .bk em a{color:var(--foam);text-decoration:none}.bk em a:hover{text-decoration:underline}
+.sky3{position:absolute;left:12px;bottom:12px;display:flex;gap:4px;align-items:center;z-index:3;flex-wrap:wrap;max-width:calc(100% - 250px)}
+.sky3 button{font:500 12px/1 Geist,ui-sans-serif,system-ui,sans-serif;color:#EEF3FA;background:rgb(11 15 21 / .82);border:1px solid rgb(238 243 250 / .18);border-radius:999px;padding:7px 10px;cursor:pointer;backdrop-filter:blur(6px)}
+.sky3 button.on{border-color:#FF003C;background:rgb(58 6 18 / .85)}
+.sky3 button:focus-visible{outline:2px solid #FF003C;outline-offset:2px}
+.sky3 .skyt{font:500 11px/1.2 "Geist Mono",ui-monospace,monospace;color:#C9D3E2;background:rgb(11 15 21 / .7);border-radius:999px;padding:6px 9px}
+@media (max-width:640px){.sky3{bottom:56px;max-width:none;right:12px}.sky3 .skyt{display:none}}

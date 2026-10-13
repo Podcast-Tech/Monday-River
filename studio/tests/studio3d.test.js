@@ -78,6 +78,16 @@ const threeMin = fs.readFileSync(require.resolve("three/build/three.min.js"), "u
   // the outer walls fade when you look in from outside
   await p.evaluate(() => R3D.jump([30, 0, 20], [-40, 30, -30])); await p.waitForTimeout(500); await p.screenshot({ path: path.join(shots, "3d-8-behind.png") });
   console.log("✓ From behind the building the outer walls fade so you can see in");
+  // day & night
+  await p.evaluate(() => R3D.jump([34, 0, 27], [94, 66, 96]));
+  for (const [mode, ok] of [["night", d => d < 0.1], ["day", d => d > 0.9]]) {
+    await p.click(`.sky3 [data-sky="${mode}"]`);
+    await p.waitForFunction(m => R3D.sky && R3D.sky.mode === m && (m === "night" ? R3D.sky.d < 0.1 : R3D.sky.d > 0.9), mode, { timeout: 90000 });
+    await p.waitForTimeout(800); await p.screenshot({ path: path.join(shots, `3d-sky-${mode}.png`) });
+  }
+  await p.click('.sky3 [data-sky="auto"]'); await p.waitForTimeout(300);
+  assert.ok(/Dubai \d\d:\d\d/.test((await t(".sky3 .skyt"))[0]), "Dubai time readout");
+  console.log("✓ Day & night: Night and Day switch the sky, sun and lights; Auto follows the real sun (" + (await t(".sky3 .skyt"))[0] + ")");
   // phone size
   await p.setViewportSize({ width: 390, height: 844 }); await p.waitForTimeout(600); await p.click('.views [data-view="0"]'); await still();
   const sw = await p.evaluate(() => [document.documentElement.scrollWidth, innerWidth]); assert.ok(sw[0] <= sw[1] + 1, "no sideways scroll " + sw);

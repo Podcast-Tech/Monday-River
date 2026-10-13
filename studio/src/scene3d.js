@@ -45,8 +45,7 @@ window.R3D = R3D;
   controls.enableDamping = !RM; controls.dampingFactor = 0.09; controls.screenSpacePanning = false;
   controls.minDistance = 5; controls.maxDistance = 190; controls.maxPolarAngle = Math.PI / 2 - 0.04; controls.zoomSpeed = 0.9; controls.rotateSpeed = 0.7;
   camera.position.set(...VIEWS[0][2]); controls.target.set(...VIEWS[0][1]); controls.update();
-  scene.add(new THREE.HemisphereLight("#C8DCFF", "#2A2018", 0.75));
-  scene.add(new THREE.AmbientLight("#ffffff", 0.3));
+  const hemi = new THREE.HemisphereLight("#C8DCFF", "#2A2018", 0.75), amb = new THREE.AmbientLight("#ffffff", 0.3); scene.add(hemi, amb);
   const sun = new THREE.DirectionalLight("#FFF2DD", 0.9); sun.position.set(70, 90, 70); sun.target.position.set(32, 0, 28);
   sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); Object.assign(sun.shadow.camera, { left: -62, right: 62, top: 62, bottom: -62, near: 10, far: 260 }); sun.shadow.bias = -0.0006;
   scene.add(sun, sun.target);
@@ -117,18 +116,77 @@ window.R3D = R3D;
   const fade = (meshes, nx, nz, px, pz) => fades.push({ meshes: [].concat(meshes), nx, nz, px, pz, out: null });
   const reg = new Map();
 
+  /* ---------- day & night: the real sun over Al Barsha (25.11 N, 55.18 E), or forced Day / Night ---------- */
+  const sky = { wins: [], heads: [], ground: null, mode: "auto", el: -30, az: 180, tEl: -30, tAz: 180, last: -1e12 };
+  try { sky.mode = localStorage.getItem("studio.sky") || "auto"; } catch (_) {}
+  function sunPos(date) {
+    const r = Math.PI / 180, lat = 25.108 * r, lon = 55.182, d = date.getTime() / 864e5 - 10957.5;
+    const g = (357.529 + 0.98560028 * d) * r, q = 280.459 + 0.98564736 * d, L = (q + 1.915 * Math.sin(g) + 0.020 * Math.sin(2 * g)) * r, e = (23.439 - 0.00000036 * d) * r;
+    const ra = Math.atan2(Math.cos(e) * Math.sin(L), Math.cos(L)), dec = Math.asin(Math.sin(e) * Math.sin(L));
+    const H = ((18.697374558 + 24.06570982441908 * d) % 24 * 15 + lon) * r - ra;
+    const el = Math.asin(Math.sin(lat) * Math.sin(dec) + Math.cos(lat) * Math.cos(dec) * Math.cos(H));
+    const az = Math.atan2(-Math.sin(H) * Math.cos(dec), Math.sin(dec) * Math.cos(lat) - Math.cos(dec) * Math.sin(lat) * Math.cos(H));
+    return { el: el / r, az: (az / r + 360) % 360 };
+  }
+  const dubaiHM = t => new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Dubai", hour: "2-digit", minute: "2-digit" }).format(t);
+  function sunTimes() { const base = new Date(dubaiISO(new Date()) + "T00:00:00+04:00").getTime(); let rise = null, set = null, prev = sunPos(new Date(base)).el;
+    for (let m = 5; m <= 1440; m += 5) { const t = base + m * 60000, e = sunPos(new Date(t)).el; if (prev < -0.83 && e >= -0.83) rise = t; if (prev >= -0.83 && e < -0.83) set = t; prev = e; } return { rise, set }; }
+  function skyTarget() {
+    if (sky.mode === "day") { sky.tEl = 58; sky.tAz = 205; } else if (sky.mode === "night") { sky.tEl = -28; sky.tAz = 290; }
+    else { const s = sunPos(new Date()); sky.tEl = s.el; sky.tAz = s.az; }
+    const st = sunTimes(), now = Date.now();
+    skyUi.querySelector(".skyt").textContent = "Dubai " + dubaiHM(new Date()) + (st.rise && st.set ? (now < st.rise ? " · sunrise " + dubaiHM(new Date(st.rise)) : now < st.set ? " · sunset " + dubaiHM(new Date(st.set)) : " · sunrise " + dubaiHM(new Date(st.rise + 864e5))) : "");
+    skyUi.querySelectorAll("[data-sky]").forEach(b => b.classList.toggle("on", b.dataset.sky === sky.mode));
+  }
+  const skyUi = document.createElement("div"); skyUi.className = "sky3";
+  skyUi.innerHTML = [["auto", "Auto", "Follow the real sun over Dubai"], ["day", "Day", "Always daytime"], ["night", "Night", "Always night"]].map(([k, l, t]) => `<button type="button" data-sky="${k}" title="${t}">${k === "day" ? "☀ " : k === "night" ? "☾ " : ""}${l}</button>`).join("") + `<span class="skyt"></span>`;
+  host.appendChild(skyUi);
+  skyUi.addEventListener("click", e => { const b = e.target.closest("[data-sky]"); if (!b) return; sky.mode = b.dataset.sky; try { localStorage.setItem("studio.sky", sky.mode); } catch (_) {} skyTarget(); if (RM) { sky.el = sky.tEl; sky.az = sky.tAz; } });
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(420, 32, 16), new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false, fog: false,
+    uniforms: { top: { value: new THREE.Color() }, bot: { value: new THREE.Color() }, glow: { value: new THREE.Color() }, sunDir: { value: new THREE.Vector3(0, 1, 0) } },
+    vertexShader: "varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+    fragmentShader: "uniform vec3 top; uniform vec3 bot; uniform vec3 glow; uniform vec3 sunDir; varying vec3 vP; void main(){ float h = clamp(vP.y * 1.7 + 0.08, 0.0, 1.0); vec3 c = mix(bot, top, pow(h, 0.8)); float s = max(dot(vP, normalize(sunDir)), 0.0); c += glow * (pow(s, 6.0) * 0.45 + pow(s, 400.0) * 1.6); gl_FragColor = vec4(c, 1.0); }" }));
+  dome.renderOrder = -10; dome.userData.nopick = true; scene.add(dome);
+  const stars = (() => { const n = 700, a = new Float32Array(n * 3); for (let i = 0; i < n; i++) { const u = (hash("s" + i) % 1000) / 1000, v = (hash("t" + i) % 1000) / 1000, th = u * Math.PI * 2, ph = Math.acos(1 - v * 0.95); a.set([Math.sin(ph) * Math.cos(th) * 400, Math.cos(ph) * 400, Math.sin(ph) * Math.sin(th) * 400], i * 3); }
+    const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(a, 3)); return new THREE.Points(g, new THREE.PointsMaterial({ color: "#DCE6FF", size: 1.6, sizeAttenuation: false, transparent: true, depthWrite: false, fog: false })); })();
+  scene.add(stars);
+  const disc = (col, size) => { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: col, transparent: true, depthWrite: false, fog: false, blending: THREE.AdditiveBlending })); s.scale.set(size, size, 1); scene.add(s); return s; };
+  const sunDisc = disc("#FFE9B0", 46), moonDisc = disc("#D6E2FF", 22);
+  const C = h => new THREE.Color(h), mix3 = (a, b, t) => a.clone().lerp(b, Math.max(0, Math.min(1, t)));
+  const PAL = { nTop: C("#04070F"), nBot: C("#0B1322"), dTop: C("#2F7FD6"), dBot: C("#BFDDF3"), kTop: C("#2B3E6E"), kBot: C("#EE9A5E"), kGlow: C("#FFB070"), dGlow: C("#FFF2D0"),
+    gN: C("#0A0D12"), gD: C("#5A5448"), hN: C("#3A4C7A"), hD: C("#D5E8FF"), hgN: C("#1A1410"), hgD: C("#6A5C48"), sLow: C("#FFB27A"), sHigh: C("#FFF4E2"), moon: C("#9DB6FF"), wD: C("#55677F"), wN: C("#FFFFFF") };
+  const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  const dirOf = (el, az) => { const r = Math.PI / 180; return new THREE.Vector3(Math.sin(az * r) * Math.cos(el * r), Math.sin(el * r), -Math.cos(az * r) * Math.cos(el * r)); };
+  function applySky(dt) {
+    const k = RM ? 1 : 1 - Math.exp(-dt / 700); sky.el += (sky.tEl - sky.el) * k; let da = ((sky.tAz - sky.az + 540) % 360) - 180; sky.az = (sky.az + da * k + 360) % 360;
+    const el = sky.el, d = smooth(-7, 9, el), dusk = Math.exp(-Math.pow((el - 1) / 6.5, 2)) * (el > -12 ? 1 : 0), sd = dirOf(Math.max(el, -10), sky.az);
+    const top = mix3(mix3(PAL.nTop, PAL.dTop, d), PAL.kTop, dusk * .7), bot = mix3(mix3(PAL.nBot, PAL.dBot, d), PAL.kBot, dusk * .8);
+    const U = dome.material.uniforms; U.top.value.copy(top); U.bot.value.copy(bot); U.glow.value.copy(mix3(PAL.dGlow, PAL.kGlow, dusk)).multiplyScalar(smooth(-6, 2, el)); U.sunDir.value.copy(sd);
+    scene.background = bot; scene.fog.color.copy(bot); scene.fog.near = 210 + 120 * d; scene.fog.far = 420 + 260 * d;
+    dome.position.copy(camera.position); stars.position.copy(camera.position); stars.material.opacity = 1 - smooth(-10, -1, el);
+    sunDisc.position.copy(camera.position).addScaledVector(sd, 380); sunDisc.material.opacity = smooth(-3, 1, el);
+    const md = dirOf(38, (sky.az + 180) % 360); moonDisc.position.copy(camera.position).addScaledVector(md, 380); moonDisc.material.opacity = (1 - d) * .9;
+    const useSun = el > -3, ld = useSun ? sd : md;
+    sun.position.set(32 + ld.x * 120, Math.max(8, ld.y * 120), 28 + ld.z * 120);
+    sun.intensity = useSun ? 0.15 + 0.95 * smooth(-3, 14, el) : 0.22; sun.color.copy(useSun ? mix3(PAL.sLow, PAL.sHigh, smooth(0, 25, el)) : PAL.moon);
+    hemi.intensity = 0.42 + 0.5 * d; hemi.color.copy(mix3(PAL.hN, PAL.hD, d)); hemi.groundColor.copy(mix3(PAL.hgN, PAL.hgD, d)); amb.intensity = 0.2 + 0.14 * d;
+    if (sky.ground) sky.ground.material.color.copy(mix3(PAL.gN, PAL.gD, d));
+    sky.wins.forEach(m => m.color.copy(mix3(PAL.wN, PAL.wD, d))); sky.heads.forEach(m => { m.opacity = 0.08 + 0.55 * (1 - d); });
+    host.classList.toggle("is-day", d > .5); R3D.sky = { mode: sky.mode, el: +el.toFixed(1), d: +d.toFixed(2) };
+  }
+
   /* ---------- static world: ground, Al Barsha towers, Sheikh Zayed Road, the Metro ---------- */
   const world = new THREE.Group(); scene.add(world);
   const anim = { cars: [], train: null, blink: [], screens: [] };
   {
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(600, 600), mat("#0A0D12")); ground.rotation.x = -Math.PI / 2; ground.position.set(32, -1.02, 25); ground.receiveShadow = true; world.add(ground);
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(600, 600), new THREE.MeshStandardMaterial({ color: "#0A0D12", roughness: .95 })); sky.ground = ground; ground.rotation.x = -Math.PI / 2; ground.position.set(32, -1.02, 25); ground.receiveShadow = true; world.add(ground);
     yo = 0;
     const towers = [[-1, 12], [5, 16], [11, 9], [15, 14.5], [22, 11], [27, 17], [33, 10], [38, 15], [44, 12.5], [49, 18], [55, 10.5], [60, 14]], tw = [];
     towers.forEach(([x, z], k) => {
       const w = 3.6 + (k % 3), d = 2.2, y = -10.6;
       const m = bx(world, x, y, -1, w, d, z + 1, k % 2 ? "#172033" : "#141B2A", { own: true });
       let win = ""; for (let u = .4; u < w - .3; u += .7) for (let v = .6; v < z - .4; v += .9) if ((hash(k + ":" + u + ":" + v) % 5) < 2) win += `<rect x="${u.toFixed(2)}" y="${v.toFixed(2)}" width=".3" height=".42" fill="${(hash(k + "w" + v) % 4) ? "#E9C77A" : "#9CC8F0"}" opacity=".75"/>`;
-      const f = fy(world, x, y + d, z, w, z, win, { ppu: 20 }); tw.push(m, f);
+      const f = fy(world, x, y + d, z, w, z, win, { ppu: 20 }); tw.push(m, f); sky.wins.push(f.material);
       for (let s = 0; s < 3; s++) if (hash("roof" + k + s) % 2) glow(world, x + w / 2, y + d / 2, z + 0.4, "#FF4D6A", 1.2, 0.5);
     });
     fade(tw, 0, -1, 0, -9);
@@ -139,7 +197,7 @@ window.R3D = R3D;
     for (let k = 0; k < 8; k++) {
       const c = new THREE.Group(), dir = k % 2 ? 1 : -1, lane = k % 2 ? 70.2 : 66.4 + (k % 4 === 0 ? 1.4 : 0);
       bx(c, 0, 0, 0, 1.4, 2.6, .55, carCols[k], { m: { metalness: 0.4, roughness: 0.4 } }); bx(c, .12, .55, .55, 1.16, 1.4, .42, "#0E141C", { m: { metalness: 0.6, roughness: 0.2 } });
-      glow(c, .7, dir > 0 ? 2.7 : -0.1, .4, "#FFF1C2", 1.4, 0.55); glow(c, .7, dir > 0 ? -0.1 : 2.7, .4, "#FF2A2A", 0.9, 0.5);
+      sky.heads.push(glow(c, .7, dir > 0 ? 2.7 : -0.1, .4, "#FFF1C2", 1.4, 0.55).material); glow(c, .7, dir > 0 ? -0.1 : 2.7, .4, "#FF2A2A", 0.9, 0.5);
       c.position.set(lane, -0.95, 0); world.add(c); anim.cars.push({ c, dir, off: (hash("car" + k) % 100) / 100 * 120, sp: 5 + (k % 3) * 2.2 });
     }
     for (let y = -32; y <= 92; y += 8) bx(world, 72.6, y, -1, .8, .8, 4.2, "#3A404C");
@@ -433,7 +491,10 @@ window.R3D = R3D;
   const v = new THREE.Vector3(), lastCam = new THREE.Vector3(); let occT = 0, W0 = 0, H0 = 0;
   function size() { const w = box3.clientWidth, h = box3.clientHeight; if (!w || !h || (w === W0 && h === H0)) return; W0 = w; H0 = h; renderer.setSize(w, h, false); camera.aspect = w / h; camera.fov = w < 640 ? 55 : 42; camera.updateProjectionMatrix(); }
   const ease = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  let lastT = 0;
   function frame(now) {
+    if (now - sky.last > 30000) { sky.last = now; skyTarget(); }
+    applySky(lastT ? Math.min(200, now - lastT) : 1e6); lastT = now;
     requestAnimationFrame(frame); size();
     if (tween) { const k = Math.max(0, Math.min(1, (now - tween.t0) / tween.ms)), e = ease(k); controls.target.lerpVectors(tween.a, tween.b, e); camera.position.lerpVectors(tween.pa, tween.pb, e); if (k >= 1) tween = null; }
     controls.update();
