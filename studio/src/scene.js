@@ -284,77 +284,102 @@ function drawRoad() {
   return h;
 }
 
-/* ---------- the recording wing: Poddster Dubai's six sets ----------
-   Names and seat counts are Poddster Dubai's own (dubai.poddster.com). The look of each set is illustrative. */
-const SETS = [
-  { n: "Nest", seats: 4, floor: "#2C2119", acc: "#C98B4E", back: "shelf" },
-  { n: "Cove", seats: 4, floor: "#15223A", acc: "#4FA3E0", back: "waves" },
-  { n: "Eden", seats: 4, floor: "#1B2D21", acc: "#5CB873", back: "plants" },
-  { n: "Exec", seats: 2, floor: "#23252A", acc: "#C9B08A", back: "slats" },
-  { n: "Edge", seats: 2, floor: "#1B1724", acc: "#FF003C", back: "neon" },
-  { n: "Apex", seats: 5, floor: "#211B2B", acc: "#9C8CFF", back: "led" }
+/* ---------- the calendar wing: your calendar, production@ and studio@ ----------
+   Each calendar is a room at the back of the building. Its wall screen is today's agenda (Dubai time); the ON AIR lamp lights
+   and people sit at the table while a timed event is running. Read-only: events come from Google Calendar list_events. */
+const CALS = [
+  { n: "Mine", id: "primary", sub: "Your calendar", floor: "#2A1820", acc: "#FF003C" },
+  { n: "Production", id: "production@poddster.com", sub: "production@poddster.com", floor: "#15223A", acc: "#3FA9FF" },
+  { n: "Studio", id: "studio@poddster.com", sub: "studio@poddster.com · DMC Studio 1", floor: "#211B2B", acc: "#9C8CFF" }
 ];
-const setOf = b => { const m = String(b.setup || "").toLowerCase(); return SETS.find(s => m.includes(s.n.toLowerCase())) || null; };
-function setBookings(name) { return (S.bookings || []).filter(b => b.studio !== "Abu Dhabi" && setOf(b) && setOf(b).n === name).sort((a, b) => String(a.start).localeCompare(String(b.start))); }
-function setNow(name) {
-  const now = Date.now(), list = setBookings(name), today = dubaiISO(new Date());
-  return { live: list.find(b => Date.parse(b.start) <= now && now < Date.parse(b.end || b.start)), next: list.find(b => Date.parse(b.start) > now && b.date === today), list };
+S.cals = {};
+const evDay = v => String(v || "").slice(0, 10);
+function normEv(ev, cal) {
+  const allDay = !(ev.start && ev.start.dateTime), st = allDay ? evDay(ev.start && ev.start.date) : ev.start.dateTime, en = allDay ? evDay(ev.end && ev.end.date) : (ev.end && ev.end.dateTime) || st;
+  const att = (ev.attendees || []).filter(a => !a.resource), me = att.find(a => a.self);
+  const raw = ev.summary || "(No title)", title = raw.replace(/\s*[|·-]\s*Poddster Booking\s*$/i, "").trim() || raw;
+  return { id: ev.id, cal, title: title + (title !== raw ? " · booking" : ""), allDay, start: st, end: en, t0: allDay ? 0 : Date.parse(st), t1: allDay ? 0 : Date.parse(en), day: allDay ? st : dubaiISO(st),
+    link: ev.htmlLink || "", where: ev.location || "", people: att.length, booking: /booking/i.test(ev.summary || ""), declined: !!(me && me.responseStatus === "declined") };
 }
-function backdrop(kind, acc, W, H) {
-  let g = `<rect x="0" y="0" width="${W}" height="${H}" fill="#151A22"/>`;
-  if (kind === "shelf") { g += `<rect x=".3" y=".2" width="${W - .6}" height="${H - .4}" fill="#4A3424"/>`; for (let r = 0; r < 4; r++) { g += `<rect x=".45" y="${.35 + r * 1.2 + 1}" width="${W - .9}" height=".12" fill="#6B4C33"/>`; for (let b = 0; b < 16; b++) { const hh = .55 + (hash(r + ":" + b) % 4) * .1; g += `<rect x="${.55 + b * .55}" y="${.35 + r * 1.2 + 1 - hh}" width=".42" height="${hh}" fill="${["#8E3B2E", "#2E5A7A", "#C9A24B", "#3E6B4A", "#6B4C7A", "#D8D2C4"][hash(b + "c" + r) % 6]}"/>`; } } }
-  if (kind === "waves") { g += `<rect x="0" y="0" width="${W}" height="${H}" fill="#12304F"/>`; for (let k = 0; k < 6; k++) g += `<path d="M0,${1 + k * .75} Q${W / 4},${.5 + k * .75} ${W / 2},${1 + k * .75} T${W},${1 + k * .75}" stroke="${acc}" stroke-width=".09" fill="none" opacity="${.35 + k * .08}"/>`; }
-  if (kind === "plants") { g += `<rect x="0" y="0" width="${W}" height="${H}" fill="#173322"/>`; for (let k = 0; k < 70; k++) g += `<ellipse cx="${(hash("x" + k) % 100) / 100 * W}" cy="${(hash("y" + k) % 100) / 100 * H}" rx=".42" ry=".2" transform="rotate(${hash("r" + k) % 180} ${(hash("x" + k) % 100) / 100 * W} ${(hash("y" + k) % 100) / 100 * H})" fill="${["#3E8E55", "#56A866", "#2F6B42", "#6FBF73"][k % 4]}"/>`; }
-  if (kind === "slats") { for (let k = 0; k < 24; k++) g += `<rect x="${.2 + k * .4}" y=".1" width=".3" height="${H - .2}" fill="${k % 2 ? "#6E5537" : "#7C613F"}"/>`; g += `<rect x="${W / 2 - 1.3}" y="1.2" width="2.6" height="1" rx=".1" fill="#14181F"/>` + `<text x="${W / 2}" y="1.92" font-size=".55" text-anchor="middle" fill="#C9B08A" font-family="Geist, sans-serif" font-weight="700" letter-spacing=".08">PODDSTER</text>`; }
-  if (kind === "neon") { g += `<rect x="0" y="0" width="${W}" height="${H}" fill="#0E0B14"/><path d="M.8,${H - .8} L${W * .35},1 L${W * .55},${H - 1.2} L${W - .8},.9" stroke="${acc}" stroke-width=".14" fill="none"/><path d="M.8,${H - .8} L${W * .35},1 L${W * .55},${H - 1.2} L${W - .8},.9" stroke="${acc}" stroke-width=".5" fill="none" opacity=".25"/><path d="M1.4,1.4 H${W - 1.4}" stroke="#3FA9FF" stroke-width=".1" opacity=".8"/>`; }
-  if (kind === "led") { g += `<rect x="0" y="0" width="${W}" height="${H}" fill="#0C0B18"/>`; for (let u = 0; u < 24; u++) for (let v = 0; v < 13; v++) g += `<rect x="${.1 + u * .4}" y="${.1 + v * .4}" width=".32" height=".32" fill="${acc}" opacity="${(.12 + ((hash(u + ":" + v) % 10) / 10) * .3).toFixed(2)}"/>`; g += `<text x="${W / 2}" y="${H / 2 + .35}" font-size="1.05" text-anchor="middle" fill="#fff" opacity=".9" font-family="Geist, sans-serif" font-weight="700" letter-spacing=".12">PODDSTER</text>`; }
+async function loadCals() {
+  if (!mcp) return;
+  const from = dubaiISO(new Date()), to = dubaiISO(new Date(Date.now() + 7 * 864e5));
+  await Promise.all(CALS.map(c => mcp.callTool(GCAL, "list_events", { calendarId: c.id, startTime: from + "T00:00:00", endTime: to + "T23:59:59", timeZone: "Asia/Dubai", orderBy: "startTime", pageSize: 250 }, { cache: { staleTime: 240000 } })
+    .then(r => { S.cals[c.n] = { events: ((r.payload && r.payload.events) || []).filter(e => e.status !== "cancelled").map(e => normEv(e, c.n)).filter(e => !e.declined), err: null }; },
+          e => { S.cals[c.n] = { events: (S.cals[c.n] || {}).events || [], err: e }; })));
+  render();
+}
+/* today's picture for one calendar */
+function calNow(c) {
+  const now = Date.now(), today = dubaiISO(new Date()), d = S.cals[c.n] || null, ev = d ? d.events : [];
+  const timed = ev.filter(e => !e.allDay && e.day === today).sort((a, b) => a.t0 - b.t0);
+  return { loaded: !!d, err: d && d.err, live: timed.find(e => e.t0 <= now && now < e.t1), next: timed.find(e => e.t0 > now), timed, allDay: ev.filter(e => e.allDay && e.start <= today && today < (e.end || e.start + "~")), all: ev };
+}
+const clip = (t, n) => t.length > n ? t.slice(0, n - 1) + "…" : t;
+/* The wall screen (SVG markup, W × H world units): header, today's timeline, all-day items and the week ahead. */
+function calScreen(c, W, H) {
+  const k = calNow(c), now = Date.now(), subX = .35 + c.n.length * .5 + .45;
+  let g = `<rect x="0" y="0" width="${W}" height="${H}" rx=".12" fill="#0A0F18"/><rect x="0" y="0" width="${W}" height="1" fill="${c.acc}" opacity=".9"/>`
+    + TX(.35, .72, .58, c.n.toUpperCase(), "#05080D", 'font-weight="700"') + TX(subX, .7, .34, c.sub, "#05080D", 'font-weight="600"')
+    + TX(W - .35, .7, .38, new Date().toLocaleDateString("en-GB", { timeZone: "Asia/Dubai", weekday: "short", day: "numeric", month: "short" }), "#05080D", 'font-weight="700" text-anchor="end"');
+  if (!k.loaded) return g + TX(.4, 2, .45, "Reading the calendar…", "#6F7C92");
+  if (k.err && !k.all.length) return g + TX(.4, 2, .4, calErr(k.err), "#FF6B82");
+  const up = k.timed.findIndex(e => e.t1 > now), N = 5, first = Math.max(0, Math.min((up < 0 ? k.timed.length : up) - 1, k.timed.length - N)), rh = .7, y0 = 1.7;
+  const shown = k.timed.slice(first, first + N);
+  if (!shown.length) g += TX(.4, 2.1, .46, "No timed events today", "#6F7C92");
+  shown.forEach((e, i) => { const y = y0 + i * rh, live = e === k.live, past = e.t1 <= now;
+    g += (live ? `<rect x=".2" y="${y - .5}" width="${W - .4}" height=".64" rx=".08" fill="#3A0612"/>` : "")
+      + TM(.4, y, .38, dubaiTime(e.start), live ? "#FFD0D8" : past ? "#3A4558" : "#9FB3CC")
+      + `<rect x="1.9" y="${y - .38}" width=".1" height=".44" fill="${live ? "#FF003C" : e.booking ? "#F6C94A" : c.acc}" opacity="${past ? .35 : 1}"/>`
+      + TX(2.2, y, .42, clip(e.title, Math.floor((W - 4.4) / .23)), live ? "#FFFFFF" : past ? "#4B5874" : "#EEF3FA", 'font-weight="600"')
+      + TM(W - .4, y, .32, live ? "NOW" : past ? "done" : dubaiTime(e.end), live ? "#FF6B82" : "#55617A", 'text-anchor="end"'); });
+  if (k.timed.length > shown.length) g += TM(W - .4, 1.32, .26, (first ? first + " earlier · " : "") + (k.timed.length - first - shown.length) + " later", "#6F7C92", 'text-anchor="end"');
+  const fy0 = H - .75, days = [];
+  for (let d = 1; d <= 6; d++) { const iso = dubaiISO(new Date(Date.now() + d * 864e5)); days.push([iso, k.all.filter(e => !e.allDay && e.day === iso).length]); }
+  g += `<rect x="0" y="${fy0}" width="${W}" height=".75" fill="#0E1520"/>`
+    + TX(.4, fy0 + .5, .32, k.allDay.length ? "ALL DAY · " + clip(k.allDay.map(e => e.title).join(" · "), Math.floor((W * .45) / .18)) : "No all-day items", "#8C95A8", 'font-weight="600"')
+    + days.map(([iso, n], j) => TM(W * .52 + j * (W * .46 / 6), fy0 + .5, .3, new Date(iso + "T12:00:00").toLocaleDateString("en-GB", { weekday: "short" }).slice(0, 2) + " " + n, n ? "#C9D3E2" : "#3A4558")).join("");
   return g;
 }
+const calTip = c => { const k = calNow(c); return k.live ? "Now: " + k.live.title + " until " + dubaiTime(k.live.end) : k.next ? "Next: " + dubaiTime(k.next.start) + " " + k.next.title : k.loaded ? "Nothing else today · click for the week" : "Reading the calendar…"; };
+const calTag = c => { const k = calNow(c); return k.live ? "LIVE · " + k.live.title : k.next ? "Next " + dubaiTime(k.next.start) + " · " + k.next.title : k.loaded ? c.n + " · free" : c.n; };
+const CW = 64 / 3;
 function drawWing() {
   let h = box(-0.6, -0.6, -1, 65.2, 14.6, 1, "#10141B", { stroke: 'stroke="none"' });
-  h += box(-0.6, -0.6, 0, 65.2, 0.6, 9.2, "#1E242E", { stroke: 'stroke="rgb(0 0 0 / .4)" stroke-width=".7"' }) + box(-0.6, 0, 0, 0.6, 14, 9.2, "#1E242E");
-  /* the building's sign above the sets */
-  h += fy(1, 0, 8.9, `<rect x="0" y="0" width="1.5" height="1.5" rx=".35" fill="#FF003C"/><rect x=".45" y=".3" width=".6" height=".68" rx=".3" fill="none" stroke="#fff" stroke-width=".14"/><path d="M.52,.82 V1.25" stroke="#fff" stroke-width=".14" stroke-linecap="round"/>`
-    + TX(2, 1.15, 1.15, "PODDSTER", "#EEF3FA", 'font-weight="700" letter-spacing=".14"') + TM(9.4, 1.12, .55, "DUBAI · AL BARSHA · SHEIKH ZAYED RD · SIX SETS", "#7D8AA3", 'letter-spacing=".18"'));
-  const tags = [], W = 10.66;
-  SETS.forEach((st, k) => {
-    const sx = k * W + 0.15, cx = sx + W / 2, info = setNow(st.n), live = info.live;
-    h += `<g data-room="studio:${st.n}" ${tip("Set " + st.n + " · " + (st.seats === 2 ? "1–2" : st.seats === 5 ? "1–5" : "1–4") + " guests", live ? "Recording now: " + live.name : info.next ? "Next today: " + dubaiTime(info.next.start) + " " + info.next.name : "No more sessions today · click for the schedule")}>`;
-    h += quad(sx, 0, W - .3, 12, st.floor) + quad(sx + 1, 1.2, W - 2.3, 9, shade(st.floor, 1.12));
-    h += fy(sx + .5, 0, 6.6, backdrop(st.back, st.acc, W - 1.3, 5.6));
-    /* ON AIR lamp above the backdrop */
-    h += fy(cx - 1, 0, 8.0, `<rect x="0" y="0" width="2" height=".62" rx=".1" fill="${live ? "#E0002F" : "#2A1418"}"/>` + TM(.25, .46, .42, "ON AIR", live ? "#fff" : "#5A2A33", 'font-weight="700"'), live ? 'class="flick"' : "");
-    if (live) { const [lx, ly] = P(cx, 0, 7.7); h += `<ellipse cx="${lx}" cy="${ly}" rx="34" ry="14" fill="#FF003C" opacity=".5" filter="url(#glow)" pointer-events="none"/>`; }
-    /* chairs, guests, table, mics */
-    const n = st.seats, tw = n * 1.55 + .9, tx0 = cx - tw / 2, guests = live ? Math.max(1, Math.min(n, +String(live.seats).match(/\d+/)?.[0] || n)) : 0;
-    for (let i = 0; i < n; i++) { const x = tx0 + .45 + i * 1.55 + .2; h += box(x - .1, 2.6, .9, 1.25, .25, 1.4, "#2B2F37") + box(x - .1, 2.85, 0, 1.25, 1.1, .9, "#30353E"); }
-    for (let i = 0; i < guests; i++) { const x = tx0 + .45 + i * 1.55 + .72; h += person(x, 3.45, .9, shade(st.acc, .7), (live ? live.name : "") + i, { seated: true }); }
-    h += box(tx0, 4.3, 0, tw, 1.9, 1.15, st.n === "Exec" ? "#4A4F58" : "#5B4632");
-    for (let i = 0; i < n; i++) { const x = tx0 + .45 + i * 1.55 + .62; h += box(x - .05, 4.45, 1.15, .1, .1, .9, "#15181E") + box(x - .2, 4.3, 1.95, .4, .55, .4, "#0C0E12"); }
-    /* cameras on tripods, facing the table */
-    const cams = Math.min(5, n + 1);
-    for (let c = 0; c < cams; c++) {
-      const x = sx + 1.4 + c * ((W - 3) / Math.max(1, cams - 1)), y = 8.8 + (c % 2) * .7, [fx0, fy0] = P(x + .35, y + .25, 1.5);
-      [[-.6, .5], [.6, .5], [0, -.6]].forEach(([dx, dy]) => { const [lx, ly] = P(x + .35 + dx, y + .25 + dy, 0); h += `<line x1="${fx0}" y1="${fy0}" x2="${lx}" y2="${ly}" stroke="#3A404C" stroke-width="1.4"/>`; });
-      h += box(x, y, 1.5, .7, .55, .5, "#0D0F13") + (live ? (() => { const [dx, dy] = P(x + .55, y + .55, 1.95); return `<circle cx="${dx}" cy="${dy}" r="2.2" fill="#FF003C"/>`; })() : "");
-      if (st.n === "Exec" && c === Math.floor(cams / 2)) h += `<polygon points="${pts([P(x - .2, y, 2.1), P(x + .9, y, 2.1), P(x + .9, y - .4, 2.9), P(x - .2, y - .4, 2.9)])}" fill="rgb(160 210 255 / .35)" stroke="rgb(160 210 255 / .6)" stroke-width=".6"/>`;
-    }
-    /* set name on the floor */
-    h += fz(sx + .7, 10.5, .02, TX(0, .9, 1.05, st.n, "#EEF3FA", 'font-weight="700"') + TM(0, 1.6, .5, (st.seats === 2 ? "1–2" : st.seats === 5 ? "1–5" : "1–4") + " GUESTS · " + cams + " FX3", "#7D8AA3", 'letter-spacing=".1"'));
+  h += box(-0.6, -0.6, 0, 65.2, 0.6, 10.4, "#1E242E", { stroke: 'stroke="rgb(0 0 0 / .4)" stroke-width=".7"' }) + box(-0.6, 0, 0, 0.6, 14, 10.4, "#1E242E");
+  h += fy(1, 0, 10.2, `<rect x="0" y="0" width="1.5" height="1.5" rx=".35" fill="#FF003C"/><rect x=".45" y=".3" width=".6" height=".68" rx=".3" fill="none" stroke="#fff" stroke-width=".14"/><path d="M.52,.82 V1.25" stroke="#fff" stroke-width=".14" stroke-linecap="round"/>`
+    + TX(2, 1.15, 1.15, "PODDSTER", "#EEF3FA", 'font-weight="700" letter-spacing=".14"') + TM(10.8, 1.12, .55, "DUBAI · AL BARSHA · SHEIKH ZAYED RD · CALENDARS", "#7D8AA3", 'letter-spacing=".18"'));
+  const tags = [];
+  CALS.forEach((c, k) => {
+    const sx = k * CW + 0.15, cx = sx + CW / 2, info = calNow(c), live = info.live;
+    h += `<g data-room="cal:${c.n}" ${tip(c.n + " · " + c.sub, calTip(c))}>` + quad(sx, 0, CW - .3, 12, c.floor) + quad(sx + 1.4, 3, CW - 3.1, 7, shade(c.floor, 1.14));
+    h += fy(sx + .8, 0, 7.4, calScreen(c, CW - 1.9, 5.6));
+    h += fy(cx - 1, 0, 8.6, `<rect x="0" y="0" width="2" height=".62" rx=".1" fill="${live ? "#E0002F" : "#2A1418"}"/>` + TM(.25, .46, .42, "ON AIR", live ? "#fff" : "#5A2A33", 'font-weight="700"'), live ? 'class="flick"' : "");
+    if (live) { const [lx, ly] = P(cx, 0, 8.3); h += `<ellipse cx="${lx}" cy="${ly}" rx="34" ry="14" fill="#FF003C" opacity=".5" filter="url(#glow)" pointer-events="none"/>`; }
+    const seats = 8, ppl = live ? Math.max(1, Math.min(seats, live.people || 2)) : 0;
+    for (let i = 0; i < 4; i++) h += box(cx - 4.4 + i * 2.3, 3.6, 0, 1.3, 1.1, .9, "#30353E");
+    for (let i = 0; i < Math.min(4, ppl); i++) h += person(cx - 3.75 + i * 2.3, 4.2, .9, shade(c.acc, .7), (live ? live.title : "") + i, { seated: true });
+    h += box(cx - 4.8, 4.9, 0, 9.6, 2.4, 1.15, "#5B4632");
+    for (let i = 0; i < 4; i++) h += box(cx - 4.4 + i * 2.3, 7.5, 0, 1.3, 1.1, .9, "#30353E");
+    for (let i = 4; i < ppl; i++) h += person(cx - 3.75 + (i - 4) * 2.3, 8.0, .9, shade(c.acc, .7), (live ? live.title : "") + i, { seated: true, back: true });
+    h += fz(sx + .7, 10.5, .02, TX(0, .9, 1.05, c.n, "#EEF3FA", 'font-weight="700"') + TM(0, 1.6, .5, c.sub.toUpperCase(), "#7D8AA3", 'letter-spacing=".08"'));
     h += `</g>`;
-    /* partition to the next set: low wall + glass */
-    if (k < SETS.length - 1) h += box(sx + W - .3, 0, 0, .3, 11.4, 1.6, "#2A303B") + `<polygon points="${pts([P(sx + W - .15, 0, 1.6), P(sx + W - .15, 11.4, 1.6), P(sx + W - .15, 11.4, 5.4), P(sx + W - .15, 0, 5.4)])}" fill="rgb(160 200 255 / .045)" stroke="rgb(160 200 255 / .14)" stroke-width=".7" pointer-events="none"/>`;
-    tags.push({ cx, live, next: info.next, name: st.n });
+    if (k < CALS.length - 1) h += box(sx + CW - .3, 0, 0, .3, 11.4, 1.6, "#2A303B") + `<polygon points="${pts([P(sx + CW - .15, 0, 1.6), P(sx + CW - .15, 11.4, 1.6), P(sx + CW - .15, 11.4, 5.4), P(sx + CW - .15, 0, 5.4)])}" fill="rgb(160 200 255 / .045)" stroke="rgb(160 200 255 / .14)" stroke-width=".7" pointer-events="none"/>`;
+    tags.push({ cx, live, next: info.next, c });
   });
-  /* the corridor between the sets and post-production */
   h += quad(0, 12, 64, 2, "#171B22") + box(0, 11.6, 0, 64, .3, .9, "#2A303B");
-  tags.forEach(t => { const [px, py] = P(t.cx, 2.2, 7.3), txt = t.live ? "● LIVE · " + t.live.name : t.next ? "Next " + dubaiTime(t.next.start) + " · " + t.next.name : "Free today", w = Math.min(230, txt.length * 6.2 + 20), col = t.live ? "#FF003C" : t.next ? "rgb(238 243 250 / .55)" : "rgb(160 200 255 / .2)";
-    h += `<g data-room="studio:${t.name}"><rect x="${px - w / 2}" y="${py - 10}" width="${w}" height="20" rx="10" fill="${t.live ? "#3A0612" : "#0B0F15"}" fill-opacity=".94" stroke="${col}"/><text x="${px}" y="${py + 4}" text-anchor="middle" font-size="11" font-weight="600" fill="${t.live ? "#FFD0D8" : t.next ? "#EEF3FA" : "#6F7C92"}" font-family="Geist, sans-serif">${esc(txt.length > 34 ? txt.slice(0, 33) + "…" : txt)}</text></g>`; });
+  tags.forEach(t => { const [px, py] = P(t.cx, 2.2, 7.9), txt = calTag(t.c), w = Math.min(260, txt.length * 6.2 + 20), col = t.live ? "#FF003C" : t.next ? "rgb(238 243 250 / .55)" : "rgb(160 200 255 / .2)";
+    h += `<g data-room="cal:${t.c.n}"><rect x="${px - w / 2}" y="${py - 10}" width="${w}" height="20" rx="10" fill="${t.live ? "#3A0612" : "#0B0F15"}" fill-opacity=".94" stroke="${col}"/><text x="${px}" y="${py + 4}" text-anchor="middle" font-size="11" font-weight="600" fill="${t.live ? "#FFD0D8" : t.next ? "#EEF3FA" : "#6F7C92"}" font-family="Geist, sans-serif">${esc(clip(txt, 38))}</text></g>`; });
   return h;
 }
-function studioHtml(name) {
-  const st = SETS.find(s => s.n === name), info = setNow(name), list = info.list.filter(b => b.date >= dubaiISO(new Date()));
-  return `<div class="plaque"><b>Set ${esc(name)}</b><span>${st.seats === 2 ? "1–2" : st.seats === 5 ? "1–5" : "1–4"} guests · up to ${Math.min(5, st.seats + 1)} Sony FX3 · Shure SM7dB</span></div>
-    ${S.bookings === null ? `<div class="skel"></div>` : S.bkErr ? `<p class="verdict bad">${esc(calErr(S.bkErr))}</p>` : list.length ? `<div class="bks">${list.map(b => `<div class="bk ${b.owner === "laura" ? "laura" : ""}"><time>${dayLabel(b.date)} ${dubaiTime(b.start)}</time><span title="${esc(b.services)}">${info.live === b ? "● " : ""}${esc(b.name)}${b.nc ? " · new" : ""}${b.owner === "laura" ? " · Laura's" : ""} <span style="color:var(--muted)">· ${esc(b.services.replace(/\n/g, ", "))}</span></span><em>${b.units ? "≈" + fmtU(b.units) + "u" : "rec only"}</em></div>`).join("")}</div>` : `<p class="empty">No sessions booked on ${esc(name)} in the next two weeks.</p>`}
-    <p class="hint">Sessions come from the production@ and studio@ calendars. Each one arrives as edit work the next working day.</p>`;
+/* the drawer: one calendar's next seven days */
+function calHtml(name) {
+  const c = CALS.find(x => x.n === name); if (!c) return "";
+  const k = calNow(c), now = Date.now(), byDay = new Map();
+  k.all.forEach(e => { const d = e.allDay ? (e.start < dubaiISO(new Date()) ? dubaiISO(new Date()) : e.start) : e.day; if (!byDay.has(d)) byDay.set(d, []); byDay.get(d).push(e); });
+  const days = [...byDay.keys()].sort();
+  const row = e => `<div class="bk ${e.t1 && e.t1 <= now ? "past" : ""} ${e === k.live ? "now" : ""}"><time>${e.allDay ? "All day" : dubaiTime(e.start)}</time><span title="${esc(e.title)}${e.where ? " · " + esc(e.where) : ""}">${e === k.live ? "● " : ""}${esc(e.title)}${e.where ? ` <span style="color:var(--muted)">· ${esc(e.where)}</span>` : ""}</span><em>${e.link ? `<a href="${esc(e.link)}" target="_blank" rel="noopener">Open</a>` : ""}</em></div>`;
+  return `<div class="plaque"><b>${esc(c.n)}</b><span>${esc(c.sub)} · today and the next 7 days, Dubai time</span><em class="tnum">${k.timed.length} today</em></div>
+    ${!k.loaded ? `<div class="skel"></div>` : k.err && !k.all.length ? `<p class="verdict bad">${esc(calErr(k.err))}</p>` : days.length ? days.map(d => `<h4 class="calday">${esc(d === dubaiISO(new Date()) ? "Today" : dayLabel(d))}</h4><div class="bks cal">${byDay.get(d).sort((a, b) => (b.allDay - a.allDay) || a.t0 - b.t0).map(row).join("")}</div>`).join("") : `<p class="empty">Nothing on this calendar in the next 7 days.</p>`}
+    <p class="hint">Read-only from Google Calendar. Bookings also feed the on-air board in the control room.</p>`;
 }

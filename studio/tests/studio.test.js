@@ -2,11 +2,11 @@
 const { chromium } = require("playwright"), fs = require("fs"), path = require("path"), assert = require("assert");
 const shots = path.join(__dirname, "shots"); fs.mkdirSync(shots, { recursive: true });
 const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
-const { ITEMS, EVENTS } = require("./fixtures");
+const { ITEMS, EVENTS, MINE } = require("./fixtures");
 (async () => {
   const b = await chromium.launch(); const p = await b.newPage({ viewport: { width: 1440, height: 1000 } }), calls = [], dbw = [];
   await p.exposeFunction("__call", (server, tool, input) => { calls.push({ server, tool, input });
-    if (tool === "list_events") return { payload: { events: input.calendarId === "production@poddster.com" ? EVENTS : [] } };
+    if (tool === "list_events") return { payload: { events: input.calendarId === "production@poddster.com" ? EVENTS : input.calendarId === "primary" && !input.fullText ? MINE : [] } };
     if (tool === "get_board_items_page") return { payload: { items: [{ id: "77", name: "AG - Test Client" }, { id: "78", name: "AG - Olga Melnyk" }, { id: "79", name: "BL - Laura Person" }] } };
     return { payload: {} }; });
   await p.exposeFunction("__dbset", (path, data) => { dbw.push({ path, data }); });
@@ -32,10 +32,10 @@ const { ITEMS, EVENTS } = require("./fixtures");
   assert.ok(/lit/.test(await p.getAttribute("#onair", "class")));
   console.log("✓ Illustrated floor: 2 guests on the couches, 11 editor booths with tapes and monitors, 5 clients seated (2 VIP), delivery shelf, ON AIR lit");
   await p.screenshot({ path: path.join(shots, "1-studio.png"), fullPage: true });
-  assert.ok(/LIVE · Katie Robertson/.test((await t('#scene g[data-room="studio:Eden"]')).join(" ")), "Eden shows the live session");
-  await p.locator('#scene g[data-room="studio:Eden"]').first().dispatchEvent("click"); await p.waitForSelector("#drawer .bk");
+  assert.ok(/LIVE · Katie Robertson/.test((await t('#scene g[data-room="cal:Production"]')).join(" ")), "Production shows the live session");
+  await p.locator('#scene g[data-room="cal:Production"]').first().dispatchEvent("click"); await p.waitForSelector("#drawer .bk");
   assert.ok(/Katie Robertson/.test((await t("#drawer .bk"))[0])); await p.click('[data-act="drawer-close"]');
-  console.log("✓ Recording wing: Eden is ON AIR with Katie Robertson; clicking the set opens its schedule");
+  console.log("✓ Calendar wing: Production is ON AIR with Katie Robertson's booking; clicking the room opens its week");
   // hover tooltip
   await p.hover('#scene g[data-room="suite:Igor Garčev"] > text'); assert.ok(/Igor Garčev's booth/.test((await t("#tip"))[0]));
   console.log("✓ Hover a booth: " + (await t("#tip"))[0]);

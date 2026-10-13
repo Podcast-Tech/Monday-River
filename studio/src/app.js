@@ -30,7 +30,7 @@ function renderTop() {
   const done = S.items.filter(i => i.stage === "Done" && i.updated && Date.now() - Date.parse(i.updated) < 7 * 864e5).length;
   $("onair").className = "onair" + (a.some(i => i.stage === "In Process") ? " lit" : "");
   $("onair").title = a.filter(i => i.stage === "In Process").length + " episodes being edited right now";
-  $("stats").innerHTML = S.items.length ? [["Recording now", SETS.filter(st => setNow(st.n).live).length, ""], ["In post", a.filter(i => FLOW.includes(i.stage)).length, ""], ["Late", late, late ? "bad" : ""], ["Due today", today, ""], ["Done this week", done, ""]]
+  $("stats").innerHTML = S.items.length ? [["On now", CALS.filter(c => calNow(c).live).length, ""], ["In post", a.filter(i => FLOW.includes(i.stage)).length, ""], ["Late", late, late ? "bad" : ""], ["Due today", today, ""], ["Done this week", done, ""]]
     .map(([l, n, c]) => `<div class="stat ${c}"><b class="tnum">${n}</b><span>${l}</span></div>`).join("") : "";
   $("sub").textContent = "Poddster Dubai · Al Barsha, Sheikh Zayed Rd · " + new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
   const dot = $("sync-dot"), t = $("sync-t"); dot.className = "";
@@ -179,14 +179,14 @@ const renderGates = () => {};
 S.drawer = null;
 function renderDrawer() {
   const el = $("drawer"); el.hidden = !S.drawer; if (!S.drawer) { el.innerHTML = ""; return; }
-  const [kind, who] = S.drawer.split(":"), title = { green: "Green room", suite: (who || "") + "'s booth", screening: "Screening room", control: "Control room", board: "On-air board", necks: "Bottleneck meter", studio: "Set " + (who || "") }[kind];
-  const body = kind === "green" ? greenHtml() : kind === "suite" ? suitesHtml(who) + `<div style="margin-top:14px">${consoleHtml().replace(/^[\s\S]*?<div class="console">/, '<div class="console">').replace(/<p class="hint">[\s\S]*$/, "")}</div>` : kind === "screening" ? screeningHtml() : kind === "control" ? consoleHtml() + boardHtml() + necksHtml() : kind === "board" ? boardHtml() : kind === "studio" ? studioHtml(who) : necksHtml();
+  const [kind, who] = S.drawer.split(":"), title = { green: "Green room", suite: (who || "") + "'s booth", screening: "Screening room", control: "Control room", board: "On-air board", necks: "Bottleneck meter", cal: (who || "") + " calendar" }[kind];
+  const body = kind === "green" ? greenHtml() : kind === "suite" ? suitesHtml(who) + `<div style="margin-top:14px">${consoleHtml().replace(/^[\s\S]*?<div class="console">/, '<div class="console">').replace(/<p class="hint">[\s\S]*$/, "")}</div>` : kind === "screening" ? screeningHtml() : kind === "control" ? consoleHtml() + boardHtml() + necksHtml() : kind === "board" ? boardHtml() : kind === "cal" ? calHtml(who) : necksHtml();
   el.innerHTML = `<div class="d-h"><b>${esc(title)}</b><button class="ib" type="button" data-act="drawer-close" aria-label="Close" title="Close (Esc)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div><div class="d-b ${kind === "suite" ? "one" : ""}">${body}</div>`;
   if (kind === "suite") el.querySelectorAll(".strip").forEach(n => { if (firstName(n.dataset.drop).toLowerCase() !== firstName(who).toLowerCase()) n.remove(); });
 }
 function openEp(id) { const it = S.items.find(i => i.id === id); if (!it) return; if (S.sel !== id) { S.draft = ""; S.corr = true; S.mention = true; } S.sel = id; renderPanel(); loadPackage(it); }
 function closeEp() { S.sel = null; renderPanel(); }
-function sync() { if (!mcp) return; mcp.invalidate(SERVER, "get_board_items_page").catch(() => {}); S.bookings = null; render(); loadBookings(); }
+function sync() { if (!mcp) return; mcp.invalidate(SERVER, "get_board_items_page").catch(() => {}); S.bookings = null; render(); loadBookings(); loadCals(); }
 
 /* ---------- capacity, kept in the artifact's database ---------- */
 async function loadCaps() {
@@ -271,7 +271,7 @@ async function start() {
   if (!mcp) { S.loading = false; S.error = { code: "no_mcp" }; render(); return; }
   mcp.watchTool(SERVER, "get_board_items_page", INPUT, onBoard, { refetchInterval: 45000, cache: { staleTime: 30000 } });
   mcp.watchTool(SERVER, "all_api_read", { query: NOTIF_Q }, onNotifsStudio, { refetchInterval: 120000, cache: { staleTime: 60000 } });
-  loadCaps(); loadBookings();
-  setInterval(loadBookings, 15 * 60000);
+  loadCaps(); loadBookings(); loadCals();
+  setInterval(loadBookings, 15 * 60000); setInterval(loadCals, 5 * 60000);
 }
 start();

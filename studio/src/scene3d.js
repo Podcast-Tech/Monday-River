@@ -22,7 +22,7 @@ window.R3D = R3D;
   const labelsEl = document.createElement("div"); labelsEl.className = "l3"; box3.appendChild(labelsEl);
   const VIEWS = [
     ["Overview", [34, 0, 27], [94, 66, 96]],
-    ["Recording sets", [32, 3, 4], [32, 14, 31]],
+    ["Calendars", [32, 4, 4], [32, 19, 47]],
     ["Green room", [8, 1, 25], [27, 16, 47]],
     ["Edit booths", [32, 1, 28], [35, 27, 58]],
     ["Screening", [56, 3, 19], [57, 12, 47]],
@@ -36,7 +36,7 @@ window.R3D = R3D;
     .map(([k, d, t, p]) => `<button type="button" data-nav="${k}" data-d="${d}" title="${t}" aria-label="${t}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${p}"/></svg></button>`).join("");
   host.appendChild(nav);
   const hint = document.querySelector(".hint");
-  if (hint) hint.textContent = "Drag to look around the building, right-drag or two fingers to move, scroll or pinch to zoom, double-click to fly closer. Click a set, a booth, a screen, a tape or a person. Drag a guest from the green room into a booth to give the episode to that editor.";
+  if (hint) hint.textContent = "Drag to look around the building, right-drag or two fingers to move, scroll or pinch to zoom, double-click to fly closer. Click a calendar, a booth, a screen, a tape or a person. Drag a guest from the green room into a booth to give the episode to that editor.";
 
   /* ---------- scene, camera, light ---------- */
   const scene = new THREE.Scene(); scene.background = new THREE.Color("#07090D"); scene.fog = new THREE.Fog("#07090D", 210, 420);
@@ -53,7 +53,7 @@ window.R3D = R3D;
   [[8, 10], [32, 13], [56, 14], [39, 37], [32, 6]].forEach(([x, y], k) => { const l = new THREE.PointLight(k === 4 ? "#FFE7C4" : "#FFE2B0", k === 4 ? 0.5 : 0.55, 34, 1.6); l.position.set(x, 7, y + (k === 4 ? 0 : 14)); scene.add(l); });
 
   /* ---------- helpers ---------- */
-  let yo = 0;                                  // 0 for the recording wing, 14 for the post-production floor
+  let yo = 0;                                  // 0 for the calendar wing, 14 for the post-production floor
   const G1 = new THREE.BoxGeometry(1, 1, 1), PG = new THREE.PlaneGeometry(1, 1);
   const matC = new Map(), owned = [];
   const mat = (col, o) => { const k = col + (o ? JSON.stringify(o) : ""); if (!matC.has(k)) matC.set(k, new THREE.MeshStandardMaterial(Object.assign({ color: col, roughness: 0.82, metalness: 0.04 }, o || {}))); return matC.get(k); };
@@ -161,7 +161,7 @@ window.R3D = R3D;
     labels.forEach(l => l.el.remove()); labels = []; fades = fades.filter(f => f.static); reg.clear();
   }
   fades.forEach(f => f.static = true);
-  const sigOf = () => JSON.stringify([S.items, (S.bookings || []).map(b => [b.start, b.end, b.setup, b.name, b.seats]), S.cap, !!S.error, Math.floor(Date.now() / 120000)]);
+  const sigOf = () => JSON.stringify([S.items, (S.bookings || []).map(b => [b.start, b.end, b.setup, b.name, b.seats]), S.cals, S.cap, !!S.error, Math.floor(Date.now() / 120000)]);
   function build(force) {
     const sig = sigOf(); if (!force && sig === lastSig) return; lastSig = sig;
     dispose(); texUsed = new Set(); pickables = [];
@@ -176,37 +176,34 @@ window.R3D = R3D;
   function buildWing(R) {
     yo = 0;
     bx(R, -0.6, -0.6, -1, 65.2, 14.6, 1, "#10141B", { cast: false });
-    const back = bx(R, -0.6, -0.6, 0, 65.2, 0.6, 9.2, "#1E242E", { own: true }), side = bx(R, -0.6, 0, 0, 0.6, 14, 9.2, "#1E242E", { own: true });
-    const sign = fy(R, 1, 0, 8.9, 27, 1.5, `<rect x="0" y="0" width="1.5" height="1.5" rx=".35" fill="#FF003C"/><rect x=".45" y=".3" width=".6" height=".68" rx=".3" fill="none" stroke="#fff" stroke-width=".14"/><path d="M.52,.82 V1.25" stroke="#fff" stroke-width=".14" stroke-linecap="round"/>`
-      + TX(2, 1.15, 1.15, "PODDSTER", "#EEF3FA", 'font-weight="700" letter-spacing=".14"') + TM(9.4, 1.12, .55, "DUBAI · AL BARSHA · SHEIKH ZAYED RD · SIX SETS", "#7D8AA3", 'letter-spacing=".18"'), { ppu: 40 });
+    const back = bx(R, -0.6, -0.6, 0, 65.2, 0.6, 10.4, "#1E242E", { own: true }), side = bx(R, -0.6, 0, 0, 0.6, 14, 10.4, "#1E242E", { own: true });
+    const sign = fy(R, 1, 0, 10.2, 31, 1.5, `<rect x="0" y="0" width="1.5" height="1.5" rx=".35" fill="#FF003C"/><rect x=".45" y=".3" width=".6" height=".68" rx=".3" fill="none" stroke="#fff" stroke-width=".14"/><path d="M.52,.82 V1.25" stroke="#fff" stroke-width=".14" stroke-linecap="round"/>`
+      + TX(2, 1.15, 1.15, "PODDSTER", "#EEF3FA", 'font-weight="700" letter-spacing=".14"') + TM(10.8, 1.12, .55, "DUBAI · AL BARSHA · SHEIKH ZAYED RD · CALENDARS", "#7D8AA3", 'letter-spacing=".18"'), { ppu: 40 });
     fade([back, sign], 0, -1, 0, -0.6); fade([side], -1, 0, -0.6, 0);
-    const W = 10.66;
-    SETS.forEach((st, k) => {
-      const sx = k * W + 0.15, cx = sx + W / 2, info = setNow(st.n), live = info.live, gs = st.seats === 2 ? "1–2" : st.seats === 5 ? "1–5" : "1–4";
-      const g = group(R, { room: "studio:" + st.n, tip: "Set " + st.n + " · " + gs + " guests", tip2: live ? "Recording now: " + live.name : info.next ? "Next today: " + dubaiTime(info.next.start) + " " + info.next.name : "No more sessions today · click for the schedule" });
-      reg.set("room:studio:" + st.n, g);
-      flat(g, sx, 0, W - .3, 12, st.floor); flat(g, sx + 1, 1.2, W - 2.3, 9, shade(st.floor, 1.12), 0.03);
-      fy(g, sx + .5, 0, 6.6, W - 1.3, 5.6, backdrop(st.back, st.acc, W - 1.3, 5.6), { ppu: 48 });
-      bx(g, cx - 1.05, 0, 7.33, 2.1, .1, .72, live ? "#E0002F" : "#2A1418", { m: live ? { emissive: "#FF003C", emissiveIntensity: 1.4 } : null });
-      fy(g, cx - 1, .1, 8.0, 2, .62, TM(.25, .46, .42, "ON AIR", live ? "#fff" : "#5A2A33", 'font-weight="700"'));
-      if (live) { const gl = glow(g, cx, .6, 7.7, "#FF003C", 5, 0.6); anim.blink.push({ o: gl, base: 0.6 }); const pl = new THREE.PointLight("#FF2A4A", 0.9, 14, 1.8); pl.position.set(cx, 6, 3); g.add(pl); }
-      const n = st.seats, tw = n * 1.55 + .9, tx0 = cx - tw / 2, guestsN = live ? Math.max(1, Math.min(n, +String(live.seats).match(/\d+/)?.[0] || n)) : 0;
-      for (let i = 0; i < n; i++) { const x = tx0 + .45 + i * 1.55 + .2; bx(g, x - .1, 2.6, .9, 1.25, .25, 1.4, "#2B2F37"); bx(g, x - .1, 2.85, 0, 1.25, 1.1, .9, "#30353E"); }
-      for (let i = 0; i < guestsN; i++) person(g, tx0 + .45 + i * 1.55 + .52, 3.35, .9, shade(st.acc, .7), (live ? live.name : "") + i, 0);
-      bx(g, tx0, 4.3, 0, tw, 1.9, 1.15, st.n === "Exec" ? "#4A4F58" : "#5B4632");
-      for (let i = 0; i < n; i++) { const x = tx0 + .45 + i * 1.55 + .62; bx(g, x - .05, 4.45, 1.15, .1, .1, .9, "#15181E"); bx(g, x - .2, 4.3, 1.95, .4, .55, .4, "#0C0E12", { m: { metalness: 0.5, roughness: 0.4 } }); }
-      const cams = Math.min(5, n + 1);
-      for (let c = 0; c < cams; c++) {
-        const x = sx + 1.4 + c * ((W - 3) / Math.max(1, cams - 1)), y = 8.8 + (c % 2) * .7, top = [x + .35, y + .25, 1.5];
-        [[-.6, .5], [.6, .5], [0, -.6]].forEach(([dx, dy]) => rod(g, top, [x + .35 + dx, y + .25 + dy, 0], .04, "#3A404C"));
-        bx(g, x, y - .1, 1.5, .7, .75, .55, "#0D0F13", { m: { metalness: 0.4, roughness: 0.5 } }); bx(g, x + .2, y - .35, 1.62, .3, .25, .3, "#05070A");
-        if (live) glow(g, x + .55, y + .6, 2.15, "#FF003C", .7, 0.9);
-        if (st.n === "Exec" && c === Math.floor(cams / 2)) glass(g, x - .2, y - .5, 2.1, 1.1, .04, .8, 0.3);
-      }
-      fz(g, sx + .7, 10.3, 0, 9, 1.8, TX(0, .9, 1.05, st.n, "#EEF3FA", 'font-weight="700"') + TM(0, 1.6, .5, gs + " GUESTS · " + cams + " FX3", "#7D8AA3", 'letter-spacing=".1"'));
-      if (k < SETS.length - 1) { bx(R, sx + W - .3, 0, 0, .3, 11.4, 1.6, "#2A303B"); glass(R, sx + W - .2, 0, 1.6, .1, 11.4, 3.8, 0.05); }
-      const txt = live ? "LIVE · " + live.name : info.next ? "Next " + dubaiTime(info.next.start) + " · " + info.next.name : "Free today";
-      lab((live ? '<i class="dot"></i>' : "") + esc(txt.length > 34 ? txt.slice(0, 33) + "…" : txt), cx, 1.2, 10.2, live ? "live" : info.next ? "" : "free", { "data-room": "studio:" + st.n, title: "Set " + st.n });
+    CALS.forEach((c, k) => {
+      const sx = k * CW + 0.15, cx = sx + CW / 2, info = calNow(c), live = info.live, sw = CW - 1.9;
+      const g = group(R, { room: "cal:" + c.n, tip: c.n + " · " + c.sub, tip2: calTip(c) });
+      reg.set("room:cal:" + c.n, g);
+      flat(g, sx, 0, CW - .3, 12, c.floor); flat(g, sx + 1.4, 3, CW - 3.1, 7, shade(c.floor, 1.14), 0.03);
+      /* the wall screen: today's agenda */
+      bx(g, sx + .65, 0, 1.65, sw + .3, .14, 5.9, "#05070A", { m: { metalness: .4, roughness: .4 } });
+      fy(g, sx + .8, .14, 7.4, sw, 5.6, calScreen(c, sw, 5.6), { ppu: 72 });
+      glow(g, cx, 1.2, 4.2, c.acc, 14, .12);
+      bx(g, cx - 1.05, 0, 7.93, 2.1, .1, .72, live ? "#E0002F" : "#2A1418", { m: live ? { emissive: "#FF003C", emissiveIntensity: 1.4 } : null });
+      fy(g, cx - 1, .1, 8.6, 2, .62, TM(.25, .46, .42, "ON AIR", live ? "#fff" : "#5A2A33", 'font-weight="700"'));
+      if (live) { anim.blink.push({ o: glow(g, cx, .6, 8.3, "#FF003C", 5, 0.6), base: 0.6 }); const pl = new THREE.PointLight("#FF2A4A", 0.8, 14, 1.8); pl.position.set(cx, 6, 4); g.add(pl); }
+      /* meeting table; people sit at it while an event is running */
+      const ppl = live ? Math.max(1, Math.min(8, live.people || 2)) : 0;
+      bx(g, cx - 4.8, 4.9, 0, 9.6, 2.4, 1.15, k === 0 ? "#4A4F58" : "#5B4632");
+      for (let i = 0; i < 4; i++) { const x = cx - 4.4 + i * 2.3; bx(g, x, 3.4, 0, 1.3, 1.1, .9, "#30353E"); bx(g, x, 3.2, .9, 1.3, .22, 1.1, "#2B2F37"); bx(g, x, 7.5, 0, 1.3, 1.1, .9, "#30353E"); bx(g, x, 8.4, .9, 1.3, .22, 1.1, "#2B2F37"); }
+      for (let i = 0; i < Math.min(4, ppl); i++) person(g, cx - 3.75 + i * 2.3, 3.95, .9, shade(c.acc, .7), (live ? live.title : "") + i, 0);
+      for (let i = 4; i < ppl; i++) person(g, cx - 3.75 + (i - 4) * 2.3, 8.05, .9, shade(c.acc, .6), (live ? live.title : "") + i, Math.PI);
+      if (k > 0) for (let i = 0; i < 3; i++) { const x = cx - 3 + i * 3; bx(g, x, 5.4, 1.15, .1, .1, .8, "#15181E"); bx(g, x - .15, 5.3, 1.95, .4, .5, .4, "#0C0E12", { m: { metalness: .5, roughness: .4 } }); }
+      else { bx(g, cx - 1.2, 5.5, 1.15, 2.4, 1.4, .08, "#1B1F27"); fz(g, cx - 1.1, 5.6, 1.23, 2.2, 1.2, `<rect width="2.2" height="1.2" fill="#0E1520"/><rect x=".15" y=".15" width="1.9" height=".25" fill="#FF003C" opacity=".8"/>` + Array.from({ length: 3 }, (_, q) => `<rect x=".15" y="${.52 + q * .22}" width="${1.9 - q * .4}" height=".1" fill="#3A4558"/>`).join("")); }
+      [[sx + 1.0, 1.0], [sx + CW - 2.4, 1.0]].forEach(([x, y]) => { bx(g, x, y, 0, 1.2, 1.2, .9, "#5B4632"); const s = new THREE.Mesh(HEAD, mat("#3C8A57")); s.scale.setScalar(2.2); s.position.set(x + .6, 1.6, y + .6); s.castShadow = true; g.add(s); });
+      fz(g, sx + .7, 10.4, 0, 14, 1.8, TX(0, .9, 1.05, c.n, "#EEF3FA", 'font-weight="700"') + TM(0, 1.6, .5, c.sub.toUpperCase(), "#7D8AA3", 'letter-spacing=".08"'));
+      if (k < CALS.length - 1) { bx(R, sx + CW - .3, 0, 0, .3, 11.4, 1.6, "#2A303B"); glass(R, sx + CW - .2, 0, 1.6, .1, 11.4, 3.8, 0.05); }
+      lab((live ? '<i class="dot"></i>' : "") + esc(clip(calTag(c), 40)), cx, 1.2, 11.0, live ? "live" : info.next ? "" : "free", { "data-room": "cal:" + c.n, title: c.n + " calendar" });
     });
     flat(R, 0, 12, 64, 2, "#171B22"); bx(R, 0, 11.6, 0, 64, .3, .9, "#2A303B");
   }
@@ -363,7 +360,7 @@ window.R3D = R3D;
   function flyTo(target, pos, ms = 1100) {
     const t1 = new THREE.Vector3(...target), p1 = new THREE.Vector3(...pos);
     if (RM) { controls.target.copy(t1); camera.position.copy(p1); controls.update(); return; }
-    tween = { t0: performance.now(), ms, a: controls.target.clone(), b: t1, pa: camera.position.clone(), pb: p1 };
+    R3D.still = false; tween = { t0: performance.now(), ms, a: controls.target.clone(), b: t1, pa: camera.position.clone(), pb: p1 };
   }
   R3D.view = i => { const v = VIEWS[i]; if (!v) return; flyTo(v[1], v[2]); ui.querySelectorAll("button").forEach((b, k) => b.classList.toggle("on", k === i)); };
   const offset = () => camera.position.clone().sub(controls.target);
@@ -433,13 +430,14 @@ window.R3D = R3D;
   });
 
   /* ---------- frame loop ---------- */
-  const v = new THREE.Vector3(); let occT = 0, W0 = 0, H0 = 0;
+  const v = new THREE.Vector3(), lastCam = new THREE.Vector3(); let occT = 0, W0 = 0, H0 = 0;
   function size() { const w = box3.clientWidth, h = box3.clientHeight; if (!w || !h || (w === W0 && h === H0)) return; W0 = w; H0 = h; renderer.setSize(w, h, false); camera.aspect = w / h; camera.fov = w < 640 ? 55 : 42; camera.updateProjectionMatrix(); }
   const ease = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
   function frame(now) {
     requestAnimationFrame(frame); size();
-    if (tween) { const k = Math.min(1, (now - tween.t0) / tween.ms), e = ease(k); controls.target.lerpVectors(tween.a, tween.b, e); camera.position.lerpVectors(tween.pa, tween.pb, e); if (k >= 1) tween = null; }
+    if (tween) { const k = Math.max(0, Math.min(1, (now - tween.t0) / tween.ms)), e = ease(k); controls.target.lerpVectors(tween.a, tween.b, e); camera.position.lerpVectors(tween.pa, tween.pb, e); if (k >= 1) tween = null; }
     controls.update();
+    R3D.frames = (R3D.frames || 0) + 1; R3D.still = !tween && camera.position.distanceToSquared(lastCam) < 1e-3; lastCam.copy(camera.position);
     if (!RM) {
       const s = now / 1000;
       anim.cars.forEach(c => { const y = ((c.off + s * c.sp * c.dir) % 130 + 130) % 130 - 36; c.c.position.z = y; });
@@ -480,9 +478,11 @@ window.R3D = R3D;
   }
   R3D.on = true;
   R3D.build = build;
-  /* Test hook: where on screen an object is (keys like "ep:12", "gep:4", "drop:Akssat", "room:studio:Eden"). */
+  /* Test hook: where on screen an object is (keys like "ep:12", "gep:4", "drop:Akssat", "room:cal:Production"). */
   R3D.where = key => { const o = reg.get(key); if (!o) return null; o.updateWorldMatrix(true, true); camera.updateMatrixWorld(); const b = new THREE.Box3().setFromObject(o), c = b.getCenter(new THREE.Vector3()).project(camera), r = renderer.domElement.getBoundingClientRect(); return { x: r.left + (c.x + 1) / 2 * r.width, y: r.top + (1 - c.y) / 2 * r.height }; };
   R3D.jump = (target, pos) => { tween = null; controls.target.set(...target); camera.position.set(...pos); controls.update(); camera.updateMatrixWorld(); };
+  R3D.cam = () => [camera.position.toArray().map(n => +n.toFixed(1)), controls.target.toArray().map(n => +n.toFixed(1))];
+  R3D.pickAt = (x, y) => { camera.updateMatrixWorld(); const h = hit(x, y); if (!h) return null; const f = info(h.object); return { ep: f.pick && (f.pick.ep || f.pick.gep), room: f.room, d: h.distance, p: h.point.toArray().map(n => +n.toFixed(2)) }; };
   R3D.stats = () => ({ meshes: pickables.length, labels: labels.length, textures: texC.size, calls: renderer.info.render.calls });
   setInterval(() => build(), 60000);
   requestAnimationFrame(frame);

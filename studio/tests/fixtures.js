@@ -28,4 +28,6 @@ const LIVE = { id: "live1", summary: "Katie Robertson | Poddster Booking", statu
 const EVENTS0 = [ev("a", "Test Client", wd(1), "Recording + Pro Edit + Reels"), ev("b", "Olga Melnyk", wd(1), "Recording + Professional Edit", "Standard Reel (12)"),
   ev("c", "Sharon Pakir", wd(2), "Recording + Live Mix"), ev("d", "Laura Person", wd(2), "Recording + Professional Edit"), ev("e", "Brand New Co", wd(1), "Recording + Pro Edit + Reels")];
 const EVENTS = EVENTS0.concat([LIVE]);
-module.exports = { ITEMS, EVENTS };
+const MINE = [{ id: "m1", summary: "Weekly sync with Loulou", status: "confirmed", start: { dateTime: nowIso(70 * 60000) }, end: { dateTime: nowIso(100 * 60000) }, htmlLink: "https://calendar.google.com/x", attendees: [{ email: "abdullah@poddster.com", self: true }, { email: "loulou@poddster.com" }] },
+  { id: "m2", summary: "Trina Leave", status: "confirmed", start: { date: new Date().toISOString().slice(0, 10) + "T00:00:00Z" }, end: { date: new Date(Date.now() + 864e5).toISOString().slice(0, 10) + "T00:00:00Z" } }];
+module.exports = { ITEMS, EVENTS, MINE };
