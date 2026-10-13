@@ -30,9 +30,9 @@ function renderTop() {
   const done = S.items.filter(i => i.stage === "Done" && i.updated && Date.now() - Date.parse(i.updated) < 7 * 864e5).length;
   $("onair").className = "onair" + (a.some(i => i.stage === "In Process") ? " lit" : "");
   $("onair").title = a.filter(i => i.stage === "In Process").length + " episodes being edited right now";
-  $("stats").innerHTML = S.items.length ? [["In the building", a.filter(i => FLOW.includes(i.stage)).length, ""], ["Late", late, late ? "bad" : ""], ["Due today", today, ""], ["Done this week", done, ""]]
+  $("stats").innerHTML = S.items.length ? [["Recording now", SETS.filter(st => setNow(st.n).live).length, ""], ["In post", a.filter(i => FLOW.includes(i.stage)).length, ""], ["Late", late, late ? "bad" : ""], ["Due today", today, ""], ["Done this week", done, ""]]
     .map(([l, n, c]) => `<div class="stat ${c}"><b class="tnum">${n}</b><span>${l}</span></div>`).join("") : "";
-  $("sub").textContent = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" }) + " · your episodes";
+  $("sub").textContent = "Poddster Dubai · Al Barsha, Sheikh Zayed Rd · " + new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
   const dot = $("sync-dot"), t = $("sync-t"); dot.className = "";
   if (S.error && !S.items.length) { dot.className = "off"; t.textContent = "Not connected"; }
   else if (!S.storedAt) t.textContent = "Syncing";
@@ -179,8 +179,8 @@ const renderGates = () => {};
 S.drawer = null;
 function renderDrawer() {
   const el = $("drawer"); el.hidden = !S.drawer; if (!S.drawer) { el.innerHTML = ""; return; }
-  const [kind, who] = S.drawer.split(":"), title = { green: "Green room", suite: (who || "") + "'s booth", screening: "Screening room", control: "Control room", board: "On-air board", necks: "Bottleneck meter" }[kind];
-  const body = kind === "green" ? greenHtml() : kind === "suite" ? suitesHtml(who) + `<div style="margin-top:14px">${consoleHtml().replace(/^[\s\S]*?<div class="console">/, '<div class="console">').replace(/<p class="hint">[\s\S]*$/, "")}</div>` : kind === "screening" ? screeningHtml() : kind === "control" ? consoleHtml() + boardHtml() + necksHtml() : kind === "board" ? boardHtml() : necksHtml();
+  const [kind, who] = S.drawer.split(":"), title = { green: "Green room", suite: (who || "") + "'s booth", screening: "Screening room", control: "Control room", board: "On-air board", necks: "Bottleneck meter", studio: "Set " + (who || "") }[kind];
+  const body = kind === "green" ? greenHtml() : kind === "suite" ? suitesHtml(who) + `<div style="margin-top:14px">${consoleHtml().replace(/^[\s\S]*?<div class="console">/, '<div class="console">').replace(/<p class="hint">[\s\S]*$/, "")}</div>` : kind === "screening" ? screeningHtml() : kind === "control" ? consoleHtml() + boardHtml() + necksHtml() : kind === "board" ? boardHtml() : kind === "studio" ? studioHtml(who) : necksHtml();
   el.innerHTML = `<div class="d-h"><b>${esc(title)}</b><button class="ib" type="button" data-act="drawer-close" aria-label="Close" title="Close (Esc)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div><div class="d-b ${kind === "suite" ? "one" : ""}">${body}</div>`;
   if (kind === "suite") el.querySelectorAll(".strip").forEach(n => { if (firstName(n.dataset.drop).toLowerCase() !== firstName(who).toLowerCase()) n.remove(); });
 }

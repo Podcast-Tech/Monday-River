@@ -24,9 +24,13 @@ const ITEMS = [
 ];
 const wd = n => { const x = new Date(); let k = 0; while (k < n) { x.setDate(x.getDate() + 1); if (x.getDay() % 6) k++; } return x.toISOString().slice(0, 10); };
 const ev = (id, name, day, services, addons) => ({ id, summary: name + " | Poddster Booking", status: "confirmed", start: { dateTime: day + "T14:00:00+04:00" }, end: { dateTime: day + "T15:00:00+04:00" }, organizer: { displayName: "Al Barsha Studio 1" },
-  description: `Order ID: X${id}\nCustomer: ${name}\nServices:\n${services}` + (addons ? `\nAdditional Services:\n${addons}` : "") });
-const EVENTS = [ev("a", "Test Client", wd(1), "Recording + Pro Edit + Reels"), ev("b", "Olga Melnyk", wd(1), "Recording + Professional Edit", "Standard Reel (12)"),
+  description: `Order ID: X${id}\nCustomer: ${name}\nSeats: 2\nSetup: ${["Eden", "Nest", "Apex", "Cove", "Exec"][id.charCodeAt(0) % 5]}\nServices:\n${services}` + (addons ? `\nAdditional Services:\n${addons}` : "") });
+const nowIso = ms => new Date(Date.now() + ms).toISOString();
+const LIVE = { id: "live1", summary: "Katie Robertson | Poddster Booking", status: "confirmed", start: { dateTime: nowIso(-20 * 60000) }, end: { dateTime: nowIso(40 * 60000) }, organizer: { displayName: "Al Barsha Studio 1" },
+  description: "Order ID: L1\nCustomer: Katie Robertson\nSeats: 3\nSetup: Eden\nServices:\nRecording + Pro Edit + Reels" };
+const EVENTS0 = [ev("a", "Test Client", wd(1), "Recording + Pro Edit + Reels"), ev("b", "Olga Melnyk", wd(1), "Recording + Professional Edit", "Standard Reel (12)"),
   ev("c", "Sharon Pakir", wd(2), "Recording + Live Mix"), ev("d", "Laura Person", wd(2), "Recording + Professional Edit"), ev("e", "Brand New Co", wd(1), "Recording + Pro Edit + Reels")];
+const EVENTS = EVENTS0.concat([LIVE]);
 (async () => {
   const b = await chromium.launch(); const p = await b.newPage({ viewport: { width: 1440, height: 1000 } }), calls = [], dbw = [];
   await p.exposeFunction("__call", (server, tool, input) => { calls.push({ server, tool, input });
@@ -54,7 +58,11 @@ const EVENTS = [ev("a", "Test Client", wd(1), "Recording + Pro Edit + Reels"), e
   assert.ok(seated.includes("15"), "done tape on the delivery shelf");
   assert.ok(/lit/.test(await p.getAttribute("#onair", "class")));
   console.log("✓ Illustrated floor: 2 guests on the couches, 11 editor booths with tapes and monitors, 5 clients seated (2 VIP), delivery shelf, ON AIR lit");
-  await p.screenshot({ path: path.join(shots, "1-studio.png") });
+  await p.screenshot({ path: path.join(shots, "1-studio.png"), fullPage: true });
+  assert.ok(/LIVE · Katie Robertson/.test((await t('#scene g[data-room="studio:Eden"]')).join(" ")), "Eden shows the live session");
+  await p.locator('#scene g[data-room="studio:Eden"]').first().dispatchEvent("click"); await p.waitForSelector("#drawer .bk");
+  assert.ok(/Katie Robertson/.test((await t("#drawer .bk"))[0])); await p.click('[data-act="drawer-close"]');
+  console.log("✓ Recording wing: Eden is ON AIR with Katie Robertson; clicking the set opens its schedule");
   // hover tooltip
   await p.hover('#scene g[data-room="suite:Igor Garčev"] > text'); assert.ok(/Igor Garčev's booth/.test((await t("#tip"))[0]));
   console.log("✓ Hover a booth: " + (await t("#tip"))[0]);

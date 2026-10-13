@@ -304,8 +304,8 @@ a{color:inherit}
     <div class="sync"><i id="sync-dot"></i><span id="sync-t">Connecting</span><button class="btn-s" type="button" id="refresh">Sync</button></div>
   </header>
   <div id="banner"></div>
-  <div class="stage" id="stage"><svg id="scene" viewBox="0 0 1480 1060" role="img" aria-label="The studio floor: green room, edit booths, screening room and control room"></svg><div class="tip" id="tip" hidden></div></div>
-  <p class="hint" style="text-align:center">Click a room, a screen, a tape or a person. Drag a guest from the green room into a booth to give the episode to that editor.</p>
+  <div class="stage" id="stage"><svg id="scene" viewBox="0 0 1800 1350" role="img" aria-label="Poddster Dubai on Sheikh Zayed Road: the six recording sets, then the post-production floor with the green room, edit booths, screening room and control room"></svg><div class="tip" id="tip" hidden></div></div>
+  <p class="hint" style="text-align:center">Click a set, a room, a screen, a tape or a person. Drag a guest from the green room into a booth to give the episode to that editor.</p>
 </div>
 <aside class="drawer" id="drawer" hidden aria-label="Room details"></aside>
 <div class="scrim" id="scrim" hidden></div>
@@ -677,8 +677,9 @@ async function postNote(o = {}) {
    World units: x runs down-right, y down-left, z up. 1 unit = SC px. Rooms (x × y):
    Green room 0–16 × 0–22 · Delivery 0–16 × 22–46 · Edit booths 16–48 × 0–28 · Screening 48–64 × 0–28 · Control room 16–64 × 28–46.
    Everything is painted back to front, room by room. */
-const SC = 15, CX = 0.8660254, HY = 0.5, OX = 46 * CX * SC + 30, OY = 178;
-const P = (x, y, z = 0) => [OX + (x - y) * CX * SC, OY + (x + y) * HY * SC - z * SC];
+const SC = 15, CX = 0.8660254, HY = 0.5, OX = 800, OY = 322;
+let YOFF = 0; /* the post-production floor sits 14 units in front of the recording wing */
+const P = (x, y, z = 0) => [OX + (x - (y + YOFF)) * CX * SC, OY + (x + y + YOFF) * HY * SC - z * SC];
 const pts = a => a.map(p => p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ");
 function shade(hex, f) {
   const n = parseInt(hex.slice(1), 16), c = [n >> 16, (n >> 8) & 255, n & 255].map(v => f >= 1 ? v + (255 - v) * (f - 1) : v * f);
@@ -726,18 +727,18 @@ function renderScene() {
     <filter id="soft" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.2"/></filter>
     <linearGradient id="scr" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#EAF6FF"/><stop offset="1" stop-color="#9FCBEE"/></linearGradient>
     <radialGradient id="pool" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#FFE7B8" stop-opacity=".22"/><stop offset="1" stop-color="#FFE7B8" stop-opacity="0"/></radialGradient></defs>`;
+  YOFF = 0; h += drawOutside() + drawWing();
+  YOFF = 14;
   /* slab + floors */
   h += box(-0.6, -0.6, -1, 65.2, 47.2, 1, "#10141B", { stroke: 'stroke="none"' });
   h += quad(0, 0, 16, 22, "#1F2B27") + quad(0, 22, 16, 24, "#1A1E26") + quad(16, 0, 32, 28, "#1B1F27") + quad(48, 0, 16, 28, "#2A1820") + quad(16, 28, 48, 18, "#151A22");
   for (let k = 1; k < 32; k += 2) h += `<polyline points="${pts([P(16 + k, 0), P(16 + k, 28)])}" stroke="rgb(255 255 255 / .025)" stroke-width="1"/>`;
   /* back walls with acoustic foam */
-  h += box(-0.6, -0.6, 0, 65.2, 0.6, 8.5, "#232A36", { stroke: 'stroke="rgb(0 0 0 / .4)" stroke-width=".7"' });
+  h += box(-0.6, -0.6, 0, 65.2, 0.6, 1.1, "#232A36") + `<polygon points="${pts([P(0, 0, 1.1), P(64, 0, 1.1), P(64, 0, 3.4), P(0, 0, 3.4)])}" fill="rgb(160 200 255 / .05)" stroke="rgb(160 200 255 / .16)" stroke-width=".8" pointer-events="none"/>`;
   h += box(-0.6, 0, 0, 0.6, 46, 8.5, "#232A36", { stroke: 'stroke="rgb(0 0 0 / .4)" stroke-width=".7"' });
-  let foam = ""; for (let u = 0; u < 30; u++) for (let v = 0; v < 5; v++) foam += `<rect x="${u + .08}" y="${v + .08}" width=".84" height=".84" fill="${(u + v) % 2 ? "#2C3442" : "#262E3B"}"/><path d="M${u + .08},${v + .5} L${u + .92},${v + .5}" stroke="rgb(0 0 0 / .25)" stroke-width=".06"/>`;
-  h += fy(17, 0, 7.6, foam);
-  h += fy(1.5, 0, 7.9, TM(0, 0.85, 0.85, "GREEN ROOM", "#9FB8A8", 'letter-spacing=".25"') + TM(0, 1.9, 0.55, "QUEUE", "#6F8478", 'letter-spacing=".2"'));
-  h += fy(17, 0, 8.2, TM(0, 0.6, 0.55, "EDIT SUITES", "#C9D3E2", 'letter-spacing=".25"'));
-  h += fy(49.5, 0, 8.2, TM(0, 0.6, 0.55, "SCREENING · CLIENT REVIEW", "#E2B8C4", 'letter-spacing=".18"'));
+  h += fz(1.2, 0.5, .02, TM(0, .9, .95, "GREEN ROOM", "#7FA391", 'letter-spacing=".25"') + TM(0, 1.8, .55, "QUEUE", "#5E7A6C", 'letter-spacing=".2"'));
+  h += fz(31.5, 26.4, .02, TM(0, .9, .95, "EDIT SUITES", "#7D8AA3", 'letter-spacing=".25"'));
+  h += fz(48.8, 26.6, .02, TM(0, .6, .55, "SCREENING · CLIENT REVIEW", "#B98A98", 'letter-spacing=".15"'));
   h += fx(0, 44, 7.6, TM(0, 0.9, 0.85, "DELIVERY", "#B7A9FF", 'letter-spacing=".25"') + TM(0, 1.9, 0.55, "DONE THIS WEEK", "#7D74B8", 'letter-spacing=".2"'));
 
   /* ---------- green room ---------- */
@@ -888,7 +889,8 @@ function renderScene() {
   h += "</g>";
   /* warm pools of light */
   [[8, 10], [32, 13], [56, 14], [39, 37]].forEach(([x, y]) => { const [lx, ly] = P(x, y, 0); h += `<ellipse cx="${lx}" cy="${ly}" rx="190" ry="95" fill="url(#pool)" pointer-events="none"/>`; });
-  if (!ready) { const [lx, ly] = P(32, 14, 6); h += `<text x="${lx}" y="${ly}" text-anchor="middle" font-size="22" fill="#8693A8" font-family="Geist, sans-serif">${S.error ? "Couldn't read your board" : "Opening the studio…"}</text>`; }
+  if (!ready) { const [lx, ly] = P(32, 12, 6); h += `<text x="${lx}" y="${ly}" text-anchor="middle" font-size="22" fill="#8693A8" font-family="Geist, sans-serif">${S.error ? "Couldn't read your board" : "Opening the studio…"}</text>`; }
+  YOFF = 0; h += drawRoad();
   svg.innerHTML = h;
 }
 
@@ -928,6 +930,109 @@ function renderScene() {
   });
 })();
 
+/* ---------- outside: Sheikh Zayed Road, the Metro red line and the Al Barsha towers ---------- */
+function drawOutside() {
+  /* the Al Barsha towers behind the building */
+  let h = "";
+  const towers = [[-1, 12], [5, 16], [11, 9], [15, 14.5], [22, 11], [27, 17], [33, 10], [38, 15], [44, 12.5], [49, 18], [55, 10.5], [60, 14]];
+  towers.forEach(([x, z], k) => {
+    const w = 3.6 + (k % 3), d = 2.2, y = -10.6;
+    h += box(x, y, 0, w, d, z, k % 2 ? "#172033" : "#141B2A", { stroke: 'stroke="rgb(0 0 0 / .5)" stroke-width=".6"' });
+    let win = ""; for (let u = .4; u < w - .3; u += .7) for (let v = .6; v < z - .4; v += .9) if ((hash(k + ":" + u + ":" + v) % 5) < 2) win += `<rect x="${u.toFixed(2)}" y="${v.toFixed(2)}" width=".3" height=".42" fill="${(hash(k + "w" + v) % 4) ? "#E9C77A" : "#9CC8F0"}" opacity=".55"/>`;
+    h += fy(x, y + d, z, win);
+  });
+  return h;
+}
+/* Sheikh Zayed Road and the Metro red line run along the building's open side, drawn last so they sit in front. */
+const fzy = (x, y, z, inner) => { const [X, Y] = P(x, y, z); return `<g transform="matrix(${CX * SC} ${-HY * SC} ${CX * SC} ${HY * SC} ${X.toFixed(1)} ${Y.toFixed(1)})">${inner}</g>`; };
+function drawRoad() {
+  let h = quad(65, -4, 9, 66, "#0C0F14") + quad(64.6, -4, .4, 66, "#2A2F38");
+  for (let y = -2; y < 60; y += 4) h += quad(69.3, y, .18, 2, "rgb(255 255 255 / .2)");
+  for (let k = 0; k < 6; k++) { const y = ((hash("car" + k) % 60) + (Date.now() / 900) * (k % 2 ? 1 : -1)) % 62, yy = ((y % 62) + 62) % 62 - 2; h += box(k % 2 ? 70.2 : 66.4, yy, 0, 1.4, 2.6, .9, ["#D9DEE6", "#2E5A7A", "#8E3B2E", "#C9A24B", "#1E1E22", "#5A6170"][k]); }
+  for (let y = 0; y <= 56; y += 8) h += box(72.6, y, 0, .8, .8, 3.2, "#3A404C");
+  h += box(72.2, -4, 3.2, 1.6, 66, .55, "#4A515E");
+  const ty = (Date.now() / 2400) % 44;
+  for (let c = 0; c < 5; c++) { const y = ty + c * 3.6; h += box(72.45, y, 3.75, 1.1, 3.4, 1.05, "#D9DEE6", { right: "#C9CED6" }) + fx(73.55, y + 3.4, 4.65, `<rect x="0" y="0" width="3.4" height=".26" fill="#C8102E"/><rect x=".3" y=".36" width="2.8" height=".28" fill="#1E2A3A"/>`); }
+  h += fzy(66.6, 56, .01, TM(0, .7, .85, "SHEIKH ZAYED ROAD", "rgb(255 255 255 / .25)", 'letter-spacing=".35"'));
+  h += fzy(70.6, 30, .01, TM(0, .6, .55, "DUBAI METRO · RED LINE", "rgb(200 16 46 / .6)", 'letter-spacing=".25"'));
+  return h;
+}
+
+/* ---------- the recording wing: Poddster Dubai's six sets ----------
+   Names and seat counts are Poddster Dubai's own (dubai.poddster.com). The look of each set is illustrative. */
+const SETS = [
+  { n: "Nest", seats: 4, floor: "#2C2119", acc: "#C98B4E", back: "shelf" },
+  { n: "Cove", seats: 4, floor: "#15223A", acc: "#4FA3E0", back: "waves" },
+  { n: "Eden", seats: 4, floor: "#1B2D21", acc: "#5CB873", back: "plants" },
+  { n: "Exec", seats: 2, floor: "#23252A", acc: "#C9B08A", back: "slats" },
+  { n: "Edge", seats: 2, floor: "#1B1724", acc: "#FF003C", back: "neon" },
+  { n: "Apex", seats: 5, floor: "#211B2B", acc: "#9C8CFF", back: "led" }
+];
+const setOf = b => { const m = String(b.setup || "").toLowerCase(); return SETS.find(s => m.includes(s.n.toLowerCase())) || null; };
+function setBookings(name) { return (S.bookings || []).filter(b => b.studio !== "Abu Dhabi" && setOf(b) && setOf(b).n === name).sort((a, b) => String(a.start).localeCompare(String(b.start))); }
+function setNow(name) {
+  const now = Date.now(), list = setBookings(name), today = dubaiISO(new Date());
+  return { live: list.find(b => Date.parse(b.start) <= now && now < Date.parse(b.end || b.start)), next: list.find(b => Date.parse(b.start) > now && b.date === today), list };
+}
+function backdrop(kind, acc, W, H) {
+  let g = `<rect x="0" y="0" width="${W}" height="${H}" fill="#151A22"/>`;
+  if (kind === "shelf") { g += `<rect x=".3" y=".2" width="${W - .6}" height="${H - .4}" fill="#4A3424"/>`; for (let r = 0; r < 4; r++) { g += `<rect x=".45" y="${.35 + r * 1.2 + 1}" width="${W - .9}" height=".12" fill="#6B4C33"/>`; for (let b = 0; b < 16; b++) { const hh = .55 + (hash(r + ":" + b) % 4) * .1; g += `<rect x="${.55 + b * .55}" y="${.35 + r * 1.2 + 1 - hh}" width=".42" height="${hh}" fill="${["#8E3B2E", "#2E5A7A", "#C9A24B", "#3E6B4A", "#6B4C7A", "#D8D2C4"][hash(b + "c" + r) % 6]}"/>`; } } }
+  if (kind === "waves") { g += `<rect x="0" y="0" width="${W}" height="${H}" fill="#12304F"/>`; for (let k = 0; k < 6; k++) g += `<path d="M0,${1 + k * .75} Q${W / 4},${.5 + k * .75} ${W / 2},${1 + k * .75} T${W},${1 + k * .75}" stroke="${acc}" stroke-width=".09" fill="none" opacity="${.35 + k * .08}"/>`; }
+  if (kind === "plants") { g += `<rect x="0" y="0" width="${W}" height="${H}" fill="#173322"/>`; for (let k = 0; k < 70; k++) g += `<ellipse cx="${(hash("x" + k) % 100) / 100 * W}" cy="${(hash("y" + k) % 100) / 100 * H}" rx=".42" ry=".2" transform="rotate(${hash("r" + k) % 180} ${(hash("x" + k) % 100) / 100 * W} ${(hash("y" + k) % 100) / 100 * H})" fill="${["#3E8E55", "#56A866", "#2F6B42", "#6FBF73"][k % 4]}"/>`; }
+  if (kind === "slats") { for (let k = 0; k < 24; k++) g += `<rect x="${.2 + k * .4}" y=".1" width=".3" height="${H - .2}" fill="${k % 2 ? "#6E5537" : "#7C613F"}"/>`; g += `<rect x="${W / 2 - 1.3}" y="1.2" width="2.6" height="1" rx=".1" fill="#14181F"/>` + `<text x="${W / 2}" y="1.92" font-size=".55" text-anchor="middle" fill="#C9B08A" font-family="Geist, sans-serif" font-weight="700" letter-spacing=".08">PODDSTER</text>`; }
+  if (kind === "neon") { g += `<rect x="0" y="0" width="${W}" height="${H}" fill="#0E0B14"/><path d="M.8,${H - .8} L${W * .35},1 L${W * .55},${H - 1.2} L${W - .8},.9" stroke="${acc}" stroke-width=".14" fill="none"/><path d="M.8,${H - .8} L${W * .35},1 L${W * .55},${H - 1.2} L${W - .8},.9" stroke="${acc}" stroke-width=".5" fill="none" opacity=".25"/><path d="M1.4,1.4 H${W - 1.4}" stroke="#3FA9FF" stroke-width=".1" opacity=".8"/>`; }
+  if (kind === "led") { g += `<rect x="0" y="0" width="${W}" height="${H}" fill="#0C0B18"/>`; for (let u = 0; u < 24; u++) for (let v = 0; v < 13; v++) g += `<rect x="${.1 + u * .4}" y="${.1 + v * .4}" width=".32" height=".32" fill="${acc}" opacity="${(.12 + ((hash(u + ":" + v) % 10) / 10) * .3).toFixed(2)}"/>`; g += `<text x="${W / 2}" y="${H / 2 + .35}" font-size="1.05" text-anchor="middle" fill="#fff" opacity=".9" font-family="Geist, sans-serif" font-weight="700" letter-spacing=".12">PODDSTER</text>`; }
+  return g;
+}
+function drawWing() {
+  let h = box(-0.6, -0.6, -1, 65.2, 14.6, 1, "#10141B", { stroke: 'stroke="none"' });
+  h += box(-0.6, -0.6, 0, 65.2, 0.6, 9.2, "#1E242E", { stroke: 'stroke="rgb(0 0 0 / .4)" stroke-width=".7"' }) + box(-0.6, 0, 0, 0.6, 14, 9.2, "#1E242E");
+  /* the building's sign above the sets */
+  h += fy(1, 0, 8.9, `<rect x="0" y="0" width="1.5" height="1.5" rx=".35" fill="#FF003C"/><rect x=".45" y=".3" width=".6" height=".68" rx=".3" fill="none" stroke="#fff" stroke-width=".14"/><path d="M.52,.82 V1.25" stroke="#fff" stroke-width=".14" stroke-linecap="round"/>`
+    + TX(2, 1.15, 1.15, "PODDSTER", "#EEF3FA", 'font-weight="700" letter-spacing=".14"') + TM(9.4, 1.12, .55, "DUBAI · AL BARSHA · SHEIKH ZAYED RD · SIX SETS", "#7D8AA3", 'letter-spacing=".18"'));
+  const tags = [], W = 10.66;
+  SETS.forEach((st, k) => {
+    const sx = k * W + 0.15, cx = sx + W / 2, info = setNow(st.n), live = info.live;
+    h += `<g data-room="studio:${st.n}" ${tip("Set " + st.n + " · " + (st.seats === 2 ? "1–2" : st.seats === 5 ? "1–5" : "1–4") + " guests", live ? "Recording now: " + live.name : info.next ? "Next today: " + dubaiTime(info.next.start) + " " + info.next.name : "No more sessions today · click for the schedule")}>`;
+    h += quad(sx, 0, W - .3, 12, st.floor) + quad(sx + 1, 1.2, W - 2.3, 9, shade(st.floor, 1.12));
+    h += fy(sx + .5, 0, 6.6, backdrop(st.back, st.acc, W - 1.3, 5.6));
+    /* ON AIR lamp above the backdrop */
+    h += fy(cx - 1, 0, 8.0, `<rect x="0" y="0" width="2" height=".62" rx=".1" fill="${live ? "#E0002F" : "#2A1418"}"/>` + TM(.25, .46, .42, "ON AIR", live ? "#fff" : "#5A2A33", 'font-weight="700"'), live ? 'class="flick"' : "");
+    if (live) { const [lx, ly] = P(cx, 0, 7.7); h += `<ellipse cx="${lx}" cy="${ly}" rx="34" ry="14" fill="#FF003C" opacity=".5" filter="url(#glow)" pointer-events="none"/>`; }
+    /* chairs, guests, table, mics */
+    const n = st.seats, tw = n * 1.55 + .9, tx0 = cx - tw / 2, guests = live ? Math.max(1, Math.min(n, +String(live.seats).match(/\d+/)?.[0] || n)) : 0;
+    for (let i = 0; i < n; i++) { const x = tx0 + .45 + i * 1.55 + .2; h += box(x - .1, 2.6, .9, 1.25, .25, 1.4, "#2B2F37") + box(x - .1, 2.85, 0, 1.25, 1.1, .9, "#30353E"); }
+    for (let i = 0; i < guests; i++) { const x = tx0 + .45 + i * 1.55 + .72; h += person(x, 3.45, .9, shade(st.acc, .7), (live ? live.name : "") + i, { seated: true }); }
+    h += box(tx0, 4.3, 0, tw, 1.9, 1.15, st.n === "Exec" ? "#4A4F58" : "#5B4632");
+    for (let i = 0; i < n; i++) { const x = tx0 + .45 + i * 1.55 + .62; h += box(x - .05, 4.45, 1.15, .1, .1, .9, "#15181E") + box(x - .2, 4.3, 1.95, .4, .55, .4, "#0C0E12"); }
+    /* cameras on tripods, facing the table */
+    const cams = Math.min(5, n + 1);
+    for (let c = 0; c < cams; c++) {
+      const x = sx + 1.4 + c * ((W - 3) / Math.max(1, cams - 1)), y = 8.8 + (c % 2) * .7, [fx0, fy0] = P(x + .35, y + .25, 1.5);
+      [[-.6, .5], [.6, .5], [0, -.6]].forEach(([dx, dy]) => { const [lx, ly] = P(x + .35 + dx, y + .25 + dy, 0); h += `<line x1="${fx0}" y1="${fy0}" x2="${lx}" y2="${ly}" stroke="#3A404C" stroke-width="1.4"/>`; });
+      h += box(x, y, 1.5, .7, .55, .5, "#0D0F13") + (live ? (() => { const [dx, dy] = P(x + .55, y + .55, 1.95); return `<circle cx="${dx}" cy="${dy}" r="2.2" fill="#FF003C"/>`; })() : "");
+      if (st.n === "Exec" && c === Math.floor(cams / 2)) h += `<polygon points="${pts([P(x - .2, y, 2.1), P(x + .9, y, 2.1), P(x + .9, y - .4, 2.9), P(x - .2, y - .4, 2.9)])}" fill="rgb(160 210 255 / .35)" stroke="rgb(160 210 255 / .6)" stroke-width=".6"/>`;
+    }
+    /* set name on the floor */
+    h += fz(sx + .7, 10.5, .02, TX(0, .9, 1.05, st.n, "#EEF3FA", 'font-weight="700"') + TM(0, 1.6, .5, (st.seats === 2 ? "1–2" : st.seats === 5 ? "1–5" : "1–4") + " GUESTS · " + cams + " FX3", "#7D8AA3", 'letter-spacing=".1"'));
+    h += `</g>`;
+    /* partition to the next set: low wall + glass */
+    if (k < SETS.length - 1) h += box(sx + W - .3, 0, 0, .3, 11.4, 1.6, "#2A303B") + `<polygon points="${pts([P(sx + W - .15, 0, 1.6), P(sx + W - .15, 11.4, 1.6), P(sx + W - .15, 11.4, 5.4), P(sx + W - .15, 0, 5.4)])}" fill="rgb(160 200 255 / .045)" stroke="rgb(160 200 255 / .14)" stroke-width=".7" pointer-events="none"/>`;
+    tags.push({ cx, live, next: info.next, name: st.n });
+  });
+  /* the corridor between the sets and post-production */
+  h += quad(0, 12, 64, 2, "#171B22") + box(0, 11.6, 0, 64, .3, .9, "#2A303B");
+  tags.forEach(t => { const [px, py] = P(t.cx, 2.2, 7.3), txt = t.live ? "● LIVE · " + t.live.name : t.next ? "Next " + dubaiTime(t.next.start) + " · " + t.next.name : "Free today", w = Math.min(230, txt.length * 6.2 + 20), col = t.live ? "#FF003C" : t.next ? "rgb(238 243 250 / .55)" : "rgb(160 200 255 / .2)";
+    h += `<g data-room="studio:${t.name}"><rect x="${px - w / 2}" y="${py - 10}" width="${w}" height="20" rx="10" fill="${t.live ? "#3A0612" : "#0B0F15"}" fill-opacity=".94" stroke="${col}"/><text x="${px}" y="${py + 4}" text-anchor="middle" font-size="11" font-weight="600" fill="${t.live ? "#FFD0D8" : t.next ? "#EEF3FA" : "#6F7C92"}" font-family="Geist, sans-serif">${esc(txt.length > 34 ? txt.slice(0, 33) + "…" : txt)}</text></g>`; });
+  return h;
+}
+function studioHtml(name) {
+  const st = SETS.find(s => s.n === name), info = setNow(name), list = info.list.filter(b => b.date >= dubaiISO(new Date()));
+  return `<div class="plaque"><b>Set ${esc(name)}</b><span>${st.seats === 2 ? "1–2" : st.seats === 5 ? "1–5" : "1–4"} guests · up to ${Math.min(5, st.seats + 1)} Sony FX3 · Shure SM7dB</span></div>
+    ${S.bookings === null ? `<div class="skel"></div>` : S.bkErr ? `<p class="verdict bad">${esc(calErr(S.bkErr))}</p>` : list.length ? `<div class="bks">${list.map(b => `<div class="bk ${b.owner === "laura" ? "laura" : ""}"><time>${dayLabel(b.date)} ${dubaiTime(b.start)}</time><span title="${esc(b.services)}">${info.live === b ? "● " : ""}${esc(b.name)}${b.nc ? " · new" : ""}${b.owner === "laura" ? " · Laura's" : ""} <span style="color:var(--muted)">· ${esc(b.services.replace(/\n/g, ", "))}</span></span><em>${b.units ? "≈" + fmtU(b.units) + "u" : "rec only"}</em></div>`).join("")}</div>` : `<p class="empty">No sessions booked on ${esc(name)} in the next two weeks.</p>`}
+    <p class="hint">Sessions come from the production@ and studio@ calendars. Each one arrives as edit work the next working day.</p>`;
+}
+
 /* ================= River Studio: the strategic floor ================= */
 const DEFAULT_CAP = 3;               // units per week an editor can take on AG's work, until AG sets it
 const WIN_BACK = 7, WIN_DAYS = 21;   // edit-suite timelines: a week back, two weeks ahead
@@ -959,9 +1064,9 @@ function renderTop() {
   const done = S.items.filter(i => i.stage === "Done" && i.updated && Date.now() - Date.parse(i.updated) < 7 * 864e5).length;
   $("onair").className = "onair" + (a.some(i => i.stage === "In Process") ? " lit" : "");
   $("onair").title = a.filter(i => i.stage === "In Process").length + " episodes being edited right now";
-  $("stats").innerHTML = S.items.length ? [["In the building", a.filter(i => FLOW.includes(i.stage)).length, ""], ["Late", late, late ? "bad" : ""], ["Due today", today, ""], ["Done this week", done, ""]]
+  $("stats").innerHTML = S.items.length ? [["Recording now", SETS.filter(st => setNow(st.n).live).length, ""], ["In post", a.filter(i => FLOW.includes(i.stage)).length, ""], ["Late", late, late ? "bad" : ""], ["Due today", today, ""], ["Done this week", done, ""]]
     .map(([l, n, c]) => `<div class="stat ${c}"><b class="tnum">${n}</b><span>${l}</span></div>`).join("") : "";
-  $("sub").textContent = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" }) + " · your episodes";
+  $("sub").textContent = "Poddster Dubai · Al Barsha, Sheikh Zayed Rd · " + new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
   const dot = $("sync-dot"), t = $("sync-t"); dot.className = "";
   if (S.error && !S.items.length) { dot.className = "off"; t.textContent = "Not connected"; }
   else if (!S.storedAt) t.textContent = "Syncing";
@@ -1108,8 +1213,8 @@ const renderGates = () => {};
 S.drawer = null;
 function renderDrawer() {
   const el = $("drawer"); el.hidden = !S.drawer; if (!S.drawer) { el.innerHTML = ""; return; }
-  const [kind, who] = S.drawer.split(":"), title = { green: "Green room", suite: (who || "") + "'s booth", screening: "Screening room", control: "Control room", board: "On-air board", necks: "Bottleneck meter" }[kind];
-  const body = kind === "green" ? greenHtml() : kind === "suite" ? suitesHtml(who) + `<div style="margin-top:14px">${consoleHtml().replace(/^[\s\S]*?<div class="console">/, '<div class="console">').replace(/<p class="hint">[\s\S]*$/, "")}</div>` : kind === "screening" ? screeningHtml() : kind === "control" ? consoleHtml() + boardHtml() + necksHtml() : kind === "board" ? boardHtml() : necksHtml();
+  const [kind, who] = S.drawer.split(":"), title = { green: "Green room", suite: (who || "") + "'s booth", screening: "Screening room", control: "Control room", board: "On-air board", necks: "Bottleneck meter", studio: "Set " + (who || "") }[kind];
+  const body = kind === "green" ? greenHtml() : kind === "suite" ? suitesHtml(who) + `<div style="margin-top:14px">${consoleHtml().replace(/^[\s\S]*?<div class="console">/, '<div class="console">').replace(/<p class="hint">[\s\S]*$/, "")}</div>` : kind === "screening" ? screeningHtml() : kind === "control" ? consoleHtml() + boardHtml() + necksHtml() : kind === "board" ? boardHtml() : kind === "studio" ? studioHtml(who) : necksHtml();
   el.innerHTML = `<div class="d-h"><b>${esc(title)}</b><button class="ib" type="button" data-act="drawer-close" aria-label="Close" title="Close (Esc)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div><div class="d-b ${kind === "suite" ? "one" : ""}">${body}</div>`;
   if (kind === "suite") el.querySelectorAll(".strip").forEach(n => { if (firstName(n.dataset.drop).toLowerCase() !== firstName(who).toLowerCase()) n.remove(); });
 }
