@@ -126,7 +126,12 @@ See `ROADMAP.md` for the next ten upgrades.
 
 A separate claude.ai artifact (desktop-first, stacks at phone width), published at https://claude.ai/artifact/3tFmFu2c5Xo3SKZuiSSou7. It doesn't change River.
 - **Build:** `python3 studio/build.py` writes `studio/index.html` from `studio/src/head.html`, `studio/src/body.html` and `studio/src/app.js`, plus River's logic, episode panel and panel CSS copied verbatim from `index.html`. After changing River's rules, rebuild Studio and republish.
-- **Look:** an illustrated isometric studio drawn as one SVG from live data (`studio/src/scene.js`, `renderScene()`), not a dashboard. World units: x runs down-right, y down-left, z up, and 1 unit is `SC` = 15 px. Rooms are Green room 0–16 × 0–22, Delivery 0–16 × 22–46, Booths 16–48 × 0–28, Screening 48–64 × 0–28 and Control 16–64 × 28–46. Painting runs back to front.
+- **3D (default):** `studio/src/scene3d.js` rebuilds the same building in WebGL with Three.js r128 + OrbitControls (cdnjs `three.js/r128/three.min.js`, jsdelivr `three@0.128.0/examples/js/controls/OrbitControls.js`). Drag orbits, right-drag or two fingers pan, scroll or pinch zooms, double-click flies closer. View buttons (and keys 1–6) fly to Overview, Recording sets, Green room, Edit booths, Screening and Control room; arrows/WASD pan, Q/E turn, +/− zoom, R/F tilt.
+  - Mapping: Three X = x, Y = z, Z = y (+14 on the post floor). Flat artwork (monitors, backdrops, boards, floor text) reuses the SVG engine's markup, painted into canvas textures (`tex()`, `fy`/`fz`/`fx`).
+  - Picking uses `userData` on groups: `ep` (opens the panel), `gep` (guest: click opens, drag onto a booth `drop` calls `reassign()`), `room` (opens the drawer), `tip`/`tip2` (hover). Booth, set, bubble and "You" tags are HTML labels re-projected each frame, dimmed when blocked and decluttered by priority.
+  - Outer walls and the towers fade while the camera is outside them. The scene only rebuilds when the data signature changes (`sigOf()`), checked on each render and every minute.
+  - If Three.js or WebGL is missing, `renderScene()` falls back to the SVG drawing below. Test hooks: `R3D.where(key)`, `R3D.jump()`, `R3D.view(i)`, `R3D.stats()`.
+- **Look (SVG fallback):** an illustrated isometric studio drawn as one SVG from live data (`studio/src/scene.js`, `renderScene()`), not a dashboard. World units: x runs down-right, y down-left, z up, and 1 unit is `SC` = 15 px. Rooms are Green room 0–16 × 0–22, Delivery 0–16 × 22–46, Booths 16–48 × 0–28, Screening 48–64 × 0–28 and Control 16–64 × 28–46. Painting runs back to front.
   - **Poddster Dubai (Al Barsha, Sheikh Zayed Rd):** the back of the building is the recording wing (world y 0–12, drawn with `YOFF` = 0 by `drawWing()`). It holds the six real sets from dubai.poddster.com: Nest 1–4, Cove 1–4, Eden 1–4, Exec 1–2, Edge 1–2 and Apex 1–5 guests (`SETS`).
     - Each set's backdrop is illustrative until AG shares photos.
     - A booking whose `Setup:` names the set (`setOf()`) lights ON AIR and seats guests while it's running (`setNow()`). Otherwise the set shows its next booking today. Clicking a set opens `studioHtml()`.
@@ -153,7 +158,7 @@ A separate claude.ai artifact (desktop-first, stacks at phone width), published 
   - Recording or Live Mix only is 0 units.
   - `bookingOwner()` matches the booking to PP Clients Only: `BL -` bookings are listed but not counted, and unmatched clients count as new.
 - **Capabilities:** `{"mcp":{"servers":[{"server":"monday.com","tools":["get_board_items_page","change_item_column_values","create_update","all_api_read"]},{"server":"Google Calendar","tools":["list_events"]}]},"db":{}}`. Runtime contract 0.2.75.
-- **Test:** `NODE_PATH=$(npm root -g) node studio/tests/studio.test.js` mocks the runtime, Monday, Calendar and the db.
+- **Test:** `NODE_PATH=$(npm root -g) node studio/tests/studio.test.js` (SVG fallback, CDN blocked) and `NODE_PATH=$(npm root -g) node studio/tests/studio3d.test.js` (WebGL via SwiftShader; needs `npm i -g three@0.128.0`). Both mock the runtime, Monday, Calendar and the db, with fixtures in `studio/tests/fixtures.js`.
 
 ## River Pocket (`pocket/`), the phone view
 
