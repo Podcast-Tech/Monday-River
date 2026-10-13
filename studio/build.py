@@ -27,6 +27,6 @@ js = "".join([
   cut(script, "/* actions */", "\n/* Posts an editor note."),
   cut(script, "/* Posts an editor note.", "\n/* Clear the gates: walks"),
 ])
-page = (here / "src/head.html").read_text() + panel_css + (here / "src/body.html").read_text() + "\n<script>\n" + js + (here / "src/app.js").read_text() + "</script>\n"
+page = (here / "src/head.html").read_text() + panel_css + (here / "src/body.html").read_text() + "\n<script>\n" + js + (here / "src/scene.js").read_text() + (here / "src/app.js").read_text() + "</script>\n"
 (here / "index.html").write_text(page)
 print("studio/index.html:", len(page), "bytes")

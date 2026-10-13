@@ -182,4 +182,23 @@ a{color:inherit}
 @media (prefers-reduced-motion:no-preference){.skel{animation:sh 1.3s linear infinite}@keyframes sh{to{background-position:-200% 0}}}
 .dragging{opacity:.5}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+/* the illustrated floor */
+.stage{position:relative;border-radius:14px;overflow:hidden;background:radial-gradient(1200px 700px at 50% 40%,#131A26 0%,#07090D 75%)}
+#scene{display:block;width:100%;height:auto;min-width:0;user-select:none;touch-action:none}
+#scene [data-ep],#scene [data-room],#scene [data-gep]{cursor:pointer}
+#scene [data-gep]{cursor:grab}
+#scene .hot:hover{filter:brightness(1.25) drop-shadow(0 0 6px rgb(191 227 255 / .5))}
+#scene .booth.drop .floorhl{opacity:1}
+#scene .floorhl{opacity:0;transition:opacity .15s}
+@media (prefers-reduced-motion:no-preference){#scene .blink{animation:blink 1.4s ease-in-out infinite}@keyframes blink{50%{opacity:.35}}
+  #scene .flick{animation:flick 4s ease-in-out infinite}@keyframes flick{0%,100%{opacity:1}48%{opacity:.86}50%{opacity:.7}52%{opacity:.9}}}
+.tip{position:absolute;z-index:4;pointer-events:none;background:#0E131B;border:1px solid var(--line-2);border-radius:9px;padding:7px 10px;font-size:12.5px;max-width:280px;box-shadow:0 14px 30px -12px #000}
+.tip b{display:block;font-weight:600} .tip span{color:var(--muted)}
+.drawer{position:fixed;z-index:15;top:0;right:0;bottom:0;width:min(560px,100%);background:#0A0F17;border-left:1px solid var(--line-2);display:flex;flex-direction:column;box-shadow:-30px 0 60px -20px #000}
+@media (prefers-reduced-motion:no-preference){.drawer{animation:slide .2s ease-out}}
+.d-h{display:flex;align-items:center;gap:8px;padding:14px 14px 14px 20px;border-bottom:1px solid var(--line)}
+.d-h b{flex:1;font-size:15px;font-weight:600}
+.d-b{overflow-y:auto;padding:16px 18px 30px;display:grid;gap:12px;align-content:start}
+.d-b .suites{grid-template-columns:minmax(0,1fr)}
+.d-b .console{justify-content:flex-start}
 /* ===== River's episode panel (copied by studio/build.py) ===== */

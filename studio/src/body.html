@@ -11,16 +11,10 @@
     <div class="sync"><i id="sync-dot"></i><span id="sync-t">Connecting</span><button class="btn-s" type="button" id="refresh">Sync</button></div>
   </header>
   <div id="banner"></div>
-  <div class="floor" id="floor">
-    <section class="room" id="green" aria-label="Green room"></section>
-    <section class="room door" id="suites" aria-label="Edit suites"></section>
-    <section class="room door" id="screening" aria-label="Screening room"></section>
-  </div>
-  <div class="master">
-    <section id="console-room" aria-label="Mixing console"></section>
-    <section aria-label="On-air board and bottlenecks"><div id="board"></div><div id="necks"></div></section>
-  </div>
+  <div class="stage" id="stage"><svg id="scene" viewBox="0 0 1480 1060" role="img" aria-label="The studio floor: green room, edit booths, screening room and control room"></svg><div class="tip" id="tip" hidden></div></div>
+  <p class="hint" style="text-align:center">Click a room, a screen, a tape or a person. Drag a guest from the green room into a booth to give the episode to that editor.</p>
 </div>
+<aside class="drawer" id="drawer" hidden aria-label="Room details"></aside>
 <div class="scrim" id="scrim" hidden></div>
 <aside class="panel" id="panel" hidden aria-label="Episode"></aside>
 <div class="toast" id="toast" hidden role="status"></div>

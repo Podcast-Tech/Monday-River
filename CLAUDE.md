@@ -126,7 +126,11 @@ See `ROADMAP.md` for the next ten upgrades.
 
 A separate claude.ai artifact (desktop-first, stacks at phone width), published at https://claude.ai/artifact/3tFmFu2c5Xo3SKZuiSSou7. It doesn't change River.
 - **Build:** `python3 studio/build.py` writes `studio/index.html` from `studio/src/head.html`, `studio/src/body.html` and `studio/src/app.js`, plus River's logic, episode panel and panel CSS copied verbatim from `index.html`. After changing River's rules, rebuild Studio and republish.
-- **Rooms:**
+- **Look:** an illustrated isometric studio drawn as one SVG from live data (`studio/src/scene.js`, `renderScene()`), not a dashboard. World units: x runs down-right, y down-left, z up, and 1 unit is `SC` = 15 px. Rooms are Green room 0–16 × 0–22, Delivery 0–16 × 22–46, Booths 16–48 × 0–28, Screening 48–64 × 0–28 and Control 16–64 × 28–46. Painting runs back to front.
+  - **Helpers:** `box()` draws a solid, and `fy()`, `fx()` and `fz()` draw flat things on walls and floors.
+  - **What's drawn:** queue guests on couches (drag them into a booth to reassign), 11 booths (one per `EDITORS` entry) with tapes on the desk for each episode in edit, the most urgent episode on the monitor, an ON AIR lamp, a load LED and a name tag. Client Review is cinema seats, with a VIP row for `CORPORATE`. Done this week is tapes on the delivery shelf. The control room has the mixing desk, the on-air and bottleneck screens on its monitor bridge, and you at the desk.
+  - **Details:** clicking a room, a booth, the console or a screen opens the drawer (`S.drawer`), which shows the detail views below. Clicking a tape, a monitor, a seat or a guest opens River's episode panel.
+- **Rooms (the drawer's detail views):**
   - **Green room:** the Queue, sorted by days waiting. Drag a guest onto a suite, a free editor or a console channel to reassign it, using River's `reassign()`; from Queue it also sets Assigned.
   - **Edit suites:** one per editor, busiest first. Each has an ON AIR lamp (lit when something is In Process), units against weekly capacity, and a 21-day timeline (`WIN_BACK` 7). A clip runs from Available to `nextDue()`, the playhead marks today, and late clips are hatched red.
   - **Screening room:** Client Review seats coloured by `ageDays()`. `CORPORATE` clients sit in a separate VIP row.

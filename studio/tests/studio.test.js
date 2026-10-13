@@ -43,36 +43,45 @@ const EVENTS = [ev("a", "Test Client", wd(1), "Recording + Pro Edit + Reels"), e
   p.on("pageerror", e => { console.error("page error:", e.message); process.exitCode = 1; });
   await p.route("https://studio.test/**", r => r.fulfill({ contentType: "text/html", body: '<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1"></head><body>' + html + "</body></html>" }));
   await p.route("https://fonts.googleapis.com/**", r => r.abort());
-  await p.goto("https://studio.test/"); await p.waitForSelector(".suite"); await p.waitForSelector(".bk");
+  await p.goto("https://studio.test/"); await p.waitForSelector("#scene [data-gep]"); await p.waitForTimeout(400);
   const t = s => p.evaluate(s => [...document.querySelectorAll(s)].map(n => n.textContent.replace(/\s+/g, " ").trim()), s);
-  const suites = await t(".suite .s-h .nm"); assert.strictEqual(suites[0], "Igor Garčev", "busiest suite first: " + suites);
-  assert.strictEqual((await t(".guest")).length, 2); assert.strictEqual((await t("#screening .seats .seat")).length, 5);
-  assert.strictEqual((await t(".vip .seat")).length, 2, "Dmitrii and ENBD in the VIP row");
+  const n = s => p.evaluate(s => document.querySelectorAll(s).length, s);
+  assert.strictEqual(await n("#scene [data-gep]"), 2, "two guests on the green-room couches");
+  assert.strictEqual(await n("#scene .booth"), 11, "a booth per editor");
+  assert.strictEqual(await n('#scene [data-room="screening"]'), 1);
+  const seated = await p.evaluate(() => [...document.querySelectorAll("#scene [data-ep]")].map(e => e.dataset.ep));
+  ["10", "11", "12", "13", "14"].forEach(id => assert.ok(seated.includes(id), "client-review " + id + " seated"));
+  assert.ok(seated.includes("15"), "done tape on the delivery shelf");
   assert.ok(/lit/.test(await p.getAttribute("#onair", "class")));
-  console.log("✓ Floor: green room 2 guests, suites " + suites.slice(0, 4).join(", ") + "…, screening room with a VIP row, ON AIR lit");
-  const bk = await t(".bk"); assert.ok(bk.some(x => /Laura Person.*Laura's/.test(x)) && bk.some(x => /Sharon Pakir.*rec only/.test(x)) && bk.some(x => /Olga Melnyk.*≈5u/.test(x)), "bookings: " + bk);
-  console.log("✓ On-air board: sessions read from the calendar, units estimated (Olga ≈5u = edit + 12 reels), Laura's not counted, live mix = rec only");
-  assert.ok(/Most work is held in/.test((await t("#necks .verdict"))[0]));
-  console.log("✓ Bottleneck meter: " + (await t("#necks .verdict"))[0]);
-  await p.screenshot({ path: path.join(shots, "1-studio.png"), fullPage: true });
-  // capacity
-  const capBefore = (await t('.strip:first-child .capin span'))[0];
-  await p.click('.strip:first-child [data-d="1"]'); await p.waitForTimeout(800);
-  assert.ok(dbw.length && dbw[0].path === "settings/capacity" && dbw[0].data.caps.igor === 4, "capacity saved: " + JSON.stringify(dbw));
-  console.log("✓ Capacity + on Igor: " + capBefore + " → " + (await t('.strip:first-child .capin span'))[0] + ", saved to the studio database");
-  // drag a guest into a suite
-  await p.dragAndDrop('.guest[data-ep="4"]', '.suite[data-drop="Akssat"]'); await p.waitForTimeout(150);
-  const re = calls.find(c => c.tool === "change_item_column_values"); const cv = JSON.parse(re.input.columnValues);
+  console.log("✓ Illustrated floor: 2 guests on the couches, 11 editor booths with tapes and monitors, 5 clients seated (2 VIP), delivery shelf, ON AIR lit");
+  await p.screenshot({ path: path.join(shots, "1-studio.png") });
+  // hover tooltip
+  await p.hover('#scene g[data-room="suite:Igor Garčev"] > text'); assert.ok(/Igor Garčev's booth/.test((await t("#tip"))[0]));
+  console.log("✓ Hover a booth: " + (await t("#tip"))[0]);
+  // tape → episode panel
+  await p.click('#scene [data-ep="1"] polygon >> nth=2'); await p.waitForSelector("#panel h2");
+  assert.ok(/Laiba Khan/.test((await t("#panel h2"))[0])); await p.keyboard.press("Escape");
+  console.log("✓ Click a tape on Igor's desk → Laiba Khan's episode panel");
+  // drag a guest into a booth
+  const from = await p.locator('#scene [data-gep="4"]').boundingBox(), to = await p.locator('#scene .booth[data-drop="Akssat"] polygon').first().boundingBox();
+  await p.mouse.move(from.x + from.width / 2, from.y + from.height / 2); await p.mouse.down();
+  await p.mouse.move(from.x + 40, from.y + 30, { steps: 4 }); await p.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 8 }); await p.mouse.up(); await p.waitForTimeout(200);
+  const re = calls.find(c => c.tool === "change_item_column_values"); assert.ok(re, "reassign write"); const cv = JSON.parse(re.input.columnValues);
   assert.strictEqual(cv.person.personsAndTeams[0].id, 88817643); assert.strictEqual(cv.status.label, "Assigned");
-  console.log("✓ Drag Katie Robertson from the green room into Akssat's suite → person Akssat + Assigned");
-  // panel
-  await p.click('.seat[data-ep="10"]'); await p.waitForSelector("#panel h2");
-  assert.ok(/Brett King/.test((await t("#panel h2"))[0]));
-  console.log("✓ Clicking a seat opens River's episode panel");
-  await p.screenshot({ path: path.join(shots, "2-panel.png") });
-  await p.keyboard.press("Escape");
+  console.log("✓ Drag Katie Robertson off the couch into Akssat's booth → person Akssat + Assigned");
+  // control room drawer: capacity
+  await p.click('#scene [data-room="board"] polygon >> nth=0'); await p.waitForSelector("#drawer .days");
+  assert.ok(/On-air board/.test((await t("#drawer .d-h b"))[0]));
+  await p.click('[data-act="drawer-close"]');
+  await p.locator('#scene .booth[data-drop="Igor Garčev"]').dispatchEvent('click'); await p.waitForSelector("#drawer .strip");
+  assert.strictEqual(await n("#drawer .strip"), 1, "booth drawer shows only Igor's channel");
+  await p.click('#drawer [data-d="1"]'); await p.waitForTimeout(800);
+  assert.ok(dbw.length && dbw[0].data.caps.igor === 4, "capacity saved");
+  console.log("✓ Click Igor's booth → his suite + channel; + raises capacity to 4/wk and saves it");
+  await p.screenshot({ path: path.join(shots, "2-drawer.png") });
+  await p.click('[data-act="drawer-close"]');
   await p.setViewportSize({ width: 420, height: 900 }); await p.waitForTimeout(100);
   const sw = await p.evaluate(() => [document.documentElement.scrollWidth, innerWidth]); assert.ok(sw[0] <= sw[1] + 1, "no sideways scroll at phone width " + sw);
-  console.log("✓ Phone width stacks the rooms without sideways scrolling");
+  console.log("✓ Phone width scales the illustration without sideways scrolling");
   await b.close(); console.log("All studio tests passed.");
 })().catch(e => { console.error("✗", e.message); process.exit(1); });
