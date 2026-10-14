@@ -24,6 +24,27 @@ const workdaysAhead = n => { const out = [], d = new Date(); while (out.length <
 const nextWorkday = iso => { const d = new Date(iso + "T12:00:00"); do { d.setDate(d.getDate() + 1); } while (d.getDay() === 0 || d.getDay() === 6); return isoOf(d); };
 const dayLabel = iso => new Date(iso + "T12:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric" });
 
+/* ---------- due today + done this week ---------- */
+const dueToday = () => active().filter(i => daysTo(i) === 0).sort((a, b) => (isLate(b) - isLate(a)) || label(a).localeCompare(label(b)));
+const doneWeek = () => S.items.filter(i => i.stage === "Done" && i.updated && Date.now() - Date.parse(i.updated) < 7 * 864e5).sort((a, b) => Date.parse(b.updated) - Date.parse(a.updated));
+const epRow = (it, right) => `<button class="eprow" type="button" data-ep="${esc(it.id)}" style="--c:${colorOf(it.stage)}"><i></i><span><b>${esc(it.name)}</b><small>${esc(it.stage)}${it.editor ? " · " + esc(it.editor) : ""}${it.units > 1 ? " · " + it.units + " units" : ""}</small></span><em>${right}</em></button>`;
+function dueHtml() {
+  if (!S.items.length) return `<div class="skel"></div>`;
+  const list = dueToday(), late = active().filter(isLate).length;
+  return `<div class="plaque"><b>Due today</b><span>Episodes whose next deadline is today</span><em class="tnum">${list.length}</em></div>
+    ${list.length ? `<div class="eprows">${list.map(it => epRow(it, esc(rel(it).txt))).join("")}</div>` : `<p class="empty">Nothing is due today.</p>`}
+    <p class="hint">${late ? `<span style="color:var(--late)">${late} more already late.</span> ` : ""}Click an episode to open it, change its stage or post a note to the editor.</p>`;
+}
+function doneHtml() {
+  if (!S.items.length) return `<div class="skel"></div>`;
+  const list = doneWeek(), byDay = new Map();
+  list.forEach(it => { const d = dubaiISO(it.updated); if (!byDay.has(d)) byDay.set(d, []); byDay.get(d).push(it); });
+  const u = list.reduce((a, i) => a + units(i), 0);
+  return `<div class="plaque"><b>Done this week</b><span>Moved to Done in the last 7 days</span><em class="tnum">${list.length} · ${fmtU(u)}u</em></div>
+    ${list.length ? [...byDay.keys()].map(d => `<h4 class="calday">${esc(d === dubaiISO(new Date()) ? "Today" : dayLabel(d))}</h4><div class="eprows">${byDay.get(d).map(it => epRow(it, dubaiTime(it.updated))).join("")}</div>`).join("") : `<p class="empty">Nothing delivered in the last 7 days yet.</p>`}
+    <p class="hint">Based on Monday's last-updated time, so a bulk edit can make this look busier than it was.</p>`;
+}
+
 /* ---------- header ---------- */
 function renderTop() {
   const a = active(), late = a.filter(isLate).length, today = a.filter(i => daysTo(i) === 0).length;
@@ -31,7 +52,7 @@ function renderTop() {
   $("onair").className = "onair" + (a.some(i => i.stage === "In Process") ? " lit" : "");
   $("onair").title = a.filter(i => i.stage === "In Process").length + " episodes being edited right now";
   $("stats").innerHTML = S.items.length ? [["On now", CALS.filter(c => calNow(c).live).length, ""], ["In post", a.filter(i => FLOW.includes(i.stage)).length, ""], ["Late", late, late ? "bad" : ""], ["Due today", today, ""], ["Done this week", done, ""]]
-    .map(([l, n, c]) => `<div class="stat ${c}"><b class="tnum">${n}</b><span>${l}</span></div>`).join("") : "";
+    .map(([l, n, c]) => { const r = { "Due today": "due", "Done this week": "done" }[l]; return r ? `<button class="stat ${c}" type="button" data-room="${r}" title="Show ${l.toLowerCase()}"><b class="tnum">${n}</b><span>${l}</span></button>` : `<div class="stat ${c}"><b class="tnum">${n}</b><span>${l}</span></div>`; }).join("") : "";
   $("sub").textContent = "Poddster Dubai · Al Barsha, Sheikh Zayed Rd · " + new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
   const dot = $("sync-dot"), t = $("sync-t"); dot.className = "";
   if (S.error && !S.items.length) { dot.className = "off"; t.textContent = "Not connected"; }
@@ -179,8 +200,8 @@ const renderGates = () => {};
 S.drawer = null;
 function renderDrawer() {
   const el = $("drawer"); el.hidden = !S.drawer; if (!S.drawer) { el.innerHTML = ""; return; }
-  const [kind, who] = S.drawer.split(":"), title = { green: "Green room", suite: (who || "") + "'s booth", screening: "Screening room", control: "Control room", board: "On-air board", necks: "Bottleneck meter", cal: (who || "") + " calendar" }[kind];
-  const body = kind === "green" ? greenHtml() : kind === "suite" ? suitesHtml(who) + `<div style="margin-top:14px">${consoleHtml().replace(/^[\s\S]*?<div class="console">/, '<div class="console">').replace(/<p class="hint">[\s\S]*$/, "")}</div>` : kind === "screening" ? screeningHtml() : kind === "control" ? consoleHtml() + boardHtml() + necksHtml() : kind === "board" ? boardHtml() : kind === "cal" ? calHtml(who) : necksHtml();
+  const [kind, who] = S.drawer.split(":"), title = { green: "Green room", suite: (who || "") + "'s booth", screening: "Screening room", control: "Control room", board: "On-air board", necks: "Bottleneck meter", due: "Due today", done: "Done this week", cal: (who || "") + " calendar" }[kind];
+  const body = kind === "green" ? greenHtml() : kind === "suite" ? suitesHtml(who) + `<div style="margin-top:14px">${consoleHtml().replace(/^[\s\S]*?<div class="console">/, '<div class="console">').replace(/<p class="hint">[\s\S]*$/, "")}</div>` : kind === "screening" ? screeningHtml() : kind === "control" ? consoleHtml() + boardHtml() + necksHtml() : kind === "board" ? boardHtml() : kind === "cal" ? calHtml(who) : kind === "due" ? dueHtml() : kind === "done" ? doneHtml() : necksHtml();
   el.innerHTML = `<div class="d-h"><b>${esc(title)}</b><button class="ib" type="button" data-act="drawer-close" aria-label="Close" title="Close (Esc)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div><div class="d-b ${kind === "suite" ? "one" : ""}">${body}</div>`;
   if (kind === "suite") el.querySelectorAll(".strip").forEach(n => { if (firstName(n.dataset.drop).toLowerCase() !== firstName(who).toLowerCase()) n.remove(); });
 }
@@ -217,7 +238,7 @@ document.addEventListener("click", e => {
   const dc = e.target.closest('[data-act="drawer-close"]'); if (dc) { S.drawer = null; renderDrawer(); return; }
   const ep = e.target.closest("[data-ep]"); if (ep) { openEp(ep.dataset.ep); return; }
   if (e.target.closest("[data-gep]")) return;
-  const room = e.target.closest("[data-room]"); if (room) { S.drawer = room.dataset.room; renderDrawer(); }
+  const room = e.target.closest("[data-room]"); if (room) { S.drawer = room.dataset.room; renderDrawer(); if (room.closest(".stats") && window.R3D && R3D.on) R3D.view(6); }
 });
 $("scrim").addEventListener("click", closeEp);
 $("refresh").addEventListener("click", sync);

@@ -84,13 +84,23 @@ function renderScene() {
   if (ready && !g.length) h += fz(4.5, 13, 0.02, TX(0, 0, .9, "Nobody waiting", "#9FB8A8"));
   h += "</g>";
 
-  /* ---------- delivery (Done this week) ---------- */
-  const done = S.items.filter(i => i.stage === "Done" && i.updated && Date.now() - Date.parse(i.updated) < 7 * 864e5);
-  h += box(0.2, 25, 0, 1.6, 17, 5.4, "#30353F");
-  for (let shelf = 0; shelf < 4; shelf++) h += box(0.2, 25, 0.3 + shelf * 1.3, 1.7, 17, 0.12, "#4A505C");
-  done.slice(0, 48).forEach((it, i) => { const sh = Math.floor(i / 12), k = i % 12; h += `<g class="hot" data-ep="${esc(it.id)}" ${tip(it.name, "Done")}>${box(0.45, 25.6 + k * 1.35, 0.42 + sh * 1.3, 1.1, 0.9, 1.0, "#7B6FD6")}</g>`; });
-  h += fz(4, 38, 0.02, TX(0, 0, 2.2, String(done.length), "#9C8CFF", 'font-weight="700"') + TX(0, 1.3, .8, "delivered this week", "#7D74B8"));
-  h += box(9, 28, 0, 5, 2.2, 1.1, "#3B2E5C") + box(9, 30, 1.1, 5, 0.4, 1.2, "#33284F");
+  /* ---------- due today: departure board + dispatch desk ---------- */
+  const dues = dueToday();
+  h += `<g data-room="due" ${tip("Due today", dues.length + " episodes due today · click for the list")}>` + quad(0.3, 22.3, 15.2, 10.7, "#2A2414");
+  h += box(2.4, 23, 0, .3, .3, 5.4, "#2B2F37") + box(13.4, 23, 0, .3, .3, 5.4, "#2B2F37") + box(2.2, 23, 1.5, 11.6, .3, 3.9, "#0A0C10");
+  h += fy(2.4, 23.3, 5.2, dueBoard(11.2, 3.6), 'class="flick"');
+  h += box(3, 27, 0, 10, 2, 1.1, "#5B4632");
+  dues.slice(0, 10).forEach((it, i) => { const late = isLate(it); h += `<g class="hot${late ? " blink" : ""}" data-ep="${esc(it.id)}" ${tip(it.name, it.stage + " · " + rel(it).txt)}>${box(3.3 + i * .97, 27.5, 1.1, .55, .9, .9, late ? "#FF4D6A" : stageHex(it.stage))}</g>`; });
+  h += fz(1, 30.2, .02, TX(0, .9, 1.4, String(dues.length), "#F6C94A", 'font-weight="700"') + TX(1.6 + String(dues.length).length * .7, .9, .7, "due today", "#B89A4E"));
+  h += "</g>" + box(0, 33.2, 0, 9, 0.3, 1.1, "#2B323E");
+  /* ---------- done this week: the delivery shelf ---------- */
+  const done = doneWeek();
+  h += `<g data-room="done" ${tip("Done this week", done.length + " delivered in the last 7 days · click for the list")}>` + quad(0.3, 33.5, 15.2, 12.2, "#1C1A2A");
+  h += box(0.2, 34, 0, 1.6, 11.8, 5.4, "#30353F");
+  for (let shelf = 0; shelf < 4; shelf++) h += box(0.2, 34, 0.3 + shelf * 1.3, 1.7, 11.8, 0.12, "#4A505C");
+  done.slice(0, 48).forEach((it, i) => { const sh = Math.floor(i / 12), k = i % 12; h += `<g class="hot" data-ep="${esc(it.id)}" ${tip(it.name, "Done")}>${box(0.45, 34.4 + k * .95, 0.42 + sh * 1.3, 1.1, .7, 1.0, "#7B6FD6")}</g>`; });
+  h += fz(4, 39, 0.02, TX(0, 0, 2.2, String(done.length), "#9C8CFF", 'font-weight="700"') + TX(0, 1.3, .8, "delivered this week", "#7D74B8"));
+  h += box(9, 41.5, 0, 5, 2.2, 1.1, "#3B2E5C") + box(9, 43.5, 1.1, 5, 0.4, 1.2, "#33284F") + "</g>";
 
   /* wall between green room and booths (door at y 10–13), low wall to delivery */
   h += box(15.7, 0, 0, 0.3, 10, 4.2, "#2B323E") + box(15.7, 13, 0, 0.3, 15, 4.2, "#2B323E");
@@ -339,6 +349,19 @@ function calScreen(c, W, H) {
   g += `<rect x="0" y="${fy0}" width="${W}" height=".75" fill="#0E1520"/>`
     + TX(.4, fy0 + .5, .32, k.allDay.length ? "ALL DAY · " + clip(k.allDay.map(e => e.title).join(" · "), Math.floor((W * .45) / .18)) : "No all-day items", "#8C95A8", 'font-weight="600"')
     + days.map(([iso, n], j) => TM(W * .52 + j * (W * .46 / 6), fy0 + .5, .3, new Date(iso + "T12:00:00").toLocaleDateString("en-GB", { weekday: "short" }).slice(0, 2) + " " + n, n ? "#C9D3E2" : "#3A4558")).join("");
+  return g;
+}
+/* the departure board for today's deadlines (SVG markup, W × H units) */
+function dueBoard(W, H) {
+  const list = dueToday(), late = active().filter(isLate).length;
+  let g = `<rect width="${W}" height="${H}" fill="#0B0A06"/><rect width="${W}" height=".72" fill="#F6C94A"/>` + TX(.3, .52, .42, "DUE TODAY", "#1A1406", 'font-weight="700" letter-spacing=".06"')
+    + TX(W - .3, .52, .36, new Date().toLocaleDateString("en-GB", { timeZone: "Asia/Dubai", weekday: "short", day: "numeric", month: "short" }) + " · " + list.length, "#1A1406", 'font-weight="700" text-anchor="end"');
+  if (!S.items.length) return g + TX(.3, 1.5, .34, "Opening the board…", "#6F7C92");
+  if (!list.length) g += TX(.3, 1.5, .36, "Nothing due today", "#8C95A8");
+  list.slice(0, 3).forEach((it, i) => { const y = 1.5 + i * .64, lt = isLate(it);
+    g += `<rect x=".25" y="${y - .4}" width=".1" height=".48" fill="${lt ? "#FF4D6A" : stageHex(it.stage)}"/>` + TX(.55, y, .42, clip(label(it), 24), "#EEF3FA", 'font-weight="600"')
+      + TM(W * .6, y, .32, firstName(it.editor || "—").toUpperCase(), "#9FB3CC") + TM(W - .3, y, .3, it.stage.toUpperCase(), lt ? "#FF6B82" : "#F6C94A", 'text-anchor="end"'); });
+  g += TM(.3, H - .2, .3, (list.length > 3 ? "+" + (list.length - 3) + " more · " : "") + (late ? late + " already late" : "nothing late"), late ? "#FF6B82" : "#6F7C92");
   return g;
 }
 const calTip = c => { const k = calNow(c); return k.live ? "Now: " + k.live.title + " until " + dubaiTime(k.live.end) : k.next ? "Next: " + dubaiTime(k.next.start) + " " + k.next.title : k.loaded ? "Nothing else today · click for the week" : "Reading the calendar…"; };

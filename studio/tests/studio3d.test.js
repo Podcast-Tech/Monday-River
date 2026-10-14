@@ -78,6 +78,14 @@ const threeMin = fs.readFileSync(require.resolve("three/build/three.min.js"), "u
   // the outer walls fade when you look in from outside
   await p.evaluate(() => R3D.jump([30, 0, 20], [-40, 30, -30])); await p.waitForTimeout(500); await p.screenshot({ path: path.join(shots, "3d-8-behind.png") });
   console.log("✓ From behind the building the outer walls fade so you can see in");
+  // due today + done this week
+  await p.click('.stats [data-room="due"]'); await p.waitForSelector("#drawer .eprow"); await still();
+  assert.ok(/Al Tamimi/.test((await t("#drawer .eprow")).join(" "))); await p.click('[data-act="drawer-close"]'); await p.waitForTimeout(200);
+  await p.screenshot({ path: path.join(shots, "3d-10-due-done.png") });
+  w = await at("due:2"); await p.mouse.click(w.x, w.y); await p.waitForSelector("#panel h2", { timeout: 3000 });
+  assert.ok(/Al Tamimi/.test((await t("#panel h2"))[0]), "due tape opens Al Tamimi: " + (await t("#panel h2"))[0]); await p.keyboard.press("Escape"); await p.waitForTimeout(200);
+  await p.evaluate(() => R3D.jump([6, 0, 40], [22, 24, 62])); await still(); w = await at("room:done"); await p.mouse.click(w.x, w.y); await p.waitForSelector("#drawer .eprow"); assert.ok(/Saeed/.test((await t("#drawer .eprow")).join(" "))); await p.click('[data-act="drawer-close"]');
+  console.log("✓ Due & done in 3D: the header count flies to the dispatch board, a due tape opens Al Tamimi, the shelf tag lists the week's deliveries");
   // day & night
   await p.evaluate(() => R3D.jump([34, 0, 27], [94, 66, 96]));
   for (const [mode, ok] of [["night", d => d < 0.1], ["day", d => d > 0.9]]) {

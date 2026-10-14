@@ -14,7 +14,7 @@ window.R3D = R3D;
   catch (_) { return; }
   const RM = !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
   const box3 = document.createElement("div"); box3.id = "three"; box3.tabIndex = 0;
-  box3.setAttribute("aria-label", "The studio in 3D. Drag to look around, right-drag or two fingers to move, scroll or pinch to zoom. Arrow keys move, Q and E turn, plus and minus zoom, 1 to 6 jump to a room.");
+  box3.setAttribute("aria-label", "The studio in 3D. Drag to look around, right-drag or two fingers to move, scroll or pinch to zoom. Arrow keys move, Q and E turn, plus and minus zoom, 1 to 7 jump to a room.");
   host.insertBefore(box3, host.firstChild); host.classList.add("is3d");
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -26,7 +26,8 @@ window.R3D = R3D;
     ["Green room", [8, 1, 25], [27, 16, 47]],
     ["Edit booths", [32, 1, 28], [35, 27, 58]],
     ["Screening", [56, 3, 19], [57, 12, 47]],
-    ["Control room", [39, 3, 50], [41, 14, 70]]
+    ["Control room", [39, 3, 50], [41, 14, 70]],
+    ["Due & done", [6, 1.5, 46], [25, 23, 74]]
   ];
   const ui = document.createElement("div"); ui.className = "views";
   ui.innerHTML = VIEWS.map(([n], i) => `<button type="button" data-view="${i}" title="${esc(n)} (${i + 1})">${esc(n)}</button>`).join("");
@@ -295,13 +296,28 @@ window.R3D = R3D;
     bx(G, 6, 8.5, 0, 4.2, 3, 0.7, "#5B4632"); bx(G, 7.4, 9.3, 0.7, 1.2, 0.8, 0.35, "#D9DFE8");
     if (ready && !gq.length) fz(G, 4.5, 12.5, 0, 8, 1.2, TX(0, .9, .9, "Nobody waiting", "#9FB8A8"));
 
-    /* ---------- delivery (Done this week) ---------- */
-    const done = S.items.filter(i => i.stage === "Done" && i.updated && Date.now() - Date.parse(i.updated) < 7 * 864e5);
-    bx(R, 0.2, 25, 0, 1.6, 17, 5.4, "#30353F");
-    for (let sh = 0; sh < 4; sh++) bx(R, 0.2, 25, 0.3 + sh * 1.3, 1.9, 17, 0.12, "#4A505C");
-    done.slice(0, 48).forEach((it, i) => { const sh = Math.floor(i / 12), k = i % 12, g = group(R, { ep: it.id, tip: it.name, tip2: "Done" }); reg.set("ep:" + it.id, g); bx(g, 1.85, 25.6 + k * 1.35, 0.42 + sh * 1.3, .55, 0.9, 1.0, "#7B6FD6", { m: { emissive: "#3B2F96", emissiveIntensity: .25 } }); });
-    fz(R, 4, 36.4, 0, 9, 3, TX(0, 1.9, 2.2, String(done.length), "#9C8CFF", 'font-weight="700"') + TX(0, 2.8, .8, "delivered this week", "#7D74B8"));
-    bx(R, 9, 28, 0, 5, 2.2, 1.1, "#3B2E5C"); bx(R, 9, 30, 1.1, 5, 0.4, 1.2, "#33284F");
+    /* ---------- due today: departure board + dispatch desk ---------- */
+    const dues = dueToday(), DU = group(R, { room: "due", tip: "Due today", tip2: dues.length + " episodes due today · click for the list" }); reg.set("room:due", DU);
+    flat(DU, 0.3, 22.3, 15.2, 10.7, "#2A2414", .03);
+    bx(DU, 2.4, 23, 0, .3, .3, 5.4, "#2B2F37"); bx(DU, 13.4, 23, 0, .3, .3, 5.4, "#2B2F37"); bx(DU, 2.2, 23, 1.5, 11.6, .3, 3.9, "#0A0C10", { m: { metalness: .3, roughness: .4 } });
+    fy(DU, 2.4, 23.3, 5.2, 11.2, 3.6, dueBoard(11.2, 3.6), { ppu: 80 }); glow(DU, 8, 24.2, 3.4, "#F6C94A", 10, .14);
+    bx(DU, 3, 27, 0, 10, 2, 1.1, "#5B4632");
+    dues.slice(0, 10).forEach((it, i) => { const late = isLate(it), g = group(DU, { ep: it.id, tip: it.name, tip2: it.stage + " · " + rel(it).txt + (it.editor ? " · " + it.editor : "") });
+      reg.set("due:" + it.id, g); if (!reg.has("ep:" + it.id)) reg.set("ep:" + it.id, g);
+      const m = bx(g, 3.3 + i * .97, 27.5, 1.1, .55, .9, .9, late ? "#FF4D6A" : stageHex(it.stage), { own: true, m: { emissive: late ? "#FF4D6A" : "#F6C94A", emissiveIntensity: late ? .5 : .12 } }); if (late) anim.blink.push({ m: m.material, base: .5 }); });
+    bx(DU, 4, 30.2, 0, 1.4, 1.4, .9, "#30353E"); bx(DU, 10.6, 30.2, 0, 1.4, 1.4, .9, "#30353E");
+    fz(DU, 1, 31.1, 0, 9, 1.6, TX(0, 1.2, 1.4, String(dues.length), "#F6C94A", 'font-weight="700"') + TX(1.6 + String(dues.length).length * .7, 1.2, .7, "due today", "#B89A4E"));
+    lab((dues.some(isLate) ? '<i class="dot"></i>' : "") + "Due today · " + dues.length, 8, 23.2, 6.1, dues.length ? "due" : "free", { "data-room": "due", title: "Due today" }, 130);
+    bx(R, 0, 33.2, 0, 9, 0.3, 1.1, "#2B323E");
+    /* ---------- done this week: the delivery shelf ---------- */
+    const done = doneWeek(), DN = group(R, { room: "done", tip: "Done this week", tip2: done.length + " delivered in the last 7 days · click for the list" }); reg.set("room:done", DN);
+    flat(DN, 0.3, 33.5, 15.2, 12.2, "#1C1A2A", .03);
+    bx(DN, 0.2, 34, 0, 1.6, 11.8, 5.4, "#30353F");
+    for (let sh = 0; sh < 4; sh++) bx(DN, 0.2, 34, 0.3 + sh * 1.3, 1.9, 11.8, 0.12, "#4A505C");
+    done.slice(0, 48).forEach((it, i) => { const sh = Math.floor(i / 12), k = i % 12, g = group(DN, { ep: it.id, tip: it.name, tip2: "Done " + dubaiTime(it.updated) }); reg.set("ep:" + it.id, g); bx(g, 1.85, 34.4 + k * .95, 0.42 + sh * 1.3, .55, .7, 1.0, "#7B6FD6", { m: { emissive: "#3B2F96", emissiveIntensity: .25 } }); });
+    fz(DN, 4, 36.6, 0, 9, 3, TX(0, 1.9, 2.2, String(done.length), "#9C8CFF", 'font-weight="700"') + TX(0, 2.8, .8, "delivered this week", "#7D74B8"));
+    bx(DN, 9, 41.5, 0, 5, 2.2, 1.1, "#3B2E5C"); bx(DN, 9, 43.5, 1.1, 5, 0.4, 1.2, "#33284F");
+    lab("Done this week · " + done.length, 3.2, 40, 6.4, done.length ? "done" : "free", { "data-room": "done", title: "Done this week" }, 130);
     bx(R, 15.7, 0, 0, 0.3, 10, 4.2, "#2B323E"); bx(R, 15.7, 13, 0, 0.3, 15, 4.2, "#2B323E"); bx(R, 0, 21.8, 0, 9, 0.3, 1.1, "#2B323E");
 
     /* ---------- edit booths ---------- */
@@ -432,7 +448,7 @@ window.R3D = R3D;
   box3.addEventListener("keydown", e => {
     if (e.target !== box3 || e.metaKey || e.ctrlKey || e.altKey) return;
     const k = e.key.toLowerCase(), act = { arrowleft: () => pan(-1, 0), a: () => pan(-1, 0), arrowright: () => pan(1, 0), d: () => pan(1, 0), arrowup: () => pan(0, 1), w: () => pan(0, 1), arrowdown: () => pan(0, -1), s: () => pan(0, -1), q: () => turn(-Math.PI / 12), e: () => turn(Math.PI / 12), "+": () => zoom(1), "=": () => zoom(1), "-": () => zoom(-1), r: () => tilt(1), f: () => tilt(-1) }[k];
-    if (act) { e.preventDefault(); act(); } else if (/^[1-6]$/.test(k)) { e.preventDefault(); R3D.view(+k - 1); }
+    if (act) { e.preventDefault(); act(); } else if (/^[1-7]$/.test(k)) { e.preventDefault(); R3D.view(+k - 1); }
   });
 
   /* ---------- picking: hover, click, double-click, drag a guest into a booth ---------- */

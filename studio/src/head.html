@@ -43,6 +43,15 @@ a{color:inherit}
 .stat b{font:600 20px var(--f);letter-spacing:-.02em}
 .stat span{font-size:11.5px;color:var(--muted)}
 .stat.bad b{color:var(--late)}
+button.stat{all:unset;display:grid;line-height:1.15;cursor:pointer;border-radius:8px;padding:2px 6px;margin:-2px -6px}
+button.stat:hover{background:rgb(238 243 250 / .06)} button.stat:focus-visible{outline:2px solid #FF003C;outline-offset:2px}
+.eprows{display:grid;gap:4px}
+.eprow{all:unset;box-sizing:border-box;display:grid;grid-template-columns:4px minmax(0,1fr) auto;gap:10px;align-items:center;padding:7px 9px;border-radius:9px;background:rgb(238 243 250 / .03);border:1px solid var(--line);cursor:pointer}
+.eprow:hover{border-color:var(--line-2);background:rgb(238 243 250 / .06)} .eprow:focus-visible{outline:2px solid #FF003C}
+.eprow i{align-self:stretch;border-radius:2px;background:var(--c)}
+.eprow b{display:block;font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.eprow small{color:var(--muted);font-size:11.5px}
+.eprow em{font:500 11px var(--mono);font-style:normal;color:var(--foam);white-space:nowrap}
 .sync{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted)}
 .sync i{width:7px;height:7px;border-radius:50%;background:var(--faint)}
 .sync i.on{background:var(--ok);box-shadow:0 0 8px var(--ok)} .sync i.stale{background:var(--today)} .sync i.off{background:var(--late)}
@@ -212,6 +221,8 @@ a{color:inherit}
 .lb{position:absolute;left:0;top:0;white-space:nowrap;font:600 11.5px/1 Geist,ui-sans-serif,system-ui,sans-serif;padding:5px 10px;border-radius:999px;background:rgb(11 15 21 / .9);border:1px solid rgb(238 243 250 / .5);color:#EEF3FA;pointer-events:auto;cursor:pointer;will-change:transform;transition:opacity .25s}
 .lb.free{color:#8693A8;border-color:rgb(160 200 255 / .22)}
 .lb.late{border-color:#FF4D6A}
+.lb.due{border-color:#F6C94A;color:#FFE7A8}
+.lb.done{border-color:#9C8CFF;color:#D9D2FF}
 .lb.live{background:#3A0612;border-color:#FF003C;color:#FFD0D8}
 .lb .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#FF003C;margin-right:6px;vertical-align:1px}
 .lb.bub{font:600 10.5px/1 "Geist Mono",ui-monospace,monospace;background:var(--c);color:#05080D;border:0;padding:3px 7px}
