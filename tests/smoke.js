@@ -163,6 +163,20 @@ const test = new Function("els", "assert", src + `
     const lev = calls.find(c => c.tool === "list_events").input;
     assert.strictEqual(lev.startTime, "2026-10-01T00:00:00+04:00");
     console.log("✓ Package details load from the calendar booking (Order 4821), invoice hidden");
+    const al = norm({ id: "556", name: "Alice Lovell - Session 04.10.26 - Ep 4", column_values: { status: "Client Review", person: "Akssat", date: d(-6), date4: d(-1), link_mkxbtnjf: "https://f.io/rev1", board_relation_mkxb8cpz: [{ id: "79", name: "AG - Alice Lovell" }] } });
+    const pv = norm({ id: "557", name: "Pavle Rastovic - Session 17.09.26", column_values: { status: "Done", person: "Akssat", link_mkxbtnjf: "https://f.io/rev2", board_relation_mkxb8cpz: [{ id: "80", name: "AG - Pavle Rastovic" }] } });
+    const nb = norm({ id: "558", name: "Brand New - Session 01.11.26", column_values: { status: "In Process", person: "Akssat", date4: d(2), board_relation_mkxb8cpz: [{ id: "81", name: "AG - Brand New" }] } });
+    S.items.push(al, pv, nb); S.sel = al.id; renderPanel(); let wp = els.panel.innerHTML;
+    assert.ok(/WhatsApp client/.test(wp) && /Shades of Pink group/.test(wp) && /Copy &amp; open group/.test(wp), "group contact shows copy-and-open");
+    assert.ok(wp.includes('wa-k on" data-wa-kind="review"') && wp.includes("is ready for your review") && wp.includes("f.io/rev1"), "Client Review defaults to the review message with the Frame.io link");
+    assert.strictEqual(waText(al, "nudge").split("\\n")[0], 'Hi Alice, just checking in on "Alice Lovell - Session 04.10.26 - Ep 4". Did you get a chance to review it?');
+    S.sel = pv.id; renderPanel(); wp = els.panel.innerHTML;
+    const wl = (wp.split('href="https://wa.me/971501706558?text=')[1] || "").split('"')[0];
+    assert.ok(wl.startsWith("Hi%20Pavle") && decodeURIComponent(wl).includes("final and ready to publish"), "phone contact opens the chat with the delivered message");
+    S.sel = nb.id; renderPanel(); wp = els.panel.innerHTML;
+    assert.ok(/No WhatsApp saved/.test(wp) && /Pick a chat/.test(wp) && !/Open chat|Copy &amp; open/.test(wp) && /with our editor now/.test(wp), "unknown client: pick-a-chat only, progress message");
+    assert.ok(!calls.some(c => /whatsapp/i.test(JSON.stringify(c.input))), "nothing about WhatsApp is written to Monday");
+    console.log("✓ WhatsApp: group (Alice) copies + opens the group, phone (Pavle) opens the chat with the text typed, unknown clients pick a chat; message follows the stage");
     const sh = toBooking({ id: "x", summary: "Sharon hello@sharonpakir.com | Poddster Booking", start: { dateTime: "2026-10-01T14:00:00+04:00" }, end: { dateTime: "2026-10-01T15:00:00+04:00" }, organizer: { displayName: "Al Barsha Studio 2" },
       description: 'Order ID: E8TW5S4C<br>Customer: Sharon <a href="mailto:hello@sharonpakir.com">hello@sharonpakir.com</a><br>Seats: 1<br>Setup: Nest<br>Services:<br>Recording + Live Mix<br>Additional Services:<br>Session Photos (1)<br>Teleprompter (1)<br><br> <br><span>Client requesting for Neetu<br>Will be standing</span>' });
     assert.strictEqual(sh.addons, "Session Photos (1)\\nTeleprompter (1)"); assert.ok(/Neetu/.test(sh.notes)); assert.strictEqual(sh.studio, "Al Barsha Studio 2"); assert.strictEqual(sh.time, "14:00–15:00");

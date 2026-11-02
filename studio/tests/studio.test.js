@@ -41,7 +41,7 @@ const { ITEMS, EVENTS, MINE } = require("./fixtures");
   console.log("✓ Hover a booth: " + (await t("#tip"))[0]);
   // tape → episode panel
   await p.click('#scene [data-ep="1"] polygon >> nth=2'); await p.waitForSelector("#panel h2");
-  assert.ok(/Laiba Khan/.test((await t("#panel h2"))[0])); await p.keyboard.press("Escape");
+  assert.ok(/Laiba Khan/.test((await t("#panel h2"))[0])); assert.ok(await n("#panel .wa #wa-text"), "WhatsApp composer in the panel"); await p.keyboard.press("Escape");
   console.log("✓ Click a tape on Igor's desk → Laiba Khan's episode panel");
   // drag a guest into a booth
   const from = await p.locator('#scene [data-gep="4"]').boundingBox(), to = await p.locator('#scene .booth[data-drop="Akssat"] polygon').first().boundingBox();

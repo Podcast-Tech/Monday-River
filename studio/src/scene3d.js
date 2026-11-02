@@ -220,7 +220,7 @@ window.R3D = R3D;
     labels.forEach(l => l.el.remove()); labels = []; fades = fades.filter(f => f.static); reg.clear();
   }
   fades.forEach(f => f.static = true);
-  const sigOf = () => JSON.stringify([S.items, (S.bookings || []).map(b => [b.start, b.end, b.setup, b.name, b.seats]), S.cals, S.cap, !!S.error, Math.floor(Date.now() / 120000)]);
+  const sigOf = () => JSON.stringify([S.growth, S.items, (S.bookings || []).map(b => [b.start, b.end, b.setup, b.name, b.seats]), S.cals, S.cap, !!S.error, Math.floor(Date.now() / 120000)]);
   function build(force) {
     const sig = sigOf(); if (!force && sig === lastSig) return; lastSig = sig;
     dispose(); texUsed = new Set(); pickables = [];
@@ -412,6 +412,11 @@ window.R3D = R3D;
     fy(NK, 36.35, 34.9, 5.6, 8.8, 4.16, `<g transform="scale(.8)"><rect x="0" y="0" width="11" height="5.2" fill="#100A12"/>` + TX(.3, .55, .38, "BOTTLENECK METER", "#C9A0B4", 'font-weight="600" letter-spacing=".04"')
       + nk.map((r, k) => `${TX(.3, 1.25 + k * .62, .32, r.st, r === worst ? "#EEF3FA" : "#8C95A8")}<rect x="3.3" y="${.98 + k * .62}" width="${(r.u / nmax * 6.6).toFixed(2)}" height=".36" fill="${stageHex(r.st)}" opacity="${r === worst ? 1 : .7}"/>${TX(10.1, 1.25 + k * .62, .3, String(r.n), "#8C95A8")}`).join("") + `</g>`, { ppu: 70 });
     glow(NK, 40.7, 35.6, 3.5, "#C9A0B4", 8, .1);
+    { const gt = growthTotals(), SG = group(CR, { room: "strategy", tip: "Strategy screen", tip2: gt ? `Growth plan · ${gt.done} of ${gt.total} milestones done${gt.late ? " · " + gt.late + " overdue" : ""} · click to open` : "Your growth plan · click to open" }); reg.set("room:strategy", SG);
+      bx(SG, 45.6, 34.6, 1.25, 9.1, 0.3, 4.5, "#0A0C10");
+      fy(SG, 45.75, 34.9, 5.6, 8.8, 4.16, `<g transform="scale(.8)">${strategyScreen()}</g>`, { ppu: 80 });
+      glow(SG, 50.1, 35.6, 3.5, "#9C8CFF", 8, .12);
+      lab((gt && gt.late ? '<i class="dot"></i>' : "") + "Strategy" + (gt ? " · " + Math.round(gt.pct * 100) + "%" + (gt.late ? " · " + gt.late + " late" : "") : ""), 50.1, 34.8, 6.4, "strat", { "data-room": "strategy", title: "Your growth plan" }, 150); }
     EDITORS.forEach(([n], i) => {
       const s = sm.get(firstName(n).toLowerCase()) || { u: 0, late: 0 }, ratio = s.u / capOf(n), x = 22.4 + i * 3.1;
       flat(con, x, 35.4, 2.4, 3.1, "#262B33", 1.25); flat(con, x + 1.05, 35.6, .3, 2.7, "#0B0D11", 1.27);

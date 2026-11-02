@@ -127,6 +127,7 @@ function taskSheet() {
         <div class="c-bar"><label><input type="checkbox" id="corr" ${S.corr ? "checked" : ""}> Corrections${nxt ? ", " + nxt[2] + " " + short(addWorkdays(2)) : ""}</label>
           <label><input type="checkbox" id="mention" ${canMention && S.mention ? "checked" : ""} ${canMention ? "" : "disabled"}> @${esc(firstName(it.editor) || "editor")}</label>
           <button class="post" type="button" data-act="post" ${S.busy ? "disabled" : ""}>${S.busy ? "Posting" : "Post"}</button></div></div></div>`}
+    ${renderWhatsApp(it)}
     ${renderPackage(it).replace(/data-act="pkg-retry"/g, 'data-act="pkg-retry" type="button"')}
     <div><p class="lbl"><span>Latest on Monday</span><button type="button" data-act="ups">Refresh</button></p>
       ${ups.state === "loading" && !ups.list.length ? `<div class="skel"><i style="height:44px"></i></div>` : ups.state === "error" ? `<p class="empty">Couldn't load the notes. ${esc(writeErr(ups.err))}</p>` : ups.list.length ? `<div class="ups">${ups.list.map(u => `<div class="up"><b>${esc(u.by)}</b><small>${nago(u.at)}</small><p>${esc(u.body.length > 400 ? u.body.slice(0, 400) + "…" : u.body)}</p></div>`).join("")}</div>` : `<p class="empty">No notes on this task yet.</p>`}

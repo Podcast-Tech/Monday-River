@@ -51,8 +51,8 @@ function renderTop() {
   const done = S.items.filter(i => i.stage === "Done" && i.updated && Date.now() - Date.parse(i.updated) < 7 * 864e5).length;
   $("onair").className = "onair" + (a.some(i => i.stage === "In Process") ? " lit" : "");
   $("onair").title = a.filter(i => i.stage === "In Process").length + " episodes being edited right now";
-  $("stats").innerHTML = S.items.length ? [["On now", CALS.filter(c => calNow(c).live).length, ""], ["In post", a.filter(i => FLOW.includes(i.stage)).length, ""], ["Late", late, late ? "bad" : ""], ["Due today", today, ""], ["Done this week", done, ""]]
-    .map(([l, n, c]) => { const r = { "Due today": "due", "Done this week": "done" }[l]; return r ? `<button class="stat ${c}" type="button" data-room="${r}" title="Show ${l.toLowerCase()}"><b class="tnum">${n}</b><span>${l}</span></button>` : `<div class="stat ${c}"><b class="tnum">${n}</b><span>${l}</span></div>`; }).join("") : "";
+  $("stats").innerHTML = S.items.length ? [["On now", CALS.filter(c => calNow(c).live).length, ""], ["In post", a.filter(i => FLOW.includes(i.stage)).length, ""], ["Late", late, late ? "bad" : ""], ["Due today", today, ""], ["Done this week", done, ""]].concat(S.growth ? [["Growth plan", Math.round(growthTotals().pct * 100) + "%", growthTotals().late ? "bad" : ""]] : [])
+    .map(([l, n, c]) => { const r = { "Due today": "due", "Done this week": "done", "Growth plan": "strategy" }[l]; return r ? `<button class="stat ${c}" type="button" data-room="${r}" title="Show ${l.toLowerCase()}"><b class="tnum">${n}</b><span>${l}</span></button>` : `<div class="stat ${c}"><b class="tnum">${n}</b><span>${l}</span></div>`; }).join("") : "";
   $("sub").textContent = "Poddster Dubai · Al Barsha, Sheikh Zayed Rd · " + new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
   const dot = $("sync-dot"), t = $("sync-t"); dot.className = "";
   if (S.error && !S.items.length) { dot.className = "off"; t.textContent = "Not connected"; }
@@ -193,6 +193,109 @@ function necksHtml() {
     ${worst.n ? `<p class="verdict ${worst.wait > 7 ? "bad" : ""}"><b>Most work is held in ${esc(worst.st)}:</b> ${worst.n} episodes, ${fmtU(worst.u)} units, ${worst.wait.toFixed(1)} days on average${worst.st === "Client Review" ? " since the last deadline" : " since Available"}.</p>` : ""}</div>`;
 }
 
+/* ---------- strategy: the Professional Growth board (review actions + dated milestones) ---------- */
+const GROWTH_BOARD = 18437788074, GROWTH_SUB = 18437788099, GROWTH_URL = "https://poddsterstudios-team.monday.com/boards/" + GROWTH_BOARD;
+const GROWTH_Q = `query { boards(ids:[${GROWTH_BOARD}]) { groups { id title position } items_page(limit:200) { items { id name group { id } column_values(ids:["gstatus","due","goal","metric"]) { id text } subitems { id name column_values(ids:["status","date0"]) { id text } } } } } }`;
+const G_ST = [["Not started","#8693A8"],["In progress","#F6B64A"],["Blocked","#FF4D6A"],["Done","#3EDC97"]];
+const gColor = st => (G_ST.find(x => x[0] === st) || [0, "#8693A8"])[1];
+S.growth = null; S.growthErr = null; S.gOpen = new Set();
+const cvText = (it, id) => ((it.column_values || []).find(c => c.id === id) || {}).text || "";
+const msDone = s => /^done$/i.test(s.status);
+function onGrowth(ev) {
+  if (ev.type === "error") { S.growthErr = ev.error; render(); return; }
+  const p = ev.result.payload || {}, b = ((p.boards || (p.data && p.data.boards)) || [])[0];
+  if (!b) { S.growthErr = { message: "Couldn't find the Professional Growth board." }; render(); return; }
+  const groups = (b.groups || []).slice().sort((x, y) => (+x.position || 0) - (+y.position || 0));
+  const items = ((b.items_page && b.items_page.items) || []).map(it => ({
+    id: String(it.id), name: it.name, group: it.group && it.group.id, status: cvText(it, "gstatus") || "Not started", due: isoDate(cvText(it, "due")),
+    goals: cvText(it, "goal").split(",").map(x => x.trim()).filter(Boolean), metric: cvText(it, "metric"),
+    subs: (it.subitems || []).map(x => ({ id: String(x.id), name: x.name, status: cvText(x, "status"), date: isoDate(cvText(x, "date0")) })).sort((a, c) => (a.date || "9") < (c.date || "9") ? -1 : 1) }));
+  S.growth = { groups, items }; S.growthErr = null; render();
+}
+function growthTotals() {
+  const g = S.growth; if (!g) return null;
+  const subs = g.items.flatMap(it => it.subs.map(x => ({ ...x, item: it }))), open = subs.filter(x => !msDone(x));
+  return { total: subs.length, done: subs.length - open.length, pct: subs.length ? (subs.length - open.length) / subs.length : 0,
+    late: open.filter(x => x.date && dayNum(x.date) < T()).length, next: open.filter(x => x.date).sort((a, b) => a.date < b.date ? -1 : 1)[0] || null };
+}
+function gRing(pct, size, w) {
+  const r = 15, c = 2 * Math.PI * r;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="${r}" fill="none" stroke="rgb(160 200 255 / .18)" stroke-width="${w}"/><circle cx="18" cy="18" r="${r}" fill="none" stroke="#9C8CFF" stroke-width="${w}" stroke-linecap="round" stroke-dasharray="${(pct * c).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 18 18)"/><text x="18" y="21.5" text-anchor="middle" fill="#EEF3FA" style="font:600 9.5px Geist,sans-serif">${Math.round(pct * 100)}%</text></svg>`;
+}
+function gDue(iso, done) {
+  if (!iso) return { cls: "", txt: "No date" };
+  if (done) return { cls: "", txt: short(iso) };
+  const d = dayNum(iso) - T();
+  return d < 0 ? { cls: "late", txt: short(iso) + " · " + (-d) + "d late" } : d === 0 ? { cls: "soon", txt: "Today" } : { cls: d <= 7 ? "soon" : "", txt: short(iso) + " · " + d + "d" };
+}
+function gCard(it) {
+  const done = it.subs.filter(msDone).length, n = it.subs.length, pct = n ? done / n : (it.status === "Done" ? 1 : 0), d = gDue(it.due, it.status === "Done"), open = S.gOpen.has(it.id);
+  return `<article class="sg ${d.cls === "late" ? "late" : ""}">
+    <button class="sg-h" type="button" data-sgo="${esc(it.id)}" aria-expanded="${open}"><b>${esc(it.name)}</b><span class="due ${d.cls}">${esc(d.txt)}</span>
+      <span class="sg-meta"><span class="spill" style="--c:${gColor(it.status)}"><i></i>${esc(it.status)}</span>${it.goals.map(x => `<span class="gchip">${esc(x)}</span>`).join("")}</span>
+      <span class="sbar"><span><i style="width:${(pct * 100).toFixed(0)}%"></i></span><em>${n ? done + "/" + n : Math.round(pct * 100) + "%"}</em></span></button>
+    ${open ? `<div class="sg-b">${it.metric ? `<p class="metric"><small>Success looks like</small>${esc(it.metric)}</p>` : ""}
+      <div class="sg-st">${G_ST.map(([st, c]) => `<button class="mv" type="button" data-sgs="${esc(it.id)}" data-v="${esc(st)}" style="--c:${c}" ${st === it.status || S.busy ? "disabled" : ""}><i></i>${esc(st)}</button>`).join("")}</div>
+      ${n ? `<div class="ms">${it.subs.map(x => { const sd = gDue(x.date, msDone(x)); return `<label class="${msDone(x) ? "done" : ""}"><input type="checkbox" data-ms="${esc(x.id)}" data-it="${esc(it.id)}" ${msDone(x) ? "checked" : ""} ${S.busy ? "disabled" : ""}><span>${esc(x.name)}</span><em class="${sd.cls}">${esc(sd.txt)}</em></label>`; }).join("")}</div>` : ""}</div>` : ""}
+  </article>`;
+}
+function strategyHtml() {
+  const head = `<div class="plaque"><b>Professional Growth</b><span>Actions from your growth review, with dated milestones</span><em><a href="${GROWTH_URL}" target="_blank" rel="noopener" style="color:var(--foam);text-decoration:none">Open in Monday</a></em></div>`;
+  if (!S.growth) return head + (S.growthErr ? (m => `<div class="banner"><b>${esc(m.title)}</b><span>${esc(m.body)}</span></div>`)(errorCopy(S.growthErr)) : `<div class="skel"></div>`);
+  const t = growthTotals(), g = S.growth, nx = t.next ? gDue(t.next.date) : null;
+  const hero = `<div class="sg-hero">${gRing(t.pct, 64, 4.5)}<div><b>${t.done} of ${t.total} milestones done</b>
+      <p>${g.items.filter(i => i.status === "Done").length} of ${g.items.length} actions complete${t.late ? `, <span class="late">${t.late} milestone${t.late === 1 ? "" : "s"} overdue</span>` : ""}</p>
+      ${t.next ? `<p class="next">Next: <b style="display:inline;font-size:13px">${esc(t.next.name)}</b> <span class="${nx.cls}">${esc(nx.txt)}</span></p>` : ""}</div></div>`;
+  return head + hero + g.groups.map(gr => { const items = g.items.filter(i => i.group === gr.id); if (!items.length) return "";
+    return `<section class="sg-group"><h4 class="calday">${esc(gr.title.replace(/^[^·]*·\s*/, ""))} · ${items.length}</h4><div class="sg-list">${items.map(gCard).join("")}</div></section>`; }).join("")
+    + `<p class="hint">Synced from Monday every 2 minutes. Ticks and status changes write straight back to the board.</p>`;
+}
+async function setGrowthStatus(it, v, isUndo) {
+  if (!mcp || S.busy || it.status === v) return;
+  const prev = it.status; it.status = v; S.busy = true; render();
+  try {
+    await mcp.callTool(SERVER, "change_item_column_values", { boardId: GROWTH_BOARD, itemId: Number(it.id), columnValues: JSON.stringify({ gstatus: { label: v } }) }, { cache: false });
+    toast(isUndo ? "Back to " + v : it.name.replace(/^[A-Z]\d\s*·\s*/, "") + " is " + v, isUndo ? {} : { undo: () => setGrowthStatus(it, prev, true) });
+    mcp.invalidate(SERVER, "all_api_read").catch(() => {});
+  } catch (e) { it.status = prev; toast(writeErr(e), { bad: true }); }
+  finally { S.busy = false; render(); }
+}
+async function toggleMilestone(itId, msId, checked) {
+  const it = S.growth && S.growth.items.find(x => x.id === itId), m = it && it.subs.find(x => x.id === msId);
+  if (!m || !mcp || S.busy) return;
+  const prev = m.status, v = checked ? "Done" : "Working on it"; m.status = v; S.busy = true; render();
+  try {
+    await mcp.callTool(SERVER, "change_item_column_values", { boardId: GROWTH_SUB, itemId: Number(m.id), columnValues: JSON.stringify({ status: { label: v } }) }, { cache: false });
+    const left = it.subs.filter(x => !msDone(x)).length;
+    toast(checked ? (left ? "Milestone done. " + left + " to go on " + it.name.replace(/^[A-Z]\d\s*·\s*/, "") : "Every milestone done. Mark the action Done?") : "Milestone reopened",
+      checked && !left && it.status !== "Done" ? { act: { label: "Mark Done", fn: () => setGrowthStatus(it, "Done") } } : {});
+    mcp.invalidate(SERVER, "all_api_read").catch(() => {});
+  } catch (e) { m.status = prev; toast(writeErr(e), { bad: true }); }
+  finally { S.busy = false; render(); }
+}
+document.addEventListener("click", e => {
+  const o = e.target.closest("[data-sgo]"); if (o) { e.stopImmediatePropagation(); const id = o.dataset.sgo; S.gOpen.has(id) ? S.gOpen.delete(id) : S.gOpen.add(id); renderDrawer(); return; }
+  const st = e.target.closest("[data-sgs]"); if (st) { e.stopImmediatePropagation(); if (st.disabled) return; const it = S.growth && S.growth.items.find(x => x.id === st.dataset.sgs); if (it) setGrowthStatus(it, st.dataset.v); }
+}, true);
+document.addEventListener("change", e => { const c = e.target.closest && e.target.closest("[data-ms]"); if (c) toggleMilestone(c.dataset.it, c.dataset.ms, c.checked); });
+
+
+/* the strategy wall screen in the control room (SVG markup, 11 × 5.2 units before the .8 scale) */
+function strategyScreen() {
+  const gt = growthTotals(), acts = S.growth ? S.growth.items.slice(0, 7) : [], pct = gt ? gt.pct : 0, C2 = 2 * Math.PI * 1.05;
+  let g = `<rect x="0" y="0" width="11" height="5.2" fill="#100C1E"/>` + TX(.3, .55, .38, "STRATEGY · GROWTH PLAN", "#C9C0FF", 'font-weight="600" letter-spacing=".04"')
+    + TX(10.7, .55, .32, gt ? (gt.late ? gt.late + " overdue" : "on track") : "", gt && gt.late ? "#FF6B82" : "#3EDC97", 'font-weight="600" text-anchor="end"');
+  if (!S.growth) return g + TX(.3, 1.6, .38, S.growthErr ? "Couldn't read the board" : "Reading Monday…", "#6F7C92");
+  g += `<circle cx="1.55" cy="2.35" r="1.05" fill="none" stroke="#2A2545" stroke-width=".26"/><circle cx="1.55" cy="2.35" r="1.05" fill="none" stroke="#9C8CFF" stroke-width=".26" stroke-dasharray="${(pct * C2).toFixed(2)} ${C2.toFixed(2)}" transform="rotate(-90 1.55 2.35)"/>`
+    + TX(1.55, 2.5, .44, Math.round(pct * 100) + "%", "#EEF3FA", 'font-weight="700" text-anchor="middle"')
+    + TX(.35, 3.85, .3, gt.done + "/" + gt.total + " milestones", "#C9D3E2", 'font-weight="600"')
+    + (gt.next ? TX(.35, 4.35, .26, "Next " + short(gt.next.date), "#8C84C8") + TX(.35, 4.75, .24, clip(gt.next.name, 18), "#C9C0FF") : "");
+  acts.forEach((a, i) => { const n = a.subs.length, d = a.subs.filter(msDone).length, f = n ? d / n : (a.status === "Done" ? 1 : 0), y = 1.2 + i * .56, dd = gDue(a.due, a.status === "Done");
+    g += `<circle cx="3.45" cy="${y - .1}" r=".09" fill="${gColor(a.status)}"/>` + TX(3.65, y, .27, clip(a.name, 28), "#EEF3FA", 'font-weight="600"')
+      + `<rect x="8.3" y="${y - .2}" width="1.4" height=".14" rx=".07" fill="#2A2545"/><rect x="8.3" y="${y - .2}" width="${(1.4 * f).toFixed(2)}" height=".14" rx=".07" fill="#9C8CFF"/>`
+      + TX(10.7, y, .22, dd.cls === "late" ? "late" : short(a.due), dd.cls === "late" ? "#FF6B82" : "#8C95A8", 'text-anchor="end"'); });
+  return g;
+}
 /* ---------- render + panel ---------- */
 function render() { renderTop(); renderScene(); renderDrawer(); renderPanel(); }
 const renderGates = () => {};
@@ -200,8 +303,8 @@ const renderGates = () => {};
 S.drawer = null;
 function renderDrawer() {
   const el = $("drawer"); el.hidden = !S.drawer; if (!S.drawer) { el.innerHTML = ""; return; }
-  const [kind, who] = S.drawer.split(":"), title = { green: "Green room", suite: (who || "") + "'s booth", screening: "Screening room", control: "Control room", board: "On-air board", necks: "Bottleneck meter", due: "Due today", done: "Done this week", cal: (who || "") + " calendar" }[kind];
-  const body = kind === "green" ? greenHtml() : kind === "suite" ? suitesHtml(who) + `<div style="margin-top:14px">${consoleHtml().replace(/^[\s\S]*?<div class="console">/, '<div class="console">').replace(/<p class="hint">[\s\S]*$/, "")}</div>` : kind === "screening" ? screeningHtml() : kind === "control" ? consoleHtml() + boardHtml() + necksHtml() : kind === "board" ? boardHtml() : kind === "cal" ? calHtml(who) : kind === "due" ? dueHtml() : kind === "done" ? doneHtml() : necksHtml();
+  const [kind, who] = S.drawer.split(":"), title = { green: "Green room", suite: (who || "") + "'s booth", screening: "Screening room", control: "Control room", board: "On-air board", necks: "Bottleneck meter", due: "Due today", done: "Done this week", cal: (who || "") + " calendar", strategy: "Strategy" }[kind];
+  const body = kind === "green" ? greenHtml() : kind === "suite" ? suitesHtml(who) + `<div style="margin-top:14px">${consoleHtml().replace(/^[\s\S]*?<div class="console">/, '<div class="console">').replace(/<p class="hint">[\s\S]*$/, "")}</div>` : kind === "screening" ? screeningHtml() : kind === "control" ? consoleHtml() + boardHtml() + necksHtml() : kind === "board" ? boardHtml() : kind === "cal" ? calHtml(who) : kind === "due" ? dueHtml() : kind === "done" ? doneHtml() : kind === "strategy" ? strategyHtml() : necksHtml();
   el.innerHTML = `<div class="d-h"><b>${esc(title)}</b><button class="ib" type="button" data-act="drawer-close" aria-label="Close" title="Close (Esc)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div><div class="d-b ${kind === "suite" ? "one" : ""}">${body}</div>`;
   if (kind === "suite") el.querySelectorAll(".strip").forEach(n => { if (firstName(n.dataset.drop).toLowerCase() !== firstName(who).toLowerCase()) n.remove(); });
 }
@@ -238,7 +341,7 @@ document.addEventListener("click", e => {
   const dc = e.target.closest('[data-act="drawer-close"]'); if (dc) { S.drawer = null; renderDrawer(); return; }
   const ep = e.target.closest("[data-ep]"); if (ep) { openEp(ep.dataset.ep); return; }
   if (e.target.closest("[data-gep]")) return;
-  const room = e.target.closest("[data-room]"); if (room) { S.drawer = room.dataset.room; renderDrawer(); if (room.closest(".stats") && window.R3D && R3D.on) R3D.view(6); }
+  const room = e.target.closest("[data-room]"); if (room) { S.drawer = room.dataset.room; renderDrawer(); if (room.closest(".stats") && /^(due|done)$/.test(room.dataset.room) && window.R3D && R3D.on) R3D.view(6); }
 });
 $("scrim").addEventListener("click", closeEp);
 $("refresh").addEventListener("click", sync);
@@ -292,6 +395,7 @@ async function start() {
   if (!mcp) { S.loading = false; S.error = { code: "no_mcp" }; render(); return; }
   mcp.watchTool(SERVER, "get_board_items_page", INPUT, onBoard, { refetchInterval: 45000, cache: { staleTime: 30000 } });
   mcp.watchTool(SERVER, "all_api_read", { query: NOTIF_Q }, onNotifsStudio, { refetchInterval: 120000, cache: { staleTime: 60000 } });
+  mcp.watchTool(SERVER, "all_api_read", { query: GROWTH_Q }, onGrowth, { refetchInterval: 120000, cache: { staleTime: 60000 } });
   loadCaps(); loadBookings(); loadCals();
   setInterval(loadBookings, 15 * 60000); setInterval(loadCals, 5 * 60000);
 }

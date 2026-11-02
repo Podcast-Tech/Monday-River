@@ -91,6 +91,10 @@ Value formats:
   - Matching is by client name or customer (including a shared surname plus first initial), or by client email from PP Clients Only `text_mkxbach4`.
   - Descriptions come as plain newlines or `<br>` HTML. `parseDesc()` handles both, and free text after a blank line goes to Requests.
 - **Laura's lane:** never act on `BL - ` clients' episodes automatically.
+- **WhatsApp client** (episode panel in River, Studio and Pocket; shared code sits in the package chunk, `renderWhatsApp()`): River writes the client message, AG sends it himself from WhatsApp. Nothing is sent or written to Monday.
+  - Contacts live in `WA_CONTACTS` (keyed by client name without the `AG - ` prefix): `phone` opens that chat with the text typed in (`wa.me/<digits>?text=`); `group` (an invite link) copies the text and opens the group, because WhatsApp can't prefill a group. "Pick a chat" (`wa.me/?text=`) opens WhatsApp's share screen for any chat or group.
+  - Message types (`WA_KINDS`, text from `waText()`, modelled on AG's Monday email templates): Raw files, Review ready, Updated version, Nudge, Progress, Highlights, Delivered. `waDefault()` picks by stage (Client Review → review, update when V1 and Final are set, nudge when quiet; Done → delivered; Queue/Assigned → raws). First names come from PP Clients Only `text_mkxb379a` (`S.clientFirst`).
+  - River can't read WhatsApp. Planned: a `WhatsApp` text column on PP Clients Only (phone or group link) replacing `WA_CONTACTS`; creating it needs AG's go-ahead.
 
 ## Known quirks
 
@@ -168,6 +172,7 @@ A separate claude.ai artifact for the Claude phone app, published at https://cla
 - **Build:** `python3 pocket/build.py` writes `pocket/index.html` from `pocket/src/head.html` and `pocket/src/app.js`, plus River's Monday logic copied verbatim from `index.html`: the constants, `norm`, the date and lateness rules, `errorCopy`, the package, the notification parsing, `createTask`, `setStage` and `postNote`. After changing River's rules, rebuild Pocket and republish both.
 - **Screens:**
   - The river as a tappable stage strip.
+  - The task sheet includes the WhatsApp client composer.
   - Counters for Late, Due today and With clients.
   - Search, every word matching.
   - Filters: Needs you (late or due within 2 days, grouped), All open, Late, Due today, Client Review, Done and Everything.

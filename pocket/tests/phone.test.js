@@ -54,6 +54,10 @@ const EVENT = { id: "e1", summary: "Brett King | Poddster Booking", status: "con
   await p.click('.row[data-id="108"]'); await p.waitForSelector(".pkg dl"); await p.waitForSelector(".up");
   const sheet = (await text("#sheet"))[0];
   assert.ok(/X6EC4DLU/.test(sheet) && /Recording \+ Pro Edit \+ Reels/.test(sheet) && /Roy/.test(sheet) && /Akssat/.test(sheet), "task sheet content");
+  assert.ok(/WhatsApp client/.test(sheet) && await p.$("#sheet .wa #wa-pick"), "WhatsApp composer in the task sheet");
+  await (await p.$("#sheet .wa")).screenshot({ path: path.join(shots, "2b-whatsapp.png") });
+  await p.click('#sheet [data-wa-kind="nudge"]'); assert.ok(/just checking in/.test(await p.inputValue("#wa-text")), "nudge template");
+  assert.ok(/^https:\/\/wa\.me\/\?text=Hi/.test(await p.getAttribute("#wa-pick", "href")), "pick-a-chat link carries the text");
   console.log("✓ Task sheet: dates, links, the Calendar package (X6EC4DLU, Recording + Pro Edit + Reels), latest notes and mentions");
   await p.screenshot({ path: path.join(shots, "2-task.png"), fullPage: false });
   await p.fill("#note", "Please cut 12:40 and soften the intro music"); await p.click('[data-act="post"]'); await p.waitForTimeout(150);

@@ -207,6 +207,7 @@ function renderScene() {
     h += `<g class="hot" data-room="necks" ${tip("Bottleneck meter", "Where work is held · click for details")}>` + box(36.2, 34.6, 1.25, 9.1, 0.3, 4.5, "#0A0C10");
   h += fy(36.35, 34.9, 5.6, `<g transform="scale(.8)"><rect x="0" y="0" width="11" height="5.2" fill="#100A12"/>` + TX(.3, .55, .38, "BOTTLENECK METER", "#C9A0B4", 'font-weight="600" letter-spacing=".04"')
     + nk.map((r, k) => `${TX(.3, 1.25 + k * .62, .32, r.st, r === worst ? "#EEF3FA" : "#8C95A8")}<rect x="3.3" y="${.98 + k * .62}" width="${(r.u / nmax * 6.6).toFixed(2)}" height=".36" fill="${stageHex(r.st)}" opacity="${r === worst ? 1 : .7}"/>${TX(10.1, 1.25 + k * .62, .3, String(r.n), "#8C95A8")}`).join("") + `</g>`, 'class="flick"') + `</g>`;
+  h += `<g class="hot" data-room="strategy" ${tip("Strategy screen", "Your growth plan · click to open")}>` + box(45.6, 34.6, 1.25, 9.1, 0.3, 4.5, "#0A0C10") + fy(45.75, 34.9, 5.6, `<g transform="scale(.8)">${strategyScreen()}</g>`, 'class="flick"') + `</g>`;
   h += `<g class="hot" data-room="control">`;
   EDITORS.forEach(([n], i) => {
     const s = sm.get(firstName(n).toLowerCase()) || { u: 0, late: 0 }, ratio = s.u / capOf(n), x = 22.4 + i * 3.1;

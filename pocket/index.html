@@ -169,6 +169,15 @@ h2{margin:0;font-size:22px;font-weight:600;letter-spacing:-.02em;line-height:1.2
 .nf-ep button.ep,.nf-ep a{color:var(--foam);font-weight:500;text-decoration:none;text-align:left}
 .nf-ep .rp{margin-left:auto;min-height:36px;border:1px solid var(--line-2);border-radius:10px;padding:0 13px;color:var(--ink-2)}
 .nf .composer{margin-top:10px}
+.wa{min-width:0;max-width:100%}
+.wa .lbl{display:flex;justify-content:space-between;gap:8px;min-width:0}.wa-who{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}.wa-who{font-weight:500;text-transform:none;letter-spacing:0;color:#7FE3A8}
+.wa-kinds{display:flex;gap:6px;overflow-x:auto;margin-bottom:10px;padding-bottom:2px;scrollbar-width:none}
+.wa-k{flex:none;min-height:36px;font-size:13px;color:var(--ink);background:var(--card);border:1px solid var(--line-2);border-radius:999px;padding:0 12px}
+.wa-k.on{border-color:#25D366;background:rgb(37 211 102 / .14)}
+.wa .composer{min-width:0}.wa .composer textarea{min-height:150px;box-sizing:border-box}
+.wa .c-bar .muted{flex-basis:100%;font-size:12.5px}
+.wa .lk{color:var(--foam,#BFE3FF);font-size:13.5px;text-decoration:none}
+a.post.wa-go,button.post.wa-go{background:#1FA855;display:inline-flex;align-items:center;text-decoration:none}
 
 /* add task */
 .form{display:grid;gap:16px}
@@ -374,10 +383,69 @@ async function loadClientEmails() {
   if (S.clientEmails) return;
   S.clientEmails = {};
   try {
-    const r = await mcp.callTool(SERVER, "get_board_items_page", { boardId: CLIENTS_BOARD, includeColumns: true, includeGroup: false, limit: 500, columnIds: ["text_mkxbach4"] }, { cache: { staleTime: 600000 } });
-    ((r.payload && r.payload.items) || []).forEach(x => { const em = lc(x.column_values && x.column_values.text_mkxbach4); if (em) S.clientEmails[lc((x.name || "").replace(/^(AG|BL)\s*-\s*/i, ""))] = em; });
+    const r = await mcp.callTool(SERVER, "get_board_items_page", { boardId: CLIENTS_BOARD, includeColumns: true, includeGroup: false, limit: 500, columnIds: ["text_mkxbach4", "text_mkxb379a"] }, { cache: { staleTime: 600000 } });
+    ((r.payload && r.payload.items) || []).forEach(x => { const k = lc((x.name || "").replace(/^(AG|BL)\s*-\s*/i, "")), cv = x.column_values || {}, em = lc(cv.text_mkxbach4); if (em) S.clientEmails[k] = em; if (cv.text_mkxb379a) (S.clientFirst = S.clientFirst || {})[k] = String(cv.text_mkxb379a).trim(); });
   } catch (e) { /* email match is a bonus; name match still works */ }
 }
+/* WhatsApp: River writes the client message, AG sends it himself. Nothing is sent from here.
+   A contact is a phone number (opens that chat with the text typed in) or a group invite link (WhatsApp can't prefill a group,
+   so the text is copied and the group opens; or "Pick a chat" opens WhatsApp's share screen with the text, where any group can be chosen). */
+const WA_CONTACTS = {
+  "alice lovell": { group: "https://chat.whatsapp.com/K0KNmPppbQB1GXRFBc80zo", label: "Shades of Pink group" },
+  "pavle rastovic": { phone: "+971501706558" },
+  "saeed alghafri": { group: "https://chat.whatsapp.com/HYNH3UokvZaCbkY7Pz6HaM", label: "YUWAB group" }
+};
+S.wa = {};
+const waKey = it => lc(it.client || label(it)).replace(/\s+/g, " ");
+const waContact = it => { const k = waKey(it); return WA_CONTACTS[k] || Object.entries(WA_CONTACTS).find(([n]) => k && (k.includes(n) || n.includes(k)))?.[1] || null; };
+const waFirst = it => (S.clientFirst && S.clientFirst[waKey(it)]) || firstName(it.client || "") || "there";
+const WA_KINDS = [["raws", "Raw files"], ["review", "Review ready"], ["update", "Updated version"], ["nudge", "Nudge"], ["progress", "Progress"], ["highlights", "Highlights"], ["delivered", "Delivered"]];
+function waDefault(it) {
+  if (it.stage === "Done") return "delivered";
+  if (it.stage === "Client Review") return isLate(it) ? "nudge" : it.v1 && it.final ? "update" : "review";
+  if (it.stage === "Queue" || it.stage === "Assigned") return it.dropbox ? "raws" : "progress";
+  return "progress";
+}
+function waText(it, kind) {
+  const f = waFirst(it), ep = it.name, link = it.share || "[Frame.io review link]", due = nextDue(it);
+  return {
+    raws: `Hi ${f}, hope all is well.\n\nHere are the raw files from your session "${ep}":\n${it.dropbox || "[Dropbox link]"}\n\nThey'll be available for one month. Any particular instructions or preferences before we start editing?`,
+    review: `Hi ${f}, hope all is well.\n\n"${ep}" is ready for your review:\n${link}\n\nYou can leave time-coded comments right on the video in Frame.io (just add your email if you don't have an account). Let me know here once you're done and we'll move on to corrections.`,
+    update: `Hi ${f}, hope all is well.\n\nThe updated version of "${ep}" is ready:\n${link}\n\nUse Versions in Frame.io to switch between V1 and this one. Looking forward to your feedback.`,
+    nudge: `Hi ${f}, just checking in on "${ep}". Did you get a chance to review it?\n${link}\n\nHappy to jump on a quick call if that's easier.`,
+    progress: `Hi ${f}, quick update on "${ep}": it's with our editor now${due ? " and you'll have it by " + new Date(due + "T12:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" }) : ""}. I'll share the link here as soon as it's ready.`,
+    highlights: `Hi ${f}, glad you liked the episode! Moving on to the highlights now.\n\nDo you need them vertical or horizontal? And if there are specific moments you'd like featured, drop time-coded notes on the video in Frame.io:\n${link}\n\nOtherwise we'll go ahead with our standard selection.`,
+    delivered: `Hi ${f}, "${ep}" is final and ready to publish:\n${link}\n\nThank you for working with us on this one!`
+  }[kind] || "";
+}
+const waDraft = it => { if (!S.wa[it.id]) { const k = waDefault(it); S.wa[it.id] = { kind: k, text: waText(it, k) }; } return S.wa[it.id]; };
+const waDigits = p => String(p || "").replace(/[^\d]/g, "");
+const waLink = (it, d) => { const c = waContact(it), t = encodeURIComponent(d.text); return c && c.phone ? `https://wa.me/${waDigits(c.phone)}?text=${t}` : `https://wa.me/?text=${t}`; };
+function renderWhatsApp(it) {
+  const c = waContact(it), d = waDraft(it);
+  const who = c ? (c.phone ? "Chat · " + c.phone : (c.label || "Client group")) : "No WhatsApp saved";
+  return `<div class="wa" data-wa-item="${esc(it.id)}"><p class="lbl"><span>WhatsApp client</span><span class="wa-who">${esc(who)}</span></p>
+    <div class="wa-kinds">${WA_KINDS.map(([k, l]) => `<button type="button" class="wa-k${d.kind === k ? " on" : ""}" data-wa-kind="${k}">${l}</button>`).join("")}</div>
+    <div class="composer"><textarea id="wa-text" aria-label="WhatsApp message">${esc(d.text)}</textarea>
+      <div class="c-bar"><span class="muted" style="font-size:12px">You send it from WhatsApp. Nothing goes out from here.</span>
+        ${c && c.group ? `<button class="post wa-go" type="button" data-wa-go="group">Copy &amp; open group</button>` : c && c.phone ? `<a class="post wa-go" id="wa-open" href="${esc(waLink(it, d))}" target="_blank" rel="noopener" data-wa-go="chat">Open chat</a>` : ""}
+        <a class="lk" id="wa-pick" href="${esc(`https://wa.me/?text=${encodeURIComponent(d.text)}`)}" target="_blank" rel="noopener" data-wa-go="pick">${c ? "Pick another chat" : "Pick a chat"}</a></div></div></div>`;
+}
+async function waCopy(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch (_) {}
+  try { const ta = document.createElement("textarea"); ta.value = text; ta.style.cssText = "position:fixed;opacity:0"; document.body.appendChild(ta); ta.select(); const ok = document.execCommand("copy"); ta.remove(); return ok; } catch (_) { return false; }
+}
+document.addEventListener("click", async e => {
+  const box = e.target.closest && e.target.closest("[data-wa-item]"); if (!box) return;
+  const it = S.items.find(i => i.id === box.dataset.waItem); if (!it) return;
+  const k = e.target.closest("[data-wa-kind]");
+  if (k) { S.wa[it.id] = { kind: k.dataset.waKind, text: waText(it, k.dataset.waKind) }; const ta = box.querySelector("#wa-text"); ta.value = S.wa[it.id].text; box.querySelectorAll(".wa-k").forEach(b => b.classList.toggle("on", b === k)); waSync(box, it); return; }
+  const go = e.target.closest("[data-wa-go]"); if (!go) return;
+  if (go.dataset.waGo === "group") { const c = waContact(it), ok = await waCopy(waDraft(it).text); window.open(c.group, "_blank", "noopener"); toast(ok ? "Message copied. Paste it in the group and send." : "Couldn't copy automatically. Select the message and copy it, then paste in the group."); }
+  else if (go.dataset.waGo === "pick") toast("Pick the chat or group in WhatsApp, then press Send.");
+});
+function waSync(box, it) { const d = waDraft(it), o = box.querySelector("#wa-open"), pk = box.querySelector("#wa-pick"); if (o) o.href = waLink(it, d); if (pk) pk.href = "https://wa.me/?text=" + encodeURIComponent(d.text); }
+document.addEventListener("input", e => { if (e.target.id !== "wa-text") return; const box = e.target.closest("[data-wa-item]"), it = box && S.items.find(i => i.id === box.dataset.waItem); if (!it) return; waDraft(it).text = e.target.value; waSync(box, it); });
 function calErr(err) {
   switch (err && err.code) {
     case "no_mcp": return "Open this in Claude to read the booking.";
@@ -661,6 +729,7 @@ function taskSheet() {
         <div class="c-bar"><label><input type="checkbox" id="corr" ${S.corr ? "checked" : ""}> Corrections${nxt ? ", " + nxt[2] + " " + short(addWorkdays(2)) : ""}</label>
           <label><input type="checkbox" id="mention" ${canMention && S.mention ? "checked" : ""} ${canMention ? "" : "disabled"}> @${esc(firstName(it.editor) || "editor")}</label>
           <button class="post" type="button" data-act="post" ${S.busy ? "disabled" : ""}>${S.busy ? "Posting" : "Post"}</button></div></div></div>`}
+    ${renderWhatsApp(it)}
     ${renderPackage(it).replace(/data-act="pkg-retry"/g, 'data-act="pkg-retry" type="button"')}
     <div><p class="lbl"><span>Latest on Monday</span><button type="button" data-act="ups">Refresh</button></p>
       ${ups.state === "loading" && !ups.list.length ? `<div class="skel"><i style="height:44px"></i></div>` : ups.state === "error" ? `<p class="empty">Couldn't load the notes. ${esc(writeErr(ups.err))}</p>` : ups.list.length ? `<div class="ups">${ups.list.map(u => `<div class="up"><b>${esc(u.by)}</b><small>${nago(u.at)}</small><p>${esc(u.body.length > 400 ? u.body.slice(0, 400) + "…" : u.body)}</p></div>`).join("")}</div>` : `<p class="empty">No notes on this task yet.</p>`}
