@@ -150,6 +150,11 @@ A separate claude.ai artifact (desktop-first, stacks at phone width), published 
   - **Green room:** the Queue, sorted by days waiting. Drag a guest onto a suite, a free editor or a console channel to reassign it, using River's `reassign()`; from Queue it also sets Assigned.
   - **Edit suites:** one per editor, busiest first. Each has an ON AIR lamp (lit when something is In Process), units against weekly capacity, and a 21-day timeline (`WIN_BACK` 7). A clip runs from Available to `nextDue()`, the playhead marks today, and late clips are hatched red.
   - **Screening room:** Client Review seats coloured by `ageDays()`. `CORPORATE` clients sit in a separate VIP row.
+- **Flags & what to do** (`insights()`, `flagsHtml()`, `flagsScreen()` in `studio/src/app.js`): replaces the old on-air bar chart as the main insight. The header's **Flags** count, the control room's wall screen (`room: "board"`) and the control-room drawer all open it.
+  - It starts with a verdict ("N things to fix today / M this week" or "All clear"). Each flag has a severity (red = Fix today, amber = This week), a one-line title, the episodes as chips (open the panel) and a **Do this** recommendation.
+  - Flags: late in edit; Queue waiting (red after 2 days); overloaded editors (units > capacity); due today; clients quiet > 7 days (non-corporate); days over team capacity (next 10 working days); new-client sessions arriving this week. A green "On track" card shows team load and who has room.
+  - Recommendations that can act do so in one click: "Give X to Y" (`data-assign` → River's `reassign()`, with Undo). It picks the least-loaded editor with room (`pickFree()`), and for overloaded editors it only suggests moving work still in Assigned.
+  - **Laura's sessions are left out everywhere:** `loadBookings()` drops `BL -` bookings, and the calendar rooms hide bookings matched to her clients. The booked-sessions list (`board-sessions`, `boardHtml()`) is a plain list.
 - **Master control:**
   - **Mixing console:** the fader shows units in edit against capacity, the meter counts late episodes, and − and + set capacity.
   - **On-air board:** for the next 10 working days, deadlines due plus booked sessions arriving the next working day, against team capacity per day (total weekly capacity ÷ 5).

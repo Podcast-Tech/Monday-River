@@ -196,12 +196,8 @@ function renderScene() {
   const due = d => active().filter(i => EDIT_STAGES.includes(i.stage) && nextDue(i) === d).reduce((a, i) => a + units(i), 0);
   const inc = d => (S.bookings || []).filter(b => b.arrives === d && b.owner !== "laura").reduce((a, b) => a + b.units, 0);
   const cols = days.map(d => ({ d, due: due(d), inc: inc(d) })), mx = Math.max(capDay * 1.3, ...cols.map(c => c.due + c.inc), 1), overN = cols.filter(c => c.due + c.inc > capDay).length;
-    h += `<g class="hot" data-room="board" ${tip("On-air board", "Work landing per working day against team capacity · click for details")}>` + box(23.0, 34.6, 1.25, 11.3, 0.3, 4.5, "#0A0C10");
-  h += fy(23.15, 34.9, 5.6, `<g transform="scale(.8)"><rect x="0" y="0" width="13.6" height="5.2" fill="#07101A"/>` + TX(.3, .55, .38, "ON-AIR BOARD · NEXT 10 WORKING DAYS", "#7FA9D1", 'font-weight="600" letter-spacing=".04"')
-    + TX(9.3, .55, .38, overN ? overN + " over capacity" : "within capacity", overN ? "#FF6B82" : "#3EDC97", 'font-weight="600"')
-    + cols.map((c, k) => { const x0 = .5 + k * 1.3, hb = 3.6, b = 4.5, hd = c.due / mx * hb, hi = c.inc / mx * hb, over = c.due + c.inc > capDay;
-        return `<rect x="${x0}" y="${b - hd}" width=".9" height="${hd}" fill="#FF8F45"/><rect x="${x0}" y="${b - hd - hi}" width=".9" height="${hi}" fill="#3FA9FF"/>` + TX(x0 + .05, 4.95, .3, dayLabel(c.d).split(" ")[0].slice(0, 2) + " " + dayLabel(c.d).split(" ")[1], over ? "#FF6B82" : "#6F8AA6"); }).join("")
-    + `<rect x=".4" y="${(4.5 - capDay / mx * 3.6).toFixed(2)}" width="12.9" height=".05" fill="#EEF3FA" opacity=".7"/></g>`, 'class="flick"') + `</g>`;
+    h += `<g class="hot" data-room="board" ${tip("Flags", "What needs you, and what to do · click for actions")}>` + box(23.0, 34.6, 1.25, 11.3, 0.3, 4.5, "#0A0C10");
+  h += fy(23.15, 34.9, 5.6, `<g transform="scale(.8)">${flagsScreen(13.6, 5.2)}</g>`, 'class="flick"') + `</g>`;
   /* wall screen 2: bottleneck meter */
   const nk = FLOW.map(st => { const gg = active().filter(i => i.stage === st); return { st, n: gg.length, u: gg.reduce((a, i) => a + units(i), 0) }; }), nmax = Math.max(1, ...nk.map(r => r.u)), worst = nk.reduce((a, r) => r.u > a.u ? r : a, nk[0]);
     h += `<g class="hot" data-room="necks" ${tip("Bottleneck meter", "Where work is held · click for details")}>` + box(36.2, 34.6, 1.25, 9.1, 0.3, 4.5, "#0A0C10");
@@ -322,7 +318,7 @@ async function loadCals() {
 }
 /* today's picture for one calendar */
 function calNow(c) {
-  const now = Date.now(), today = dubaiISO(new Date()), d = S.cals[c.n] || null, ev = d ? d.events : [];
+  const now = Date.now(), today = dubaiISO(new Date()), d = S.cals[c.n] || null, ev = (d ? d.events : []).filter(e => !(e.booking && bookingOwner({ name: e.title.replace(/ · booking$/, "") }) === "laura"));
   const timed = ev.filter(e => !e.allDay && e.day === today).sort((a, b) => a.t0 - b.t0);
   return { loaded: !!d, err: d && d.err, live: timed.find(e => e.t0 <= now && now < e.t1), next: timed.find(e => e.t0 > now), timed, allDay: ev.filter(e => e.allDay && e.start <= today && today < (e.end || e.start + "~")), all: ev };
 }

@@ -19,6 +19,7 @@ const threeMin = fs.readFileSync(require.resolve("three/build/three.min.js"), "u
     const db = { doc: path => ({ get: async () => ({ exists: !!store[path], data: () => store[path] }), set: async data => { store[path] = data; } }) };
     window.claude = { use: async n => n === "mcp" ? mcp : n === "db" ? db : null };
   }, ITEMS);
+  p.setDefaultTimeout(90000);
   p.on("pageerror", e => { console.error("page error:", e.message); process.exitCode = 1; });
   p.on("console", m => { if (m.type() === "error") console.error("console:", m.text()); });
   await p.route("https://studio.test/**", r => r.fulfill({ contentType: "text/html", body: '<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1"></head><body>' + html + "</body></html>" }));

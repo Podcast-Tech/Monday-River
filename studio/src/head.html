@@ -249,3 +249,28 @@ button.stat:hover{background:rgb(238 243 250 / .06)} button.stat:focus-visible{o
 .sky3 button:focus-visible{outline:2px solid #FF003C;outline-offset:2px}
 .sky3 .skyt{font:500 11px/1.2 "Geist Mono",ui-monospace,monospace;color:#C9D3E2;background:rgb(11 15 21 / .7);border-radius:999px;padding:6px 9px}
 @media (max-width:640px){.sky3{bottom:56px;max-width:none;right:12px}.sky3 .skyt{display:none}}
+
+/* flags + recommendations */
+.stat.warn b{color:var(--today)}
+.fv{display:grid;gap:2px;border-radius:14px;padding:14px 16px;margin-bottom:12px;border:1px solid var(--line-2)}
+.fv b{font-size:18px;font-weight:600;letter-spacing:-.01em} .fv span{color:var(--muted);font-size:13px}
+.fv.bad{border-color:rgb(255 77 106 / .5);background:rgb(255 77 106 / .08)} .fv.bad b{color:#FF8A9C}
+.fv.warn{border-color:rgb(246 201 74 / .45);background:rgb(246 201 74 / .07)} .fv.warn b{color:#F6D27A}
+.fv.ok{border-color:rgb(62 220 151 / .45);background:rgb(62 220 151 / .07)} .fv.ok b{color:#7FE3B4}
+.flags{display:grid;gap:10px}
+.flag{border:1px solid var(--line);border-left:4px solid var(--fc);border-radius:12px;padding:12px 14px;display:grid;gap:7px;background:rgb(255 255 255 / .02)}
+.flag.red{--fc:#FF4D6A} .flag.amber{--fc:#F6C94A} .flag.green{--fc:#3EDC97}
+.flag p{margin:0}
+.ft{font-weight:600;font-size:15px;line-height:1.3;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.fs{font:600 10.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--fc);border:1px solid var(--fc);border-radius:999px;padding:2px 8px;flex:none}
+.fd{color:var(--ink-2);font-size:13px}
+.fr{font-size:13.5px;color:var(--ink)} .fr b{color:var(--fc)}
+.fitems,.facts{display:flex;flex-wrap:wrap;gap:6px}
+.fchip{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink);background:rgb(255 255 255 / .03);border:1px solid var(--line-2);border-radius:999px;padding:4px 10px;cursor:pointer}
+.fchip i{width:7px;height:7px;border-radius:50%;background:var(--c)} .fchip em{font:500 11px var(--mono);font-style:normal;color:var(--muted)}
+.fchip:hover,.fact:hover{border-color:rgb(238 243 250 / .4)}
+.fact{font-size:13px;font-weight:600;color:#fff;background:#FF003C;border:1px solid #FF003C;border-radius:9px;padding:7px 12px;cursor:pointer}
+.fact.ghost{background:transparent;color:var(--ink);border-color:var(--line-2)}
+.fact:focus-visible,.fchip:focus-visible{outline:2px solid #FF003C;outline-offset:2px}
+.fact[disabled]{opacity:.5;cursor:default}
+.ntag{font:600 10.5px var(--mono);color:#BFE3FF;border:1px solid rgb(63 169 255 / .5);border-radius:999px;padding:0 6px;margin-left:4px}

@@ -51,8 +51,9 @@ function renderTop() {
   const done = S.items.filter(i => i.stage === "Done" && i.updated && Date.now() - Date.parse(i.updated) < 7 * 864e5).length;
   $("onair").className = "onair" + (a.some(i => i.stage === "In Process") ? " lit" : "");
   $("onair").title = a.filter(i => i.stage === "In Process").length + " episodes being edited right now";
-  $("stats").innerHTML = S.items.length ? [["On now", CALS.filter(c => calNow(c).live).length, ""], ["In post", a.filter(i => FLOW.includes(i.stage)).length, ""], ["Late", late, late ? "bad" : ""], ["Due today", today, ""], ["Done this week", done, ""]].concat(S.growth ? [["Growth plan", Math.round(growthTotals().pct * 100) + "%", growthTotals().late ? "bad" : ""]] : [])
-    .map(([l, n, c]) => { const r = { "Due today": "due", "Done this week": "done", "Growth plan": "strategy" }[l]; return r ? `<button class="stat ${c}" type="button" data-room="${r}" title="Show ${l.toLowerCase()}"><b class="tnum">${n}</b><span>${l}</span></button>` : `<div class="stat ${c}"><b class="tnum">${n}</b><span>${l}</span></div>`; }).join("") : "";
+  const fl = insights(), flN = fl ? fl.flags.length : 0, flR = fl ? fl.flags.some(f => f.sev === "red") : false;
+  $("stats").innerHTML = S.items.length ? [["Flags", flN, flR ? "bad" : flN ? "warn" : ""], ["On now", CALS.filter(c => calNow(c).live).length, ""], ["In post", a.filter(i => FLOW.includes(i.stage)).length, ""], ["Late", late, late ? "bad" : ""], ["Due today", today, ""], ["Done this week", done, ""]].concat(S.growth ? [["Growth plan", Math.round(growthTotals().pct * 100) + "%", growthTotals().late ? "bad" : ""]] : [])
+    .map(([l, n, c]) => { const r = { "Flags": "flags", "Due today": "due", "Done this week": "done", "Growth plan": "strategy" }[l]; return r ? `<button class="stat ${c}" type="button" data-room="${r}" title="Show ${l.toLowerCase()}"><b class="tnum">${n}</b><span>${l}</span></button>` : `<div class="stat ${c}"><b class="tnum">${n}</b><span>${l}</span></div>`; }).join("") : "";
   $("sub").textContent = "Poddster Dubai · Al Barsha, Sheikh Zayed Rd · " + new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
   const dot = $("sync-dot"), t = $("sync-t"); dot.className = "";
   if (S.error && !S.items.length) { dot.className = "off"; t.textContent = "Not connected"; }
@@ -155,32 +156,99 @@ async function loadBookings() {
   res.forEach(r => ((r.ok && r.ok.payload && r.ok.payload.events) || []).forEach(ev => {
     if (!/booking/i.test(ev.summary || "") || ev.status === "cancelled" || seen.has(ev.id)) return; seen.add(ev.id);
     const b = toBooking(ev); if (!b.date) return; const k = lc(b.name) + "|" + b.start; if (seen.has(k)) return; seen.add(k);
-    b.units = bookingUnits(b); b.owner = bookingOwner(b); b.arrives = nextWorkday(b.date); list.push(b);
+    b.units = bookingUnits(b); b.owner = bookingOwner(b); b.arrives = nextWorkday(b.date); if (b.owner !== "laura") list.push(b); /* Laura's sessions aren't AG's work: left out everywhere */
   }));
   S.bookings = list.sort((a, b) => String(a.start).localeCompare(String(b.start))); S.bkErr = null; render();
 }
+/* ---------- flags + recommendations: what needs AG, in plain words, with the move to make ---------- */
+function edLoads() {
+  const m = {}; EDITORS.forEach(([n]) => m[n] = { name: n, u: 0, cap: capOf(n) });
+  active().filter(i => EDIT_STAGES.includes(i.stage)).forEach(i => editorsOf(i).forEach(e => { const k = editorFull(e); if (m[k]) m[k].u += units(i); }));
+  return m;
+}
+const pickFree = (m, excl, need) => Object.values(m).filter(e => e.name !== excl && e.u + need <= e.cap).sort((a, b) => a.u / a.cap - b.u / b.cap || a.u - b.u)[0] || null;
+const epChip = (it, extra) => `<button class="fchip" type="button" data-ep="${esc(it.id)}" style="--c:${colorOf(it.stage)}"><i></i>${esc(label(it))}${extra ? ` <em>${esc(extra)}</em>` : ""}</button>`;
+const giveBtn = (it, to) => `<button class="fact" type="button" data-assign="${esc(it.id)}" data-to="${esc(to)}">Give ${esc(label(it))} to ${esc(firstName(to))}</button>`;
+const plural = (n, one, many) => n + " " + (n === 1 ? one : many || one + "s");
+function insights() {
+  if (!S.items.length) return null;
+  const A = active(), m = edLoads(), F = [], sim = JSON.parse(JSON.stringify(m));
+  /* 1. late edits */
+  const lateEd = A.filter(i => EDIT_STAGES.includes(i.stage) && isLate(i)).map(i => ({ it: i, by: T() - dayNum(nextDue(i)) })).sort((a, b) => b.by - a.by);
+  if (lateEd.length) { const byEd = {}; lateEd.forEach(x => { const e = firstName(x.it.editor) || "No editor"; byEd[e] = (byEd[e] || 0) + 1; });
+    const top = Object.entries(byEd).sort((a, b) => b[1] - a[1])[0];
+    F.push({ sev: "red", title: plural(lateEd.length, "episode") + " late in edit", detail: (top[1] > 1 ? top[0] + " has " + top[1] + ". " : "") + "Most overdue: " + label(lateEd[0].it) + ", " + plural(lateEd[0].by, "day") + ".",
+      items: lateEd.slice(0, 6).map(x => epChip(x.it, x.by + "d")), rec: "Open each one and post a note to the editor with a new delivery time today. If " + top[0] + " is stuck, move one of theirs to a free editor." }); }
+  /* 2. queue waiting */
+  const g = guests();
+  if (g.length) { const acts = g.slice(0, 3).map(({ it }) => { const f = pickFree(sim, null, units(it)); if (f) sim[f.name].u += units(it); return f ? giveBtn(it, f.name) : ""; }).filter(Boolean);
+    F.push({ sev: g[0].wait >= 2 ? "red" : "amber", title: plural(g.length, "episode") + " waiting for an editor", detail: "Longest wait: " + label(g[0].it) + (g[0].wait ? ", " + plural(g[0].wait, "day") : ", arrived today") + ".",
+      items: g.slice(0, 6).map(({ it, wait }) => epChip(it, wait ? wait + "d" : "new")), rec: acts.length ? "Assign now. These editors have room this week:" : "Nobody has spare capacity. Raise someone's capacity on the console or bring in a freelancer.", acts }); }
+  /* 3. overloaded editors */
+  Object.values(m).filter(e => e.u > e.cap).sort((a, b) => b.u / b.cap - a.u / a.cap).slice(0, 3).forEach(e => {
+    const mine = A.filter(i => i.stage === "Assigned" && editorsOf(i).some(x => editorFull(x) === e.name)).sort((a, b) => (daysTo(b) ?? -99) - (daysTo(a) ?? -99));
+    const mv = mine[0], f = mv ? pickFree(sim, e.name, units(mv)) : null; if (f) sim[f.name].u += units(mv);
+    F.push({ sev: e.u / e.cap >= 1.5 ? "red" : "amber", title: firstName(e.name) + " is overloaded: " + fmtU(e.u) + " units against " + e.cap + " a week", detail: Math.round(e.u / e.cap * 100) + "% of capacity.",
+      items: [], rec: mv && f ? "Move work that hasn't started yet. " + label(mv) + " is still Assigned and " + firstName(f.name) + " has room." : mv ? "Push back a deadline on " + label(mv) + ", or raise capacity if " + firstName(e.name) + " can take more." : "Everything of theirs is already in progress. Check their deadlines are realistic.",
+      acts: mv && f ? [giveBtn(mv, f.name)] : mv ? [epChip(mv)] : [`<button class="fact ghost" type="button" data-room="suite:${esc(e.name)}">Open ${esc(firstName(e.name))}'s booth</button>`] }); });
+  /* 4. due today */
+  const dues = dueToday();
+  if (dues.length) F.push({ sev: dues.some(isLate) ? "red" : "amber", title: plural(dues.length, "episode") + " due today", detail: dues.map(i => label(i) + " (" + (firstName(i.editor) || "no editor") + ")").slice(0, 3).join(", ") + (dues.length > 3 ? " and " + (dues.length - 3) + " more" : "") + ".",
+    items: dues.slice(0, 6).map(i => epChip(i)), rec: "Check in with each editor before midday so nothing slips to tomorrow." });
+  /* 5. clients gone quiet */
+  const quiet = screening().filter(i => !CORPORATE.test(i.name) && ageDays(i) > 7);
+  if (quiet.length) F.push({ sev: "amber", title: plural(quiet.length, "client") + " quiet for more than a week", detail: "Longest: " + label(quiet[0]) + ", " + plural(ageDays(quiet[0]), "day") + " with no reply.",
+    items: quiet.slice(0, 6).map(i => epChip(i, ageDays(i) + "d")), rec: "Send a nudge. Open the episode and use WhatsApp or email; the nudge message is already written." });
+  /* 6. crunch days ahead */
+  const capDay = EDITORS.reduce((a, [n]) => a + capOf(n), 0) / 5, days = workdaysAhead(10);
+  const crunch = days.map(d => { const its = A.filter(i => EDIT_STAGES.includes(i.stage) && nextDue(i) === d), bk = (S.bookings || []).filter(b => b.arrives === d);
+    return { d, its, bk, u: its.reduce((a, i) => a + units(i), 0) + bk.reduce((a, b) => a + b.units, 0) }; }).filter(c => c.u > capDay);
+  if (crunch.length) { const c = crunch[0];
+    F.push({ sev: c.d === days[0] ? "red" : "amber", title: (crunch.length === 1 ? dayLabel(c.d) + " is" : plural(crunch.length, "day") + " are") + " over team capacity", detail: dayLabel(c.d) + ": " + fmtU(c.u) + " units landing, the team handles about " + fmtU(capDay) + " a day." + (crunch.length > 1 ? " Also " + crunch.slice(1, 3).map(x => dayLabel(x.d)).join(", ") + "." : ""),
+      items: c.its.slice(0, 6).map(i => epChip(i)), rec: "Spread it out: ask for one or two of these a day early, or agree a later date with the client now rather than on the day." }); }
+  /* 7. new clients arriving */
+  const soon = new Set(days.slice(0, 5)), nw = (S.bookings || []).filter(b => b.owner === "new" && soon.has(b.arrives) && b.units);
+  if (nw.length) { const f = pickFree(sim, null, 1);
+    F.push({ sev: "amber", title: plural(nw.length, "new client session") + " arriving this week", detail: nw.slice(0, 3).map(b => b.name + " (" + dayLabel(b.date) + ")").join(", ") + ", about " + fmtU(nw.reduce((a, b) => a + b.units, 0)) + " units.",
+      items: [], rec: "They aren't in PP Clients Only yet. Set them up and line up an editor before the files land" + (f ? ": " + firstName(f.name) + " has the most room." : "."),
+      acts: [`<button class="fact ghost" type="button" data-room="board-sessions">See the sessions</button>`] }); }
+  /* on track */
+  const tot = Object.values(m).reduce((a, e) => a + e.u, 0), cap = Object.values(m).reduce((a, e) => a + e.cap, 0), free = Object.values(m).filter(e => e.u < e.cap * .5).map(e => firstName(e.name));
+  const ok = ["Team load: " + fmtU(tot) + " of " + cap + " units this week (" + Math.round(tot / Math.max(1, cap) * 100) + "%)."];
+  if (free.length) ok.push("Room to take more: " + free.slice(0, 5).join(", ") + ".");
+  if (!crunch.length) ok.push("No day in the next two weeks goes over capacity.");
+  return { flags: F.sort((a, b) => (a.sev === "red" ? 0 : 1) - (b.sev === "red" ? 0 : 1)), ok };
+}
+function flagsHtml() {
+  const r = insights(); if (!r) return `<div class="skel"></div>`;
+  const red = r.flags.filter(f => f.sev === "red").length, amb = r.flags.length - red;
+  const verdict = !r.flags.length ? `<div class="fv ok"><b>All clear.</b><span>Nothing needs you right now.</span></div>`
+    : `<div class="fv ${red ? "bad" : "warn"}"><b>${red ? plural(red, "thing") + " to fix today" : "Nothing urgent"}</b><span>${amb ? plural(amb, "thing") + " to handle this week" : "Everything else is on track"}</span></div>`;
+  return verdict + `<div class="flags">${r.flags.map(f => `<article class="flag ${f.sev}"><p class="ft"><span class="fs">${f.sev === "red" ? "Fix today" : "This week"}</span>${esc(f.title)}</p>
+      <p class="fd">${esc(f.detail)}</p>${f.items.length ? `<div class="fitems">${f.items.join("")}</div>` : ""}
+      <p class="fr"><b>Do this:</b> ${esc(f.rec)}</p>${f.acts && f.acts.length ? `<div class="facts">${f.acts.join("")}</div>` : ""}</article>`).join("")}
+    <article class="flag green"><p class="ft"><span class="fs">On track</span>The rest</p>${r.ok.map(x => `<p class="fd">${esc(x)}</p>`).join("")}</article></div>`;
+}
+/* the control-room wall screen: the same flags, one line each (SVG markup, W × H units) */
+function flagsScreen(W, H) {
+  const r = insights();
+  let g = `<rect width="${W}" height="${H}" fill="#07101A"/>` + TX(.3, .6, .42, "FLAGS", "#EEF3FA", 'font-weight="700" letter-spacing=".1"');
+  if (!r) return g + TX(.3, 1.6, .36, "Reading the board…", "#6F7C92");
+  const red = r.flags.filter(f => f.sev === "red").length;
+  g += TX(W - .3, .6, .34, r.flags.length ? (red ? red + " to fix today" : "nothing urgent") : "all clear", red ? "#FF6B82" : r.flags.length ? "#F6C94A" : "#3EDC97", 'font-weight="700" text-anchor="end"');
+  if (!r.flags.length) return g + TX(.3, 1.8, .5, "Nothing needs you right now", "#3EDC97", 'font-weight="600"');
+  r.flags.slice(0, 6).forEach((f, i) => { const y = 1.45 + i * .64, c = f.sev === "red" ? "#FF4D6A" : "#F6C94A";
+    g += `<rect x=".3" y="${y - .4}" width=".16" height=".5" rx=".04" fill="${c}"/>` + TX(.65, y, .38, clip(f.title, Math.floor((W - 1) / .21)), "#EEF3FA", 'font-weight="600"'); });
+  if (r.flags.length > 6) g += TM(.3, H - .2, .28, "+" + (r.flags.length - 6) + " more · click for actions", "#7FA9D1");
+  return g;
+}
 function boardHtml() {
-  const days = workdaysAhead(10);
-  if (!S.items.length) return `<div class="skel"></div>`;
-  const capDay = EDITORS.reduce((a, [n]) => a + capOf(n), 0) / 5;
-  const due = d => active().filter(i => EDIT_STAGES.includes(i.stage) && nextDue(i) === d).reduce((a, i) => a + units(i), 0);
-  const inc = (d, who) => (S.bookings || []).filter(b => b.arrives === d && who.includes(b.owner)).reduce((a, b) => a + b.units, 0);
-  const cols = days.map(d => ({ d, due: due(d), yours: inc(d, ["yours"]), nw: inc(d, ["new"]) })).map(c => Object.assign(c, { tot: c.due + c.yours + c.nw, over: c.due + c.yours + c.nw > capDay }));
-  const max = Math.max(capDay * 1.25, ...cols.map(c => c.tot), 1), h = v => (v / max * 100).toFixed(1) + "%";
-  const over = cols.filter(c => c.over);
-  const verdict = S.bookings === null ? `<p class="verdict">Reading the studio calendars…</p>`
-    : S.bkErr ? `<p class="verdict bad">${esc(calErr(S.bkErr))} Deadlines still show.</p>`
-    : over.length ? `<p class="verdict bad"><b>${over.length} ${over.length === 1 ? "day goes" : "days go"} over capacity.</b> ${over.slice(0, 3).map(c => `${dayLabel(c.d)}: ${fmtU(c.tot)} units landing against ${fmtU(capDay)}`).join("; ")}.</p>`
-    : `<p class="verdict ok"><b>Within capacity for the next two working weeks.</b> The busiest day is ${dayLabel(cols.reduce((a, c) => c.tot > a.tot ? c : a).d)}.</p>`;
-  const bks = (S.bookings || []).filter(b => b.date >= todayISO());
-  return `<div class="board"><div class="plaque"><b>On-air board</b><span>Work landing per working day: deadlines due, plus booked sessions arriving the next working day</span></div>
-    <div class="days" role="img" aria-label="Units landing per day against team capacity">${cols.map(c => `<div class="day ${c.over ? "over" : ""}" title="${dayLabel(c.d)}: ${fmtU(c.due)} due, ${fmtU(c.yours)} arriving from your sessions, ${fmtU(c.nw)} from new clients · capacity ${fmtU(capDay)}">
-      <span class="capline" style="bottom:${h(capDay)}"></span>${c.nw ? `<i class="b new" style="height:${h(c.nw)}"></i>` : ""}${c.yours ? `<i class="b in" style="height:${h(c.yours)}"></i>` : ""}${c.due ? `<i class="b due" style="height:${h(c.due)}"></i>` : ""}</div>`).join("")}</div>
-    <div class="dlabels">${cols.map(c => `<span class="${c.over ? "over" : ""}">${dayLabel(c.d)}</span>`).join("")}</div>
-    <div class="legend"><span><i style="background:var(--st-corr)"></i>Deadlines due</span><span><i style="background:var(--water)"></i>Your sessions arriving</span><span><i style="background:repeating-linear-gradient(135deg,var(--foam) 0 3px,#7FB8E6 3px 6px)"></i>New clients arriving</span><span><i style="background:var(--ink);height:2px;vertical-align:3px"></i>Team capacity per day (${fmtU(capDay)})</span></div>
-    ${verdict}
-    ${bks.length ? `<div class="bks" aria-label="Booked sessions">${bks.map(b => `<div class="bk ${b.owner === "laura" ? "laura" : ""}"><time>${dayLabel(b.date)}</time><span title="${esc(b.services)}${b.addons ? " + " + esc(b.addons.replace(/\n/g, ", ")) : ""}">${esc(b.name)}${b.nc ? " · new" : ""}${b.owner === "laura" ? " · Laura's" : ""} <span style="color:var(--muted)">· ${esc(b.studio)}</span></span><em>${b.units ? "≈" + fmtU(b.units) + "u" : "rec only"}</em></div>`).join("")}</div>
-      <p class="hint">Units are estimated from the booked package: a Pro Edit is 1 unit, three reels or highlights are 1 unit. Laura's sessions are listed but not counted.</p>` : S.bookings ? `<p class="empty">No studio bookings in the next two weeks.</p>` : ""}</div>`;
+  if (S.bookings === null) return `<div class="skel"></div>`;
+  if (S.bkErr) return `<p class="verdict bad">${esc(calErr(S.bkErr))}</p>`;
+  const bks = (S.bookings || []).filter(b => b.date >= todayISO()), tag = b => b.owner === "new" ? `<span class="ntag">New client</span>` : "";
+  return `<div class="plaque"><b>Booked sessions</b><span>Next two weeks, from production@ and studio@. Each lands as edit work the next working day.</span><em class="tnum">${bks.length}</em></div>
+    ${bks.length ? `<div class="bks" id="sessions" aria-label="Booked sessions">${bks.map(b => `<div class="bk"><time>${dayLabel(b.date)}</time><span title="${esc(b.services)}">${esc(b.name)} ${tag(b)}<span style="color:var(--muted)"> · ${esc(b.studio)}</span></span><em>${b.units ? "≈" + fmtU(b.units) + " units" : "recording only"}</em></div>`).join("")}</div>
+      <p class="hint">Units are estimated from the package: a Pro Edit is 1 unit, three reels or highlights are 1 unit.</p>` : `<p class="empty">No sessions booked in the next two weeks.</p>`}`;
 }
 function necksHtml() {
   if (!S.items.length) return "";
@@ -303,8 +371,8 @@ const renderGates = () => {};
 S.drawer = null;
 function renderDrawer() {
   const el = $("drawer"); el.hidden = !S.drawer; if (!S.drawer) { el.innerHTML = ""; return; }
-  const [kind, who] = S.drawer.split(":"), title = { green: "Green room", suite: (who || "") + "'s booth", screening: "Screening room", control: "Control room", board: "On-air board", necks: "Bottleneck meter", due: "Due today", done: "Done this week", cal: (who || "") + " calendar", strategy: "Strategy" }[kind];
-  const body = kind === "green" ? greenHtml() : kind === "suite" ? suitesHtml(who) + `<div style="margin-top:14px">${consoleHtml().replace(/^[\s\S]*?<div class="console">/, '<div class="console">').replace(/<p class="hint">[\s\S]*$/, "")}</div>` : kind === "screening" ? screeningHtml() : kind === "control" ? consoleHtml() + boardHtml() + necksHtml() : kind === "board" ? boardHtml() : kind === "cal" ? calHtml(who) : kind === "due" ? dueHtml() : kind === "done" ? doneHtml() : kind === "strategy" ? strategyHtml() : necksHtml();
+  const [kind, who] = S.drawer.split(":"), title = { green: "Green room", suite: (who || "") + "'s booth", screening: "Screening room", control: "Control room", board: "Flags & what to do", flags: "Flags & what to do", "board-sessions": "Booked sessions", necks: "Bottleneck meter", due: "Due today", done: "Done this week", cal: (who || "") + " calendar", strategy: "Strategy" }[kind];
+  const body = kind === "green" ? greenHtml() : kind === "suite" ? suitesHtml(who) + `<div style="margin-top:14px">${consoleHtml().replace(/^[\s\S]*?<div class="console">/, '<div class="console">').replace(/<p class="hint">[\s\S]*$/, "")}</div>` : kind === "screening" ? screeningHtml() : kind === "control" ? flagsHtml() + `<div style="margin-top:16px">${consoleHtml()}</div>` : kind === "board" || kind === "flags" ? flagsHtml() : kind === "board-sessions" ? boardHtml() : kind === "cal" ? calHtml(who) : kind === "due" ? dueHtml() : kind === "done" ? doneHtml() : kind === "strategy" ? strategyHtml() : necksHtml();
   el.innerHTML = `<div class="d-h"><b>${esc(title)}</b><button class="ib" type="button" data-act="drawer-close" aria-label="Close" title="Close (Esc)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div><div class="d-b ${kind === "suite" ? "one" : ""}">${body}</div>`;
   if (kind === "suite") el.querySelectorAll(".strip").forEach(n => { if (firstName(n.dataset.drop).toLowerCase() !== firstName(who).toLowerCase()) n.remove(); });
 }
@@ -338,10 +406,11 @@ document.addEventListener("click", e => {
     if (a.dataset.act === "close") closeEp(); else if (a.dataset.act === "post") postNote(); else if (a.dataset.act === "pkg-retry") loadPackage(it, true);
     return;
   }
+  const as = e.target.closest("[data-assign]"); if (as) { const it = S.items.find(i => i.id === as.dataset.assign); if (it) reassign(it, as.dataset.to); return; }
   const dc = e.target.closest('[data-act="drawer-close"]'); if (dc) { S.drawer = null; renderDrawer(); return; }
   const ep = e.target.closest("[data-ep]"); if (ep) { openEp(ep.dataset.ep); return; }
   if (e.target.closest("[data-gep]")) return;
-  const room = e.target.closest("[data-room]"); if (room) { S.drawer = room.dataset.room; renderDrawer(); if (room.closest(".stats") && /^(due|done)$/.test(room.dataset.room) && window.R3D && R3D.on) R3D.view(6); }
+  const room = e.target.closest("[data-room]"); if (room) { S.drawer = room.dataset.room; renderDrawer(); if (room.closest(".stats") && window.R3D && R3D.on) { if (/^(due|done)$/.test(room.dataset.room)) R3D.view(6); else if (room.dataset.room === "flags") R3D.view(5); } }
 });
 $("scrim").addEventListener("click", closeEp);
 $("refresh").addEventListener("click", sync);
