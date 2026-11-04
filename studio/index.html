@@ -1825,7 +1825,7 @@ const renderSVG = renderScene;
 renderScene = function () { if (R3D.on) R3D.build(); else renderSVG(); };
 
 /* ================= River Studio: the strategic floor ================= */
-const DEFAULT_CAP = 3;               // units per week an editor can take on AG's work, until AG sets it
+const DEFAULT_CAP = 6;               // units per week an editor can take on AG's work, until AG sets it
 const WIN_BACK = 7, WIN_DAYS = 21;   // edit-suite timelines: a week back, two weeks ahead
 S.cap = {}; S.bookings = null; S.bkErr = null; S.notifs = S.notifs || [];
 let db = null;
