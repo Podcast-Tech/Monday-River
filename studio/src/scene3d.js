@@ -327,7 +327,7 @@ window.R3D = R3D;
       const name = ed[0], s = sm.get(firstName(name).toLowerCase()) || { name, edit: [], cr: [], late: 0, u: 0 };
       const rows = s.edit.slice().sort((a, b) => (isLate(b) - isLate(a)) || ((daysTo(a) ?? 99) - (daysTo(b) ?? 99)));
       const ratio = s.u / capOf(name), lit = s.edit.some(i => i.stage === "In Process"), busy = rows.length > 0;
-      const B = group(R, { drop: name, room: "suite:" + name, tip: name + "'s booth", tip2: fmtU(s.u) + " units in edit of " + capOf(name) + "/wk · " + s.late + " late · " + s.cr.length + " with clients" });
+      const B = group(R, { drop: name, room: "suite:" + name, tip: name + "'s booth", tip2: fmtU(s.u) + " units due by " + loadEndLabel() + " of " + capOf(name) + "/wk · " + s.late + " late · " + s.cr.length + " with clients" });
       reg.set("drop:" + name, B);
       flat(B, bxx + 0.3, by + 0.3, 7.4, 8.3, busy ? "#20252F" : "#1A1E26", .03);
       const hl = bx(B, bxx + 0.3, by + 0.3, .07, 7.4, 8.3, .02, "#3FA9FF", { own: true, cast: false, m: { emissive: "#3FA9FF", emissiveIntensity: .9, transparent: true, opacity: .45 } }); hl.visible = false; B.userData.hl = hl;
@@ -428,7 +428,7 @@ window.R3D = R3D;
     bx(CR, 38.2, 40.3, 0, 1.6, 1.6, .85, "#252A33"); person(CR, 39, 40.6, .85, "#B0102E", "AG", Math.PI); bx(CR, 38.2, 41.6, .85, 1.6, .28, 1.25, "#2D333D");
     lab("You", 39, 40.6, 3.2, "you", {}, 110);
     fz(CR, 24, 42.6, 0, 14, 1.4, TM(0, 1, .95, "CONTROL ROOM", "#4B5874", 'letter-spacing=".3"'));
-    fz(CR, 50, 42.2, 0, 13, 1.2, TX(0, .8, .7, `${fmtU(suites().reduce((a, s) => a + s.u, 0))} of ${EDITORS.reduce((a, [n]) => a + capOf(n), 0)} units/wk in edit`, "#6F7C92"));
+    fz(CR, 50, 42.2, 0, 13, 1.2, TX(0, .8, .7, `${fmtU(suites().reduce((a, s) => a + s.u, 0))} of ${EDITORS.reduce((a, [n]) => a + capOf(n), 0)} units/wk due by ${loadEndLabel()}`, "#6F7C92"));
     if (!ready) lab(esc(S.error ? "Couldn't read your board" : "Opening the studio…"), 32, 12, 6, "msg", {}, 999);
   }
 

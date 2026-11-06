@@ -11,10 +11,18 @@ const capOf = n => S.cap[firstName(n).toLowerCase()] || DEFAULT_CAP;
 const editorFull = n => (EDITORS.find(([e]) => firstName(e).toLowerCase() === firstName(n).toLowerCase()) || [n])[0];
 
 /* ---------- what's in each room ---------- */
+/* Load is measured by delivery date, not by when work became available: an editor's load is the units of their
+   episodes whose next deadline falls within the next LOAD_DAYS working days (overdue ones included, they still have to be delivered).
+   Work due later doesn't count against this week's capacity. */
+const LOAD_DAYS = 5;
+const loadEnd = () => workdaysAhead(LOAD_DAYS).pop();
+const loadEndLabel = () => dayLabel(loadEnd());
+const inLoad = it => { const d = nextDue(it); return !!d && d <= loadEnd(); };
+const loadU = it => inLoad(it) ? units(it) : 0;
 function suites() {
   const m = new Map(), at = n => { const k = editorFull(n); if (!m.has(k)) m.set(k, { name: k, edit: [], cr: [], late: 0, u: 0 }); return m.get(k); };
   active().forEach(it => editorsOf(it).forEach(e => { const s = at(e);
-    if (EDIT_STAGES.includes(it.stage)) { s.edit.push(it); s.u += units(it); if (isLate(it)) s.late++; }
+    if (EDIT_STAGES.includes(it.stage)) { s.edit.push(it); s.u += loadU(it); s.all = (s.all || 0) + units(it); if (isLate(it)) s.late++; }
     else if (it.stage === "Client Review") s.cr.push(it); }));
   return [...m.values()].sort((a, b) => b.u - a.u || b.edit.length - a.edit.length || a.name.localeCompare(b.name));
 }
@@ -84,7 +92,7 @@ function suitesHtml(only) {
       const rows = s.edit.slice().sort((a, b) => (daysTo(a) ?? 99) - (daysTo(b) ?? 99)), shown = rows.slice(0, 6);
       return `<article class="suite" data-drop="${esc(s.name)}" aria-label="${esc(s.name)}'s suite">
         <div class="s-h"><span class="lamp ${s.edit.some(i => i.stage === "In Process") ? "lit" : ""}">ON AIR</span><span class="no">SUITE ${String(k + 1).padStart(2, "0")}</span><span class="nm">${esc(s.name)}</span>
-          <span class="ld" title="${fmtU(s.u)} units in edit against ${capOf(s.name)} a week">${fmtU(s.u)}u / ${capOf(s.name)}<span class="bar"><i style="width:${Math.min(100, ratio * 100).toFixed(0)}%;background:${col}"></i></span></span></div>
+          <span class="ld" title="${fmtU(s.u)} units due by ${loadEndLabel()} against ${capOf(s.name)} a week (${fmtU(s.all || 0)} in edit in total)">${fmtU(s.u)}u / ${capOf(s.name)}<span class="bar"><i style="width:${Math.min(100, ratio * 100).toFixed(0)}%;background:${col}"></i></span></span></div>
         <div class="tl"><div class="tl-days">${ticks.map((t, i) => `<span style="left:${t.x}%;${i === 0 ? "transform:none" : i === ticks.length - 1 ? "transform:translateX(-100%)" : ""}">${t.l}</span>`).join("")}</div>
           <div class="tl-wk" style="left:calc(10px + (100% - 20px) * ${wk.l / 100});width:calc((100% - 20px) * ${wk.w / 100})"></div>
           <div class="tl-grid"></div>
@@ -118,10 +126,10 @@ function consoleHtml() {
   const list = suites(), seen = new Set(list.map(s => firstName(s.name).toLowerCase()));
   const strips = list.concat(EDITORS.filter(([n]) => !seen.has(firstName(n).toLowerCase())).map(([n]) => ({ name: n, edit: [], cr: [], late: 0, u: 0 })));
   const totalU = list.reduce((a, s) => a + s.u, 0), totalCap = strips.reduce((a, s) => a + capOf(s.name), 0);
-  return `<div class="plaque"><b>Master control</b><span>Mixing console: units in edit against what each editor can take from you per week</span><em class="tnum">${fmtU(totalU)} / ${totalCap} units</em></div>
+  return `<div class="plaque"><b>Master control</b><span>Mixing console: units due by ${loadEndLabel()} (next 5 working days) against what each editor can take from you per week</span><em class="tnum">${fmtU(totalU)} / ${totalCap} units</em></div>
     ${!S.items.length ? `<div class="skel"></div>` : `<div class="console">${strips.map((s, k) => {
       const ratio = s.u / capOf(s.name), top = 100 - Math.min(2, ratio) / 2 * 100, leds = Array.from({ length: 10 }, (_, i) => i < Math.min(10, s.late));
-      return `<div class="strip" data-drop="${esc(s.name)}" title="${esc(s.name)}: ${fmtU(s.u)} units in edit, ${s.late} late, ${s.cr.length} with clients">
+      return `<div class="strip" data-drop="${esc(s.name)}" title="${esc(s.name)}: ${fmtU(s.u)} units due by ${loadEndLabel()} (${fmtU(s.all || 0)} in edit in total), ${s.late} late, ${s.cr.length} with clients">
         <span class="ch">CH ${String(k + 1).padStart(2, "0")}</span>
         <div class="track"><div class="meter" aria-label="${s.late} late">${leds.map(on => `<i class="${on ? "on red" : ""}"></i>`).join("")}</div>
           <div class="rail"><span class="cap" style="top:50%"></span><span class="knob ${ratio > 1 ? "over" : ""}" style="top:${top.toFixed(1)}%"></span></div></div>
@@ -163,7 +171,7 @@ async function loadBookings() {
 /* ---------- flags + recommendations: what needs AG, in plain words, with the move to make ---------- */
 function edLoads() {
   const m = {}; EDITORS.forEach(([n]) => m[n] = { name: n, u: 0, cap: capOf(n) });
-  active().filter(i => EDIT_STAGES.includes(i.stage)).forEach(i => editorsOf(i).forEach(e => { const k = editorFull(e); if (m[k]) m[k].u += units(i); }));
+  active().filter(i => EDIT_STAGES.includes(i.stage) && inLoad(i)).forEach(i => editorsOf(i).forEach(e => { const k = editorFull(e); if (m[k]) m[k].u += units(i); }));
   return m;
 }
 const pickFree = (m, excl, need) => Object.values(m).filter(e => e.name !== excl && e.u + need <= e.cap).sort((a, b) => a.u / a.cap - b.u / b.cap || a.u - b.u)[0] || null;
@@ -181,15 +189,17 @@ function insights() {
       items: lateEd.slice(0, 6).map(x => epChip(x.it, x.by + "d")), rec: "Open each one and post a note to the editor with a new delivery time today. If " + top[0] + " is stuck, move one of theirs to a free editor." }); }
   /* 2. queue waiting */
   const g = guests();
-  if (g.length) { const acts = g.slice(0, 3).map(({ it }) => { const f = pickFree(sim, null, units(it)); if (f) sim[f.name].u += units(it); return f ? giveBtn(it, f.name) : ""; }).filter(Boolean);
+  if (g.length) { const acts = g.slice(0, 3).map(({ it }) => { const f = pickFree(sim, null, loadU(it)); if (f) sim[f.name].u += loadU(it); return f ? giveBtn(it, f.name) : ""; }).filter(Boolean);
     F.push({ sev: g[0].wait >= 2 ? "red" : "amber", title: plural(g.length, "episode") + " waiting for an editor", detail: "Longest wait: " + label(g[0].it) + (g[0].wait ? ", " + plural(g[0].wait, "day") : ", arrived today") + ".",
       items: g.slice(0, 6).map(({ it, wait }) => epChip(it, wait ? wait + "d" : "new")), rec: acts.length ? "Assign now. These editors have room this week:" : "Nobody has spare capacity. Raise someone's capacity on the console or bring in a freelancer.", acts }); }
-  /* 3. overloaded editors */
+  /* 3. overloaded editors: units due in the next 5 working days against weekly capacity */
   Object.values(m).filter(e => e.u > e.cap).sort((a, b) => b.u / b.cap - a.u / a.cap).slice(0, 3).forEach(e => {
-    const mine = A.filter(i => i.stage === "Assigned" && editorsOf(i).some(x => editorFull(x) === e.name)).sort((a, b) => (daysTo(b) ?? -99) - (daysTo(a) ?? -99));
-    const mv = mine[0], f = mv ? pickFree(sim, e.name, units(mv)) : null; if (f) sim[f.name].u += units(mv);
-    F.push({ sev: e.u / e.cap >= 1.5 ? "red" : "amber", title: firstName(e.name) + " is overloaded: " + fmtU(e.u) + " units against " + e.cap + " a week", detail: Math.round(e.u / e.cap * 100) + "% of capacity.",
-      items: [], rec: mv && f ? "Move work that hasn't started yet. " + label(mv) + " is still Assigned and " + firstName(f.name) + " has room." : mv ? "Push back a deadline on " + label(mv) + ", or raise capacity if " + firstName(e.name) + " can take more." : "Everything of theirs is already in progress. Check their deadlines are realistic.",
+    const theirs = A.filter(i => EDIT_STAGES.includes(i.stage) && inLoad(i) && editorsOf(i).some(x => editorFull(x) === e.name)).sort((a, b) => (daysTo(a) ?? 99) - (daysTo(b) ?? 99));
+    const mine = theirs.filter(i => i.stage === "Assigned").sort((a, b) => (daysTo(b) ?? -99) - (daysTo(a) ?? -99));
+    const mv = mine[0], f = mv ? pickFree(sim, e.name, units(mv)) : null; if (f) { sim[f.name].u += units(mv); sim[e.name].u -= units(mv); }
+    F.push({ sev: e.u / e.cap >= 1.5 ? "red" : "amber", title: firstName(e.name) + " has " + fmtU(e.u) + " units due by " + loadEndLabel() + ", capacity " + e.cap, detail: Math.round(e.u / e.cap * 100) + "% of a week's capacity lands on their desk in the next 5 working days.",
+      items: theirs.slice(0, 6).map(i => epChip(i, nextDue(i) ? (isLate(i) ? "late" : dayLabel(nextDue(i))) : "")),
+      rec: mv && f ? "Move work that hasn't started. " + label(mv) + " is still Assigned (due " + dayLabel(nextDue(mv)) + ") and " + firstName(f.name) + " has room this week." : mv ? "Push back the deadline on " + label(mv) + " (still Assigned), or raise capacity if " + firstName(e.name) + " can take more." : "Everything due is already in progress. Agree new dates now for whatever can slip past " + loadEndLabel() + ".",
       acts: mv && f ? [giveBtn(mv, f.name)] : mv ? [epChip(mv)] : [`<button class="fact ghost" type="button" data-room="suite:${esc(e.name)}">Open ${esc(firstName(e.name))}'s booth</button>`] }); });
   /* 4. due today */
   const dues = dueToday();
@@ -214,7 +224,7 @@ function insights() {
       acts: [`<button class="fact ghost" type="button" data-room="board-sessions">See the sessions</button>`] }); }
   /* on track */
   const tot = Object.values(m).reduce((a, e) => a + e.u, 0), cap = Object.values(m).reduce((a, e) => a + e.cap, 0), free = Object.values(m).filter(e => e.u < e.cap * .5).map(e => firstName(e.name));
-  const ok = ["Team load: " + fmtU(tot) + " of " + cap + " units this week (" + Math.round(tot / Math.max(1, cap) * 100) + "%)."];
+  const ok = ["Team load: " + fmtU(tot) + " units due by " + loadEndLabel() + ", against " + cap + " units of weekly capacity (" + Math.round(tot / Math.max(1, cap) * 100) + "%)."];
   if (free.length) ok.push("Room to take more: " + free.slice(0, 5).join(", ") + ".");
   if (!crunch.length) ok.push("No day in the next two weeks goes over capacity.");
   return { flags: F.sort((a, b) => (a.sev === "red" ? 0 : 1) - (b.sev === "red" ? 0 : 1)), ok };

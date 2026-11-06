@@ -115,7 +115,7 @@ function renderScene() {
     const name = ed[0], s = sm.get(firstName(name).toLowerCase()) || { name, edit: [], cr: [], late: 0, u: 0 };
     const rows = s.edit.slice().sort((a, b) => (isLate(b) - isLate(a)) || ((daysTo(a) ?? 99) - (daysTo(b) ?? 99)));
     const ratio = s.u / capOf(name), lit = s.edit.some(i => i.stage === "In Process"), busy = rows.length > 0;
-    h += `<g class="booth" data-drop="${esc(name)}" data-room="suite:${esc(name)}" ${tip(name + "'s booth", fmtU(s.u) + " units in edit of " + capOf(name) + "/wk · " + s.late + " late · " + s.cr.length + " with clients")}>
+    h += `<g class="booth" data-drop="${esc(name)}" data-room="suite:${esc(name)}" ${tip(name + "'s booth", fmtU(s.u) + " units due by " + loadEndLabel() + " of " + capOf(name) + "/wk · " + s.late + " late · " + s.cr.length + " with clients")}>
       ${quad(bx + 0.3, by + 0.3, 7.4, 8.3, busy ? "#20252F" : "#1A1E26")}${quad(bx + 0.3, by + 0.3, 7.4, 8.3, "rgb(63 169 255 / .28)", 0.01, 'class="floorhl"')}`;
     h += box(bx + 0.3, by, 0, 7.4, 0.3, 2.8, "#2B323E") + box(bx, by, 0, 0.3, 8.6, 2.8, "#29303B");
     h += fy(bx + 0.7, by + 0.3, 2.55, `<rect x="0" y="0" width="3.6" height=".75" rx=".12" fill="#0C1016" stroke="rgb(255 255 255 / .12)" stroke-width=".04"/>` + TX(.2, .55, .5, firstName(name).toUpperCase(), "#EEF3FA", 'font-weight="600" letter-spacing=".08"'));
@@ -218,7 +218,7 @@ function renderScene() {
   h += box(38.2, 40.3, 0, 1.6, 1.6, .85, "#252A33") + person(39, 40.9, .85, "#B0102E", "AG", { seated: true, back: true }) + box(38.2, 41.6, .85, 1.6, .28, 1.25, "#2D333D");
   h += bubble(39, 40.9, 3.4, "You", "#EEF3FA");
   h += fz(24, 43.6, .02, TM(0, 0, .95, "CONTROL ROOM", "#4B5874", 'letter-spacing=".3"'));
-  h += fz(52, 43.0, .02, TX(0, 0, .7, `${fmtU(suites().reduce((a, s) => a + s.u, 0))} of ${EDITORS.reduce((a, [n]) => a + capOf(n), 0)} units/wk in edit`, "#6F7C92"));
+  h += fz(52, 43.0, .02, TX(0, 0, .7, `${fmtU(suites().reduce((a, s) => a + s.u, 0))} of ${EDITORS.reduce((a, [n]) => a + capOf(n), 0)} units/wk due by ${loadEndLabel()}`, "#6F7C92"));
   h += "</g>";
   /* warm pools of light */
   [[8, 10], [32, 13], [56, 14], [39, 37]].forEach(([x, y]) => { const [lx, ly] = P(x, y, 0); h += `<ellipse cx="${lx}" cy="${ly}" rx="190" ry="95" fill="url(#pool)" pointer-events="none"/>`; });

@@ -156,11 +156,12 @@ A separate claude.ai artifact (desktop-first, stacks at phone width), published 
   - Recommendations that can act do so in one click: "Give X to Y" (`data-assign` → River's `reassign()`, with Undo). It picks the least-loaded editor with room (`pickFree()`), and for overloaded editors it only suggests moving work still in Assigned.
   - **Laura's sessions are left out everywhere:** `loadBookings()` drops `BL -` bookings, and the calendar rooms hide bookings matched to her clients. The booked-sessions list (`board-sessions`, `boardHtml()`) is a plain list.
 - **Master control:**
-  - **Mixing console:** the fader shows units in edit against capacity, the meter counts late episodes, and − and + set capacity.
+  - **Mixing console:** the fader shows units due in the next 5 working days against capacity, the meter counts late episodes, and − and + set capacity.
   - **On-air board:** for the next 10 working days, deadlines due plus booked sessions arriving the next working day, against team capacity per day (total weekly capacity ÷ 5).
   - **Bottleneck meter:** units per stage and average wait. Wait is days since Available for edit stages, and `ageDays()` for Client Review.
+- **Load is measured by delivery date** (`LOAD_DAYS` = 5, `loadEnd()`, `inLoad()`, `loadU()` in `studio/src/app.js`): an editor's load is the units of their edit-stage episodes whose next deadline (`nextDue()`) falls within the next 5 working days, overdue ones included. Work due later, or with no deadline, doesn't count against this week's capacity. `suites()` (`s.u`, plus `s.all` for everything in edit), `edLoads()`, the booths, the console and the overload flag ("X has N units due by Thu 12, capacity C", listing those episodes) all use it.
 - **Capacity:**
-  - It means the units per week each editor can take on AG's work. The default is `DEFAULT_CAP` = 3.
+  - It means the units per week each editor can take on AG's work. The default is `DEFAULT_CAP` = 6.
   - It is stored in the artifact `db` at `settings/capacity` as `{caps: {firstname: n}, updatedAt}`, with localStorage as the fallback.
 - **Booking units** (`bookingUnits()`, an estimate):
   - Pro or Professional Edit is 1 unit.
