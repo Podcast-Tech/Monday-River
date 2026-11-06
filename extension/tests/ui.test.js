@@ -38,7 +38,7 @@ const FRAMEIO_FOLDER = page("Uploads | Frame.io", `<div style="background:#111;h
       if (/items\(ids/.test(q)) { const it = ALL.find(i => i.id === String(v.ids[0])); return { ok: true, data: { items: [Object.assign({ updates: [{ id: "9", text_body: "Raw files: DB Link\nUpload Link: Frame.io", created_at: new Date(Date.now() - 3600e3).toISOString(), creator_id: "106221824" }] }, it)] } }; }
       if (/contains_text/.test(q)) { const s = String(v.q[0]).toLowerCase(); return { ok: true, data: { boards: [{ items_page: { items: ALL.filter(i => i.name.toLowerCase().includes(s.replace(/ - session.*/, "")) || i.name.toLowerCase().includes(s)) } }] } }; }
       if (/users\(/.test(q)) return { ok: true, data: { users: [] } };
-      if (/change_multiple_column_values/.test(q)) { const it = ALL.find(i => i.id === String(v.i)), cv = JSON.parse(v.v); it.column_values.forEach(c => { if (c.id === "status" && cv.status) c.text = cv.status.label; if (cv[c.id] && cv[c.id].date) c.text = cv[c.id].date; }); }
+      if (/change_multiple_column_values/.test(q)) { const it = ALL.find(i => i.id === String(v.i)), cv = JSON.parse(v.v); it.column_values.forEach(c => { if (c.id === "status" && cv.status) c.text = cv.status.label; if (cv[c.id] && cv[c.id].date) c.text = cv[c.id].date; if (c.id in cv && cv[c.id] === null) c.text = ""; }); }
       return { ok: true, data: { change_multiple_column_values: { id: "1" }, create_update: { id: "2" } } }; });
     await p.addInitScript(() => { const store = {}; window.chrome = { runtime: { sendMessage: async m => m.type === "gql" ? window.__gql(m.query, m.variables) : null, onMessage: { addListener(f) { window.__onMsg = f; } } },
       storage: { local: { get: (k, cb) => cb && cb(store), set(o) { Object.assign(store, o); } }, onChanged: { addListener() {} } } }; });
@@ -66,6 +66,20 @@ const FRAMEIO_FOLDER = page("Uploads | Frame.io", `<div style="background:#111;h
   const note = calls.find(c => /create_update/.test(c.q)); assert.ok(/12:40 please cut/.test(note.v.b) && note.v.m[0].id === "88817643");
   await wait(p, ".toast", /Note posted to Akssat, moved to Corrections, V1/);
   console.log("✓ Gmail: highlighted feedback → note to @Akssat, Corrections, V1 date");
+  // Edit a deadline: tap Final, pick a date, save; Undo restores it; Clear writes null.
+  const dw = () => calls.filter(c => /change_multiple_column_values/.test(c.q) && /dup__of_1st_cut_deadline/.test(c.v.v)).map(c => JSON.parse(c.v.v));
+  await sh(p, '[data-date="final"]').click(); await sh(p, "#dval").waitFor();
+  await sh(p, "#dval").fill("2026-12-03"); await p.screenshot({ path: path.join(shots, "1b-edit-date.png") });
+  await sh(p, '[data-a="dsave"]').click(); await wait(p, ".toast", /Final set to 3 Dec/);
+  assert.deepStrictEqual(dw().pop(), { dup__of_1st_cut_deadline: { date: "2026-12-03" } });
+  assert.ok(/3 Dec/.test(await txt(p, '[data-date="final"]')) && !(await txt(p, ".dedit")), "cell shows the new date, editor closed");
+  await sh(p, '[data-a="undo"]').click(); await wait(p, ".toast", /Final cleared again/);
+  assert.deepStrictEqual(dw().pop(), { dup__of_1st_cut_deadline: null });
+  await sh(p, '[data-date="final"]').click(); await sh(p, "#dval").fill("2026-12-05"); await wait(p, ".dwarn", /Saturday/);
+  await sh(p, "#dval").press("Enter"); await wait(p, ".toast", /Final set to 5 Dec/);
+  await sh(p, '[data-date="final"]').click(); await sh(p, '[data-a="dclear"]').click(); await wait(p, ".toast", /Final cleared/);
+  assert.deepStrictEqual(dw().pop(), { dup__of_1st_cut_deadline: null });
+  console.log("✓ Dates: tap Final → pick a date → saved to Monday, Undo restores, weekend warning, Enter saves, Clear empties it");
 
   // 2. Search your tasks from the same panel.
   await sh(p, "#q").click(); await wait(p, ".count", /open tasks?/);

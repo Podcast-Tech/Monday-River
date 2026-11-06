@@ -211,6 +211,7 @@ A separate Chrome extension (Manifest V3). It does not change the River artifact
     2. External addresses looked up on PP Clients Only `text_mkxbach4`.
     3. The sender's name.
   - **Other pages:** an episode named in the title or `h1`, or the page URL matching a task's Frame.io or Dropbox link (`pageContext()`, `linkKey()`).
+- **Editing dates:** in a task card, tap any of the five date cells (Available, Draft, V1, Final, Publishing) to open a date field with Save, Clear (writes `null`), Cancel and a "+2 days" quick pick (`addWorkdays(2)`). Enter saves, Escape cancels, and a Saturday or Sunday shows a warning. It writes one column via `QUERIES.setCols` (`setDate()`), and the toast's Undo puts the old date back. Laura's clients stay read-only until Unlock.
 - **Same rules as River:**
   - Corrections fills the next empty date.
   - Editor notes mention the editor and set Corrections by default.

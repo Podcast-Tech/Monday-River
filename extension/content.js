@@ -14,7 +14,7 @@
     // search
     q: "", scope: "mine", filter: "open", mine: null, mineAt: 0, mineErr: null, every: [], everyQ: "", everyBusy: false, hi: 0,
     // note composer
-    draft: "", corr: true, mention: true, unlock: new Set(),
+    draft: "", corr: true, mention: true, unlock: new Set(), editDate: null, dateVal: "",
     settings: { everywhere: true, hidden: [] }, pos: null
   };
 
@@ -137,6 +137,22 @@
       S.cache.clear();
     } catch (e) {
       ep.stage = prev; if (patch.slot) ep[patch.slot[0]] = null;
+      toast(e.code === "network" ? "Monday didn't confirm. Check the task before trying again." : e.message, null, true);
+    }
+    S.busy = false; render();
+  }
+  /* Edit one deadline. Clearing writes null. Undo puts the old date back. */
+  async function setDate(ep, k, iso, undo) {
+    const col = L.DATE_COLS.find(c => c[0] === k); if (S.busy || !ep || !col) return;
+    const prev = ep[k] || null; iso = iso || null; if (prev === iso) { S.editDate = null; render(); return; }
+    S.busy = true; ep[k] = iso; S.editDate = null; render();
+    try {
+      await gql(L.QUERIES.setCols, { i: ep.id, v: JSON.stringify({ [col[1]]: iso ? { date: iso } : null }) });
+      toast(undo ? col[2] + (iso ? " back to " + L.short(iso) : " cleared again") : iso ? col[2] + " set to " + L.short(iso) + (prev ? " (was " + L.short(prev) + ")" : "") : col[2] + " cleared",
+        undo ? null : () => setDate(ep, k, prev, true));
+      S.cache.clear();
+    } catch (e) {
+      ep[k] = prev;
       toast(e.code === "network" ? "Monday didn't confirm. Check the task before trying again." : e.message, null, true);
     }
     S.busy = false; render();
@@ -290,7 +306,8 @@
       <h2><a href="${esc(ep.url)}" target="_blank" rel="noopener">${esc(ep.name)}</a></h2>
       <p class="rel ${r.cls}">${esc(r.txt)}</p>
       <dl>${row("Client", esc(ep.client || "Not linked"))}${row("Editor", esc(ep.editor || "No editor yet") + (ep.units ? ` <span class="mut">· ${ep.units} unit${ep.units === 1 ? "" : "s"}</span>` : ""))}</dl>
-      <div class="dates">${L.DATE_COLS.map(([k, , nm]) => `<div class="${ep[k] ? "" : "empty"} ${ep[k] && k !== "available" && L.nextDue(ep) === ep[k] ? "due " + r.cls : ""}"><span>${nm === "Publishing" ? "Publish" : nm === "Available" ? "Avail." : nm}</span><b class="tnum">${ep[k] ? L.short(ep[k]) : "–"}</b></div>`).join("")}</div>
+      <div class="dates ${locked ? "" : "edit"}">${L.DATE_COLS.map(([k, , nm]) => `<${locked ? "div" : `button type="button" data-date="${k}" title="Change ${nm}"`} class="${ep[k] ? "" : "empty"} ${ep[k] && k !== "available" && L.nextDue(ep) === ep[k] ? "due " + r.cls : ""} ${S.editDate === k ? "on" : ""}"><span>${nm === "Publishing" ? "Publish" : nm === "Available" ? "Avail." : nm}</span><b class="tnum">${ep[k] ? L.short(ep[k]) : locked ? "–" : "+ Add"}</b></${locked ? "div" : "button"}>`).join("")}</div>
+      ${!locked && S.editDate ? dateEditor(ep) : ""}
       ${ep.upload || ep.share || ep.dropbox ? `<div class="links">${lk(ep.share, "Frame.io review")}${lk(ep.upload, "Frame.io upload")}${lk(ep.dropbox, "Dropbox raws")}</div>` : ""}
       ${locked ? `<div class="lock"><span>This is Laura's client, so River won't change it unless you unlock it.</span><button class="btn" data-a="unlock">Unlock</button></div>` : `
       <div><p class="lbl">Move to</p><div class="moves">${L.MOVE_TO.map(s => `<button class="mv" data-stage="${esc(s)}" style="--c:${L.COLOR[s]}" ${s === ep.stage || S.busy ? "disabled" : ""}><i></i>${esc(s)}</button>`).join("")}</div></div>
@@ -303,9 +320,17 @@
       ${!ep.hasUpdates ? `<div><p class="lbl">Latest on Monday</p><div class="skel"><i style="width:80%"></i><i style="width:60%"></i></div></div>` : ep.updates.length ? `<div><p class="lbl">Latest on Monday</p><div class="ups">${ep.updates.map(u => `<div class="up"><b>${esc(S.users.get(u.by) || "Someone")}</b><small>${esc(L.ago(u.at))}</small><p>${esc(u.body.length > 260 ? u.body.slice(0, 260) + "…" : u.body)}</p></div>`).join("")}</div></div>` : ""}
     </article>`;
   }
+  function dateEditor(ep) {
+    const col = L.DATE_COLS.find(c => c[0] === S.editDate), v = S.dateVal, wd = v ? new Date(v + "T12:00:00").getDay() : -1, two = L.addWorkdays(2);
+    return `<div class="dedit"><label for="dval">${esc(col[2])}</label><input type="date" id="dval" value="${esc(v)}">
+      <button class="btn sm" data-a="d2" title="Today plus two working days">${esc(L.short(two))} <span class="mut">+2 days</span></button>
+      ${ep[S.editDate] ? `<button class="btn sm" data-a="dclear">Clear</button>` : ""}
+      <span class="sp"></span><button class="btn sm" data-a="dcancel">Cancel</button><button class="btn sm pri" data-a="dsave" ${S.busy ? "disabled" : ""}>Save</button>
+      ${wd === 6 || wd === 0 ? `<p class="dwarn">That's a ${wd === 6 ? "Saturday" : "Sunday"}, on the weekend.</p>` : ""}</div>`;
+  }
   function toastHtml() { const t = S.toast; return t ? `<div class="toast ${t.bad ? "bad" : ""} ${S.open ? "" : "float"}" role="status"><span>${esc(t.text)}</span>${t.undo ? `<button data-a="undo">Undo</button>` : ""}</div>` : ""; }
   let tt; function toast(text, undo, bad) { S.toast = { text, undo, bad }; clearTimeout(tt); tt = setTimeout(() => { S.toast = null; render(); }, undo ? 7000 : 4000); render(); }
-  function openCard(id, from) { S.selId = id; S.draft = ""; S.from = from; S.view = from === "context" ? "context" : "card"; const a = root.activeElement; if (a && a.id === "q") a.blur(); render(); loadDetail(get(id)); const bd = W.querySelector(".bd"); if (bd) bd.scrollTop = 0; }
+  function openCard(id, from) { S.selId = id; S.draft = ""; S.editDate = null; S.from = from; S.view = from === "context" ? "context" : "card"; const a = root.activeElement; if (a && a.id === "q") a.blur(); render(); loadDetail(get(id)); const bd = W.querySelector(".bd"); if (bd) bd.scrollTop = 0; }
 
   /* Remember the last text highlighted on the page, because clicking our button clears the selection. */
   let lastSel = "";
@@ -318,6 +343,8 @@
     if (fl) { S.filter = fl.dataset.filter; S.hi = 0; render(); return; }
     if (o) { openCard(o.dataset.ep, S.view === "search" ? "search" : S.view === "card" ? S.from : "context"); return; }
     if (st && !st.disabled) { setStage(get(S.selId), st.dataset.stage); return; }
+    const dc = e.target.closest("[data-date]");
+    if (dc) { const ep = get(S.selId), k = dc.dataset.date; if (S.editDate === k) S.editDate = null; else { S.editDate = k; S.dateVal = ep[k] || L.addWorkdays(2); } render(); const n = root.getElementById("dval"); if (n) { n.focus(); try { n.showPicker(); } catch (_) {} } return; }
     if (!a) return;
     const k = a.dataset.a, ep = get(S.selId);
     if (k === "open") openPanel();
@@ -329,16 +356,22 @@
     else if (k === "hide") { S.settings.hidden = [...new Set([...S.settings.hidden, HOST])]; try { chrome.storage.local.set({ hidden: S.settings.hidden }); } catch (_) {} S.open = false; toast("Hidden on " + HOST + ". Alt+Shift+R or the toolbar icon still opens River here."); }
     else if (k === "unlock" && ep) { S.unlock.add(ep.id); render(); }
     else if (k === "post" && ep) postNote(ep);
+    else if (k === "dsave" && ep) setDate(ep, S.editDate, S.dateVal);
+    else if (k === "dclear" && ep) setDate(ep, S.editDate, null);
+    else if (k === "d2" && ep) setDate(ep, S.editDate, L.addWorkdays(2));
+    else if (k === "dcancel") { S.editDate = null; render(); }
     else if (k === "undo" && S.toast && S.toast.undo) { const f = S.toast.undo; S.toast = null; f(); }
     else if (k === "grab") { if (!lastSel) { toast("Highlight the text on the page first.", null, true); return; } S.draft = (S.draft ? S.draft.trimEnd() + "\n" : "") + lastSel; render(); const n = root.getElementById("note"); if (n) { n.focus(); n.selectionStart = n.value.length; } }
   });
   W.addEventListener("focusin", e => { if (!restoring && e.target.id === "q" && S.view !== "search") { S.view = "search"; S.hi = 0; loadMine(); render(); } });
   W.addEventListener("input", e => {
     if (e.target.id === "note") S.draft = e.target.value;
+    if (e.target.id === "dval") S.dateVal = e.target.value;
     if (e.target.id === "q") { S.q = e.target.value; S.hi = 0; S.view = "search"; if (S.scope === "everyone") searchEveryone(); render(); }
   });
   W.addEventListener("change", e => { if (e.target.id === "corr") S.corr = e.target.checked; if (e.target.id === "mention") S.mention = e.target.checked; });
   W.addEventListener("keydown", e => {
+    if (e.target.id === "dval") { if (e.key === "Enter") { e.preventDefault(); S.dateVal = e.target.value; setDate(get(S.selId), S.editDate, S.dateVal); } else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); S.editDate = null; render(); } return; }
     if (e.target.id === "q") {
       const list = currentResults() || [];
       if (e.key === "ArrowDown") { e.preventDefault(); S.hi = Math.min(list.length - 1, S.hi + 1); render(); scrollHi(); }
@@ -348,6 +381,7 @@
       return;
     }
     if (e.target.id === "note" && (e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); const ep = get(S.selId); if (ep) postNote(ep); return; }
+    if (e.key === "Escape" && S.editDate) { e.preventDefault(); S.editDate = null; render(); return; }
     if (e.key === "Escape") { e.preventDefault(); if (S.view === "card") { S.view = S.from === "search" ? "search" : "context"; render(); } else if (!IS_PAGE) closePanel(); }
   });
   function scrollHi() { const h = W.querySelector(".rs.hi"); if (h) h.scrollIntoView({ block: "nearest" }); }
@@ -455,6 +489,15 @@
     .dates span{font-size:10.5px;color:#8693A8;text-transform:uppercase;letter-spacing:.04em}
     .dates b{font-weight:600;font-size:12.5px;white-space:nowrap}
     .dates .empty b{color:#55617A;font-weight:400}
+    .dates.edit button{all:unset;box-sizing:border-box;display:grid;gap:1px;padding:6px 7px;border-left:1px solid rgb(160 200 255 / .08);cursor:pointer;min-width:0}
+    .dates.edit button:first-child{border-left:0}
+    .dates.edit button:hover{background:rgb(160 200 255 / .07)} .dates.edit button:focus-visible{outline:2px solid #FF003C;outline-offset:-2px}
+    .dates.edit button.on{background:rgb(63 169 255 / .16);box-shadow:inset 0 -2px 0 #3FA9FF}
+    .dates.edit .empty b{color:#6E7A92;font-size:11.5px}
+    .dedit{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:-4px;padding:8px;border:1px solid rgb(63 169 255 / .3);border-radius:10px;background:rgb(63 169 255 / .06)}
+    .dedit label{font-size:11px;color:#8693A8;text-transform:uppercase;letter-spacing:.04em}
+    .dedit input{font:inherit;font-size:12.5px;color:#E8EEF7;background:#0E1522;border:1px solid rgb(160 200 255 / .18);border-radius:7px;padding:4px 6px;color-scheme:dark}
+    .dedit .sp{flex:1} .dedit .dwarn{flex-basis:100%;margin:0;font-size:11.5px;color:#F6B64A}
     .dates .due{background:rgb(255 255 255 / .04)} .dates .due.late{background:rgb(255 77 106 / .1)} .dates .due.today{background:rgb(246 182 74 / .1)}
     .links{display:flex;flex-wrap:wrap;gap:6px}
     .lk{border:1px solid rgb(160 200 255 / .16);border-radius:8px;padding:5px 9px;font-size:12px;font-weight:500;color:#BFE3FF;text-decoration:none}
