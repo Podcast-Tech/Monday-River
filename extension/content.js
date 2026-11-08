@@ -26,7 +26,7 @@
     if (!r || !r.ok) throw Object.assign(new Error((r && r.error) || "Monday didn't answer."), { code: (r && r.code) || "api" });
     return r.data;
   }
-  function keep(raws) { return raws.map(x => { const n = L.normEpisode(x), old = S.store.get(n.id); if (old) { if (!n.hasUpdates && old.hasUpdates) { n.updates = old.updates; n.hasUpdates = true; } Object.assign(old, n); return old; } S.store.set(n.id, n); return n; }); }
+  function keep(raws) { return raws.map(x => { const n = L.normEpisode(x), old = S.store.get(n.id); if (old) { if (!n.hasUpdates && old.hasUpdates) { n.updates = old.updates; n.hasUpdates = true; } Object.assign(old, n); return old; } S.store.set(n.id, n); return n; }).filter(L.tracked); }
   const get = id => S.store.get(id) || null;
   const pageItems = d => (((d.boards || [])[0] || {}).items_page || {});
 

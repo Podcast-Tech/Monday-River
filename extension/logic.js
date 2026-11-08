@@ -6,6 +6,9 @@
   const MOVE_TO = ["Assigned","In Process","In Review","Corrections","Client Review","Done"];
   const COLOR = { "Queue": "#8693A8", "Assigned": "#C9D3E2", "In Process": "#F6C94A", "In Review": "#5EB2FF", "Corrections": "#FF8F45", "Client Review": "#3EDC97", "Done": "#9C8CFF" };
   const CLOSED = new Set(["Done","Cancelled","No Client Response","Paid"]);
+  /* AG doesn't track these statuses anywhere: dropped wherever tasks load. */
+  const UNTRACKED = new Set(["No Rush"]);
+  const tracked = it => !UNTRACKED.has(it.stage);
   const IN_EDIT = new Set(["Queue","Assigned","In Process","In Review","Corrections"]);
   const CORPORATE = /dmitrii|suvo|enbd/i;
   const DATE_COLS = [["available","date","Available"],["draft","date4","Draft"],["v1","date_mkx87nb3","V1"],["final","dup__of_1st_cut_deadline","Final"],["publishing","date_mm02j5tr","Publishing"]];
@@ -132,8 +135,8 @@
     me: `query { me { id name email } }`
   };
 
-  const api = { EPISODE_BOARD, CLIENTS_BOARD, ME_ID, COLS, STAGES, MOVE_TO, COLOR, CLOSED, IN_EDIT, CORPORATE, DATE_COLS, EDITORS, PEOPLE, SKIP_DOMAINS,
-    isoOf, todayISO, dayNum, short, addWorkdays, firstName, editorId, stripPrefix, normEpisode, nextDue, daysTo, ageDays, isLate, rel, correctionsPatch,
+  const api = { EPISODE_BOARD, CLIENTS_BOARD, ME_ID, COLS, STAGES, MOVE_TO, COLOR, CLOSED, UNTRACKED, IN_EDIT, CORPORATE, DATE_COLS, EDITORS, PEOPLE, SKIP_DOMAINS,
+    tracked, isoOf, todayISO, dayNum, short, addWorkdays, firstName, editorId, stripPrefix, normEpisode, nextDue, daysTo, ageDays, isLate, rel, correctionsPatch,
     readEmail, searchTerms, rank, ago, urgency, matchLocal, linkKey, pageContext, QUERIES };
   if (typeof module !== "undefined" && module.exports) module.exports = api; else root.RiverLogic = api;
 })(typeof self !== "undefined" ? self : this);

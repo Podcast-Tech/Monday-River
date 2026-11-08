@@ -43,7 +43,6 @@ Episode Editing Board `2472462203`, filtered to Episode Producer = AG (`people` 
 | `date_mkx87nb3` | V1 |
 | `dup__of_1st_cut_deadline` | Final |
 | `date_mm02j5tr` | Publishing |
-| `status_1` | Invoice (Payment pending / Paid). Still fetched but no longer shown in the panel (AG asked to remove it). |
 | `board_relation_mkxb8cpz` | Client (links to PP Clients Only `18330033684`) |
 | `link_mm22fna1` | F.IO Upload link (internal; this goes in editor notes) |
 | `link_mkxbtnjf` | F.IO Share/review link (client-facing) |
@@ -64,7 +63,10 @@ Value formats:
 
 ## Business rules (do not break)
 
-- **Pipeline:** Queue → Assigned → In Process → In Review → Corrections → Client Review → Done (→ Paid on `status_1`). The river shows the first six stages; Done is the sea.
+- **Pipeline:** Queue → Assigned → In Process → In Review → Corrections → Client Review → Done. The river shows the first six stages; Done is the sea.
+- **Not tracked, anywhere** (River, Studio, Pocket, the extension and River Wrist):
+  - The Invoice column (`status_1`). It isn't fetched, shown or used for any rule.
+  - Episodes with PP Status **No Rush**. They are dropped as they load (`UNTRACKED`, `tracked()` next to `CLOSED`), so they never reach a count, list, flag, the river or the watch. Add another status to `UNTRACKED` to park it the same way.
 - **Working days:** Sat and Sun are the weekend. "Two working days" skips them (`addWorkdays(2)`).
 - **Corrections rule:** any move to Corrections (drag, stage button, or a note with "Set to Corrections") also fills the **next empty** date column, in the order Available → Draft → V1 → Final → Publishing, with today + 2 working days, in the same write. Undo clears that date. Filled dates are never overwritten.
 - **New task rule:**
@@ -219,3 +221,21 @@ A separate Chrome extension (Manifest V3). It does not change the River artifact
   - It never sends email.
 - **Tests:** `node extension/tests/logic.test.js`, `node extension/tests/ui.test.js`, `node extension/tests/ext.test.js` (Playwright, with `NODE_PATH=$(npm root -g)`).
 - **Releasing:** bump `version` in the manifest, then `cd extension && zip -r ../river-for-chrome.zip . -x 'tests/*'`.
+
+## River Wrist (`wrist/`), the Garmin watch app
+
+River on AG's Garmin fēnix 8 Pro (Connect IQ device id `fenix8pro47mm`, which covers the 47 mm, 51 mm and MicroLED models; 454×454 AMOLED).
+- **Back end (`wrist/api/`):** a Vercel function, project `river-wrist` in "Abdullah Ghanem's projects", at `https://river-wrist-abdullah-ghanems-projects.vercel.app/api/wrist`.
+  - `GET` returns a small summary (~4 KB): `late`, `soon` (due within 2 days, not late), `review`, `open`, `st` (open per stage in River's flow order), `eps` (Needs you, up to 40, in `urgency()` order, with short names like "Rita Baki 01.11") and `stages` (`MOVE_TO`).
+  - `POST {id, stage}` moves an episode, applying the Corrections rule. Laura's (`BL -`) episodes return 403 `locked`.
+  - Auth: header `X-River-Key` must equal the `WRIST_KEY` env var. The Monday token is the `MONDAY_TOKEN` env var and never leaves Vercel. Never commit either.
+  - `wrist/api/lib/logic.js` is a verbatim copy of `extension/logic.js`; the test fails if they differ. After changing River's rules there, copy it and redeploy.
+  - Time zone is Africa/Cairo (`process.env.TZ`).
+  - Test: `node wrist/api/tests/api.test.js`. `node wrist/api/tests/serve-mock.js 8787 <key>` serves it locally with a fake Monday.
+- **Watch app (`wrist/watch/`):** Monkey C, built with Connect IQ SDK 9.3 at strict type checking.
+  - Screens: glance (stage-colour bar, "N need you · N late"); main (stage ring around the bezel from `st`, the Needs-you count, Late / 48H / Clients, the next edit to chase); Needs you (`CustomMenu`, sections To chase and Quiet clients, Laura's last and greyed); episode card (stage pill and ring, status, editor, Move stage); stage picker; confirm; toast. Colours are River's tokens (`Theme.mc`).
+  - The glance shows the last summary saved in `Application.Storage`; it refreshes when the app opens or START is pressed.
+  - Build: `wrist/watch/tools/build.sh <api_url> <key_file> <out.prg>` bakes the URL and key into `Config.mc` for the build only (the committed file keeps placeholders). It signs with `wrist/watch/developer_key.der`, which is gitignored: keep using the same key so the watch treats every build as the same app.
+  - Install: copy `River.prg` into GARMIN/APPS over USB (OpenMTP on a Mac). No Connect IQ Store.
+  - Simulator: `wrist/watch/tools/sim_flow.sh <prg> <outdir> "<steps>"` runs the flow against the local mock and screenshots it (S, D, U, B, R = relaunch, `shot:<name>`). The mock is plain http, so it turns off the simulator's HTTPS rule in `~/.Garmin/ConnectIQ/simulator.ini`.
+  - Network goes through the phone's Garmin Connect app. Code -300 means it timed out (usually Garmin Connect asleep on the iPhone), -104 means no phone link.

@@ -204,6 +204,15 @@ const test = new Function("els", "assert", src + `
     assert.strictEqual(rc.parentId, 5612173060); assert.strictEqual(JSON.parse(rc.mentionsList)[0].id, "61381904");
     S.inbox = false; S.sel = ep.id; renderPanel(); assert.ok(/Latest on Monday/.test(els.panel.innerHTML) && /Akssat/.test(els.panel.innerHTML), "episode panel shows its notifications");
     console.log("✓ Notifications: badge, toast + ripple on new mention, inbox filters, threaded reply with mention, per-episode list");
+    // "No Rush" is never tracked: dropped on load, so it can't reach a count, list or the river.
+    const nrRaws = S.items.map(i => ({ id: i.id, name: i.name, updated_at: i.updated, created_at: i.created,
+      column_values: { status: i.stage, person: i.editor, date: i.available, date4: i.draft, board_relation_mkxb8cpz: [{ id: "77", name: "AG - " + i.client }] } }))
+      .concat([{ id: "9999", name: "Parked Client - Session 01.11.26", updated_at: iso(0), created_at: iso(0),
+        column_values: { status: "No Rush", person: "Igor Garčev", date: d(-30), date4: d(-20), board_relation_mkxb8cpz: [{ id: "77", name: "AG - Parked Client" }] } }]);
+    await onBoard({ type: "result", result: { payload: { items: nrRaws } } }); await flush();
+    assert.ok(!S.items.some(i => i.id === "9999"), "No Rush episode dropped");
+    assert.ok(!els.river.innerHTML.includes("Parked Client"), "No Rush never drawn");
+    console.log("✓ No Rush episodes are dropped on load (not counted, listed or drawn)");
     console.log("All smoke tests passed.");
   })();
 `);

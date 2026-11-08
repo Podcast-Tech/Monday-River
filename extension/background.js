@@ -58,7 +58,7 @@ let mine = null, mineAt = 0;
 async function myTasks() {
   if (mine && Date.now() - mineAt < 120000) return mine;
   const d = await gql(L.QUERIES.mine);
-  mine = ((((d.boards || [])[0] || {}).items_page || {}).items || []).map(L.normEpisode); mineAt = Date.now();
+  mine = ((((d.boards || [])[0] || {}).items_page || {}).items || []).map(L.normEpisode).filter(L.tracked); mineAt = Date.now();
   return mine;
 }
 const xml = s => String(s || "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" }[c]));
@@ -72,7 +72,7 @@ chrome.omnibox.onInputChanged.addListener(async (text, suggest) => {
     if (list.length < 5 && q.length >= 2) {
       const d = await gql(L.QUERIES.find, { q: [q] });
       const seen = new Set(list.map(e => e.id));
-      list = list.concat(((((d.boards || [])[0] || {}).items_page || {}).items || []).map(L.normEpisode).filter(e => !seen.has(e.id)));
+      list = list.concat(((((d.boards || [])[0] || {}).items_page || {}).items || []).map(L.normEpisode).filter(L.tracked).filter(e => !seen.has(e.id)));
     }
     if (seq !== omniSeq) return;
     chrome.omnibox.setDefaultSuggestion({ description: list.length ? `Open River and search “${xml(q)}” (${list.length} found)` : `No tasks match “${xml(q)}”. Press Enter to search in River` });

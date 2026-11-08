@@ -1,0 +1,6 @@
+{
+  "name": "river-wrist-api",
+  "private": true,
+  "description": "Back end for River Wrist, the Garmin fēnix 8 Pro version of River",
+  "engines": { "node": "22.x" }
+}

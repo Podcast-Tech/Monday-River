@@ -333,12 +333,15 @@ a.post.wa-go,button.post.wa-go{background:#1FA855;text-decoration:none;display:i
 const SERVER = "monday.com";
 const BOARD = 2472462203;
 const BOARD_URL = "https://poddsterstudios-team.monday.com/boards/" + BOARD;
-const COLS = ["status","person","date","date4","date_mkx87nb3","dup__of_1st_cut_deadline","status_1","board_relation_mkxb8cpz","link_mm22fna1","link_mkxbtnjf","link_mkxbm8as","numeric_mm1y5e6b","date_mm02j5tr"];
+const COLS = ["status","person","date","date4","date_mkx87nb3","dup__of_1st_cut_deadline","board_relation_mkxb8cpz","link_mm22fna1","link_mkxbtnjf","link_mkxbm8as","numeric_mm1y5e6b","date_mm02j5tr"];
 const INPUT = { boardId: BOARD, includeColumns: true, includeGroup: false, columnIds: COLS, limit: 500,
   filters: [{ columnId: "people", compareValue: ["assigned_to_me"], operator: "any_of" }] };
 const FLOW = ["Queue","Assigned","In Process","In Review","Corrections","Client Review"];
 const COLOR = { "Queue": "--st-queue", "Assigned": "--st-assigned", "In Process": "--st-process", "In Review": "--st-review", "Corrections": "--st-corr", "Client Review": "--st-client", "Done": "--st-done" };
 const CLOSED = new Set(["Done","Cancelled","No Client Response","Paid"]);
+/* AG doesn't track these statuses anywhere: they are dropped on load, so no count, list, river or flag sees them. */
+const UNTRACKED = new Set(["No Rush"]);
+const tracked = it => !UNTRACKED.has(it.stage);
 const IN_EDIT = new Set(["Queue","Assigned","In Process","In Review","Corrections"]);
 const MOVE_TO = ["Assigned","In Process","In Review","Corrections","Client Review","Done"];
 const CORPORATE = /dmitrii|suvo|enbd/i;
@@ -364,7 +367,7 @@ function norm(raw) {
   const c = raw.column_values || {};
   return { id: String(raw.id), name: raw.name || "Untitled", url: raw.url || BOARD_URL, updated: raw.updated_at, created: raw.created_at,
     stage: str(c.status) || "No status", editor: str(c.person), available: isoDate(c.date), draft: isoDate(c.date4),
-    v1: isoDate(c.date_mkx87nb3), final: isoDate(c.dup__of_1st_cut_deadline), publishing: isoDate(c.date_mm02j5tr), invoice: str(c.status_1),
+    v1: isoDate(c.date_mkx87nb3), final: isoDate(c.dup__of_1st_cut_deadline), publishing: isoDate(c.date_mm02j5tr),
     client: clientName(c.board_relation_mkxb8cpz), upload: lastUrl(c.link_mm22fna1), share: lastUrl(c.link_mkxbtnjf),
     dropbox: lastUrl(c.link_mkxbm8as), units: parseFloat(str(c.numeric_mm1y5e6b)) || 0 };
 }
@@ -1476,7 +1479,7 @@ async function onBoard(ev) {
   const p = ev.result.payload || {};
   let raw = p.items || [];
   if (p.pagination && p.pagination.has_more) raw = await loadMore(p.pagination.nextCursor, raw.slice(), 1);
-  const next = raw.map(norm), since = S.syncedAt || Date.now(), revalidating = !!(ev.result.cache && ev.result.cache.revalidating);
+  const next = raw.map(norm).filter(tracked), since = S.syncedAt || Date.now(), revalidating = !!(ev.result.cache && ev.result.cache.revalidating);
   /* No ripples on first load, or for a cached copy that is about to be replaced. */
   const found = S.seeded && !revalidating ? diffItems(S.items, next) : [];
   S.items = next;

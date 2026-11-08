@@ -1,0 +1,5 @@
+# Never commit: the Connect IQ signing key, built apps, or a real watch key
+watch/developer_key.der
+watch/bin/
+*.prg
+*.key
