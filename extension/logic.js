@@ -43,8 +43,8 @@
   }
   function nextDue(it) {
     if (!IN_EDIT.has(it.stage)) return null;
-    if (it.stage === "Corrections") return [it.v1, it.final].filter(Boolean).sort().pop() || it.draft;
-    return it.draft;
+    // The deadline is the last filled date column (Publishing → Final → V1 → Draft), whatever the stage.
+    return it.publishing || it.final || it.v1 || it.draft || null;
   }
   const daysTo = it => { const d = nextDue(it); return d ? dayNum(d) - dayNum(todayISO()) : null; };
   function ageDays(it) { const last = [it.draft, it.v1, it.final].filter(Boolean).sort().pop() || (it.updated || "").slice(0, 10); return last ? dayNum(todayISO()) - dayNum(last) : 0; }

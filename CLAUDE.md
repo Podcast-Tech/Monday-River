@@ -82,7 +82,7 @@ Value formats:
   - The episode panel lists the latest 4 non-automation notifications for that item under "Latest on Monday".
 - **Corporate clients** (Dmitrii Tverdokhleb, Suvo Sarkar, ENBD) have open-ended review timelines. Never count them as "quiet" in Client Review (`CORPORATE` regex).
 - **"Late":**
-  - In edit stages: the next deadline has passed. For Corrections that is the latest of V1/Final, falling back to Draft.
+  - In edit stages: the deadline has passed. The deadline is the last filled date column (Publishing, else Final, else V1, else Draft), in every edit stage (`nextDue()`, same in River, Studio, Pocket and the extension). AG asked for this so a set V1 replaces an old Draft date.
   - In Client Review: more than 7 days since the latest deadline date, excluding corporate clients.
 - **Client emails:** never send email from this app. Any future email feature creates Gmail **drafts** only, CCs production@poddster.com, and shows the full draft for AG to confirm first.
 - **Package details:** the episode panel shows the studio booking behind the episode (session, order ID, services, add-ons, setup, seats, guests, requests, file transfer, Calendar link).

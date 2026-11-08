@@ -25,4 +25,9 @@ assert.strictEqual(L.addWorkdays(2, "2026-10-08T10:00:00"), "2026-10-12", "Thu +
 const laura = L.normEpisode({ id: 1, name: "X - Session", column_values: [{ id: "board_relation_mkxb8cpz", display_value: "BL - Someone", linked_item_ids: ["2"] }] });
 assert.ok(laura.laura, "Laura's clients are flagged");
 console.log("✓ Corrections fills the next empty date (V1), weekend skipped, Laura's clients flagged");
+// Deadline = the last filled date column, not Draft (Mohamed Alyousuf: Draft 2 Nov, V1 10 Nov, In Review → due 10 Nov).
+const ma = { stage: "In Review", name: "Mohamed Alyousuf - Session 29.10.26 (P#1)", available: "2026-10-30", draft: "2026-11-02", v1: "2026-11-10", final: null, publishing: null };
+assert.strictEqual(L.nextDue(ma), "2026-11-10"); assert.strictEqual(L.nextDue(Object.assign({}, ma, { final: "2026-11-14" })), "2026-11-14");
+assert.strictEqual(L.nextDue(Object.assign({}, ma, { v1: null })), "2026-11-02");
+console.log("✓ Lateness counts from the last filled date column (V1 over Draft, Final over V1)");
 console.log("All logic tests passed.");
