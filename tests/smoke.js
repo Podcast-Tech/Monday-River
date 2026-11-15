@@ -106,12 +106,12 @@ const test = new Function("els", "assert", src + `
     const lastWrite = () => JSON.parse(calls.filter(c => c.tool === "change_item_column_values").pop().input.columnValues);
     const flush = async () => { for (let k = 0; k < 4; k++) await new Promise(r => r()); };
     const queued = S.items.find(i => i.stage === "Queue"); queued.editor = "";
-    S.drag = { id: queued.id, from: "Queue", sx: 0, sy: 0, x: 0, y: 0, moved: true }; S.dropEditor = "Stipe Majić";
+    S.drag = { id: queued.id, from: "Queue", sx: 0, sy: 0, x: 0, y: 0, moved: true }; S.dropEditor = "Georges Saliba";
     endDrag({ pointerId: 1 }, false); await flush();
     let rcv = lastWrite();
-    assert.deepStrictEqual(rcv.person, { personsAndTeams: [{ id: 61381904, kind: "person" }] }); assert.strictEqual(rcv.status.label, "Assigned");
-    assert.strictEqual(queued.stage, "Assigned"); assert.strictEqual(queued.editor, "Stipe Majić");
-    console.log("✓ Reassign: Queue episode dropped on Stipe gets person + Assigned");
+    assert.deepStrictEqual(rcv.person, { personsAndTeams: [{ id: 36795459, kind: "person" }] }); assert.strictEqual(rcv.status.label, "Assigned");
+    assert.strictEqual(queued.stage, "Assigned"); assert.strictEqual(queued.editor, "Georges Saliba");
+    console.log("✓ Reassign: Queue episode dropped on Georges gets person + Assigned");
     const rev = S.items.find(i => i.stage === "In Review"); rev.editor = "Igor Garčev";
     S.drag = { id: rev.id, from: "In Review", sx: 0, sy: 0, x: 0, y: 0, moved: true }; S.dropEditor = "Georges Saliba";
     endDrag({ pointerId: 1 }, false); await flush();

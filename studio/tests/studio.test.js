@@ -24,7 +24,7 @@ const { ITEMS, EVENTS, MINE } = require("./fixtures");
   const t = s => p.evaluate(s => [...document.querySelectorAll(s)].map(n => n.textContent.replace(/\s+/g, " ").trim()), s);
   const n = s => p.evaluate(s => document.querySelectorAll(s).length, s);
   assert.strictEqual(await n("#scene [data-gep]"), 2, "two guests on the green-room couches");
-  assert.strictEqual(await n("#scene .booth"), 11, "a booth per editor");
+  assert.strictEqual(await n("#scene .booth"), 8, "a booth per editor");
   assert.strictEqual(await n('#scene [data-room="screening"]'), 1);
   const seated = await p.evaluate(() => [...document.querySelectorAll("#scene [data-ep]")].map(e => e.dataset.ep));
   ["10", "11", "12", "13", "14"].forEach(id => assert.ok(seated.includes(id), "client-review " + id + " seated"));
@@ -44,7 +44,11 @@ const { ITEMS, EVENTS, MINE } = require("./fixtures");
   assert.ok(/Laiba Khan/.test((await t("#panel h2"))[0])); assert.ok(await n("#panel .wa #wa-text"), "WhatsApp composer in the panel"); await p.keyboard.press("Escape");
   console.log("✓ Click a tape on Igor's desk → Laiba Khan's episode panel");
   // drag a guest into a booth
-  const from = await p.locator('#scene [data-gep="4"]').boundingBox(), to = await p.locator('#scene .booth[data-drop="Akssat"] polygon').first().boundingBox();
+  const from = await p.locator('#scene [data-gep="4"]').boundingBox();
+  // a point inside Akssat's booth that isn't covered by a neighbouring booth or tag
+  const pt = await p.evaluate(() => { const r = document.querySelector('#scene .booth[data-drop="Akssat"]').getBoundingClientRect();
+    for (let fy = .2; fy < .9; fy += .05) for (let fx = .2; fx < .9; fx += .05) { const x = r.x + r.width * fx, y = r.y + r.height * fy, e = document.elementFromPoint(x, y); if (e && e.closest("[data-drop]") && e.closest("[data-drop]").dataset.drop === "Akssat") return { x, y }; } return null; });
+  assert.ok(pt, "Akssat's booth is reachable"); const to = { x: pt.x, y: pt.y, width: 0, height: 0 };
   await p.mouse.move(from.x + from.width / 2, from.y + from.height / 2); await p.mouse.down();
   await p.mouse.move(from.x + 40, from.y + 30, { steps: 4 }); await p.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 8 }); await p.mouse.up(); await p.waitForTimeout(200);
   const re = calls.find(c => c.tool === "change_item_column_values"); assert.ok(re, "reassign write"); const cv = JSON.parse(re.input.columnValues);

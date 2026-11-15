@@ -459,7 +459,7 @@ async function onBoard(ev) {
   }
   const p = ev.result.payload || {}; let raw = p.items || [];
   if (p.pagination && p.pagination.has_more) raw = await loadMore(p.pagination.nextCursor, raw.slice(), 1);
-  S.items = raw.map(norm); S.storedAt = ev.result.cache ? ev.result.cache.storedAt : Date.now(); S.error = null;
+  S.items = raw.map(norm).filter(tracked); S.storedAt = ev.result.cache ? ev.result.cache.storedAt : Date.now(); S.error = null;
   render();
 }
 function onNotifsStudio(ev) {

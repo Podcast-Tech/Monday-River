@@ -59,8 +59,8 @@ const threeMin = fs.readFileSync(require.resolve("three/build/three.min.js"), "u
   assert.ok(/Akssat's booth/.test((await t("#drawer .d-h b"))[0])); await p.click('[data-act="drawer-close"]');
   console.log("✓ Click Akssat's booth → his suite drawer");
   // hover tooltip
-  w = await at("drop:Stipe Majić"); await p.mouse.move(w.x, w.y); await p.waitForTimeout(150); await p.mouse.move(w.x + 2, w.y + 2); await p.waitForTimeout(150);
-  assert.ok(!(await p.isHidden("#tip")) && /booth|Al Tamimi|Stipe/.test((await t("#tip"))[0]), "tooltip on hover: " + (await t("#tip"))[0]);
+  w = await at("drop:Georges Saliba"); await p.mouse.move(w.x, w.y); await p.waitForTimeout(150); await p.mouse.move(w.x + 2, w.y + 2); await p.waitForTimeout(150);
+  assert.ok(!(await p.isHidden("#tip")) && /booth|Georges/.test((await t("#tip"))[0]), "tooltip on hover: " + (await t("#tip"))[0]);
   console.log("✓ Hover in 3D: " + (await t("#tip"))[0]);
   // set tag → studio drawer
   await p.click('.views [data-view="1"]'); await still();

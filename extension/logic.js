@@ -9,8 +9,10 @@
   const IN_EDIT = new Set(["Queue","Assigned","In Process","In Review","Corrections"]);
   const CORPORATE = /dmitrii|suvo|enbd/i;
   const DATE_COLS = [["available","date","Available"],["draft","date4","Draft"],["v1","date_mkx87nb3","V1"],["final","dup__of_1st_cut_deadline","Final"],["publishing","date_mm02j5tr","Publishing"]];
-  const EDITORS = [["Igor Garčev","43400381"],["Motasem Jammal","107518052"],["Stipe Majić","61381904"],["Georges Saliba","36795459"],["Stefan Mikić","38981225"],["Akssat","88817643"],["Mahmoud","107176166"],["Glody Kikonga","60723690"],["Shrijit Chowdhury","101677796"],["Bashar M. Najjar","103717656"],["Ajin","71556126"]];
-  const PEOPLE = new Map([[ME_ID, "You"], ["106221824", "Roy"], ...EDITORS.map(([n, id]) => [id, n])]);
+  const EDITORS = [["Igor Garčev","43400381"],["Motasem Jammal","107518052"],["Georges Saliba","36795459"],["Akssat","88817643"],["Mahmoud","107176166"],["Shrijit Chowdhury","101677796"],["Bashar M. Najjar","103717656"],["Ajin","71556126"]];
+  /* Off the roster since Nov 2026; kept so mentions and names on their remaining tasks still work. */
+  const FORMER = [["Stipe Majić","61381904"],["Stefan Mikić","38981225"],["Glody Kikonga","60723690"]];
+  const PEOPLE = new Map([[ME_ID, "You"], ["106221824", "Roy"], ...EDITORS.concat(FORMER).map(([n, id]) => [id, n])]);
   /* Addresses that are never the client: our own domain and the tools that email on our behalf. */
   const SKIP_DOMAINS = /(@|\.)(poddster\.com|frame\.io|monday\.com|google\.com|googlemail\.com|dropbox\.com|dropboxmail\.com|calendly\.com|zoom\.us|wetransfer\.com|notion\.so|slack\.com|squarespace\.com|stripe\.com|paypal\.com)$/i;
   const SKIP_LOCAL = /^(no-?reply|notifications?|mailer-daemon|calendar-notification|support|hello@poddster)/i;
@@ -22,7 +24,7 @@
   const short = iso => iso ? (+iso.slice(8, 10)) + " " + MON[+iso.slice(5, 7) - 1] : "Not set";
   function addWorkdays(n, from) { const d = from ? new Date(from) : new Date(); while (n > 0) { d.setDate(d.getDate() + 1); if (d.getDay() !== 0 && d.getDay() !== 6) n--; } return isoOf(d); }
   const firstName = n => ((n || "").split(", ")[0] || "").split(" ")[0];
-  const editorId = n => { const f = firstName(n).toLowerCase(); const e = EDITORS.find(([nm]) => firstName(nm).toLowerCase() === f); return e ? e[1] : null; };
+  const editorId = n => { const f = firstName(n).toLowerCase(); const e = EDITORS.concat(FORMER).find(([nm]) => firstName(nm).toLowerCase() === f); return e ? e[1] : null; };
   const stripPrefix = n => String(n || "").replace(/^(AG|BL)\s*-\s*/i, "").trim();
   const isoDate = v => /^\d{4}-\d{2}-\d{2}/.test(v || "") ? v.slice(0, 10) : null;
   const lastUrl = v => { const m = String(v || "").match(/https?:\/\/[^\s]+/g); return m ? m[m.length - 1] : null; };

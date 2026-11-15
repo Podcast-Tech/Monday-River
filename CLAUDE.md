@@ -55,6 +55,8 @@ Groups: Queue `topics`, Assigned `new_group60072`. Status changes move groups au
 PP Clients Only `18330033684`: names are prefixed `AG - ` (AG's clients) or `BL - ` (Laura's). Columns: `text_mkxbach4` email, `text_mkxb379a` first name, `person` producer.
 
 People: AG Monday ID `49670201`. The editor IDs live in `EDITOR_IDS` and `EDITORS` in index.html.
+- **Roster (Nov 2026):** `EDITORS` (pickers, drop targets, booths, capacity, Live names) is Igor, Motasem, Georges, Akssat, Mahmoud, Shrijit, Bashar and Ajin. Stipe, Stefan and Glody left; they stay in `EDITOR_IDS` (River) and `FORMER` (extension) only so mentions and names on their remaining tasks still work.
+- **Untracked statuses:** `UNTRACKED` ("No Rush") items are dropped on load (`tracked()`) in River and Studio.
 
 Value formats:
 - Status: `{"label":"Corrections"}`
