@@ -262,7 +262,7 @@ async function onBoard(ev) {
   const p = ev.result.payload || {}; let raw = p.items || [];
   if (p.pagination && p.pagination.has_more) raw = await loadMore(p.pagination.nextCursor, raw.slice(), 1);
   const keepLocal = new Map(S.items.map(i => [i.id, i]));
-  S.items = raw.map(r => { const n = norm(r); n.clientRaw = (r.column_values && Array.isArray(r.column_values.board_relation_mkxb8cpz) && r.column_values.board_relation_mkxb8cpz[0] && r.column_values.board_relation_mkxb8cpz[0].name) || ""; const o = keepLocal.get(n.id); if (o && o._autoDate) n._autoDate = o._autoDate; return n; });
+  S.items = raw.map(r => { const n = norm(r); n.clientRaw = (r.column_values && Array.isArray(r.column_values.board_relation_mkxb8cpz) && r.column_values.board_relation_mkxb8cpz[0] && r.column_values.board_relation_mkxb8cpz[0].name) || ""; const o = keepLocal.get(n.id); if (o && o._autoDate) n._autoDate = o._autoDate; return n; }).filter(tracked);
   S.storedAt = ev.result.cache ? ev.result.cache.storedAt : Date.now(); S.error = null; S.loading = !!(ev.result.cache && ev.result.cache.revalidating);
   if (S.pendingOpen && S.items.some(i => i.id === S.pendingOpen)) { const id = S.pendingOpen; S.pendingOpen = null; render(); openTask(id); return; }
   render();

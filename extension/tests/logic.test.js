@@ -30,4 +30,8 @@ const ma = { stage: "In Review", name: "Mohamed Alyousuf - Session 29.10.26 (P#1
 assert.strictEqual(L.nextDue(ma), "2026-11-10"); assert.strictEqual(L.nextDue(Object.assign({}, ma, { final: "2026-11-14" })), "2026-11-14");
 assert.strictEqual(L.nextDue(Object.assign({}, ma, { v1: null })), "2026-11-02");
 console.log("✓ Lateness counts from the last filled date column (V1 over Draft, Final over V1)");
+const parked = L.normEpisode({ id: 5, name: "Parked - Session 01.11.26", column_values: [{ id: "status", text: "No Rush" }, { id: "date4", text: "2026-10-01" }] });
+assert.ok(!L.tracked(parked) && L.tracked(ma), "No Rush is untracked, normal stages are tracked");
+assert.ok(!L.COLS.includes("status_1"), "the Invoice column is never fetched");
+console.log("✓ No Rush is untracked; the Invoice column isn't fetched");
 console.log("All logic tests passed.");
